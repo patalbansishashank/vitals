@@ -2,15 +2,17 @@
  * Mode-aware navigation (INFORMATION_ARCHITECTURE §3.4–§3.6; r068 U14). Today is home in every mode (0.6.3): "/" lands
  * there, and it leads the navigation in both modes. The navigation is stable: its keys and rows follow the mode only,
  * never the page, and a place that needs a plan (Food, Progress) is left out without one rather than moved.
- *   - Phone dock (labelled, five keys, the same slots in both modes): Living = Today · Food · Train · Ring · More;
- *     Planning = Today · Plan · Activities · Ring · More (Plan stands for the three planning steps, Body · Simulate ·
- *     Plan, which a step switcher under each step's title joins: `PlanningSteps`). Train / Activities (one screen) is
- *     always the third key and Ring the fourth. More is a page (`/more`, `./MorePage`) listing every other place in
- *     labelled groups, never one a dock key already stands for; on desktop it hands over to the sidebar. (r069 D4) Energy,
- *     the day's energy page, follows Ring in the sidebar's first group and leads More, in both modes.
- *   - Desktop sidebar (one list in labelled groups): Living = Today · Food · Train · Ring / Your plan: Plan details ·
- *     Progress · Coach / Planning: Body · Simulate · Plan / Library: Evidence; Planning = Today · Activities · Ring /
- *     Planning: Body · Simulate · Plan · Coach / Library: Evidence. Settings at the foot. The same places as More.
+ *   - Phone dock (labelled, five keys, the same slots in both modes): Living = Today · Food · Activity · Ring · More;
+ *     Planning = Today · Plan · Activity · Ring · More (Plan stands for the three planning steps, Body · Simulate ·
+ *     Plan, which a step switcher under each step's title joins: `PlanningSteps`). Activity is always the third key and
+ *     Ring the fourth. (r087) Activity is one place for everything about moving, under one name with or without a plan:
+ *     its header's tabs are Train · Movement · Energy (`ActivityTabs`), so Energy has no row of its own and steps and
+ *     activities are no longer a Ring tab. More is a page (`/more`, `./MorePage`) listing every other place in
+ *     labelled groups, never one a dock key already stands for; on desktop it hands over to the sidebar.
+ *   - Desktop sidebar (one list in labelled groups): Living = Today · Food · Activity · Ring · Progress / Your plan:
+ *     Plan details / Planning: Body · Simulate · Plan · Coach / Library: Evidence; Planning = Today · Activity · Ring ·
+ *     Progress / Planning: Body · Simulate · Plan · Coach / Library: Evidence. Settings at the foot. The same places
+ *     as the dock and More together.
  *   - The header's ⋯ carries the page's own actions only.
  * While a plan runs, every planning screen's header carries the plan's status icon (`planCapsuleOf`). The mode is
  * derived (`useAppMode`), never toggled for its own sake.
@@ -27,10 +29,9 @@ import { livingPaths } from '@/features/living/paths';
 import { planTitle } from '@/features/living/plan/planTitle';
 import { lastRoute } from '../lastRoute';
 import {
-  ACTIVITIES_ITEM,
+  ACTIVITY_ITEM,
   BODY_ITEM,
   COACH_ITEM,
-  ENERGY_ITEM,
   EVIDENCE_ITEM,
   FOOD_ITEM,
   isCurrent,
@@ -44,7 +45,6 @@ import {
   SIMULATE_ITEM,
   TODAY_ITEM,
   TODAY_PATH,
-  TRAIN_ITEM,
   type NavGroup,
   type NavItem,
 } from './nav';
@@ -91,7 +91,7 @@ function planningKey(): NavItem {
   return { ...PLAN_ITEM, to: last && PLANNING_HOMES.includes(last) ? last : PLAN_ITEM.to, match: PLANNING_PATTERN };
 }
 
-const LIVING_PRIMARY: NavItem[] = [TODAY_ITEM, FOOD_ITEM, TRAIN_ITEM, RING_ITEM];
+const LIVING_PRIMARY: NavItem[] = [TODAY_ITEM, FOOD_ITEM, ACTIVITY_ITEM, RING_ITEM];
 
 /** The running plan's own places (Living): its page, its progress and the Coach. */
 const YOUR_PLAN: NavGroup = { id: 'plan', label: 'Your plan', items: [PLAN_DETAILS_ITEM, PROGRESS_ITEM, COACH_ITEM] };
@@ -104,17 +104,16 @@ const LIBRARY: NavGroup = { id: 'library', label: 'Library', items: [EVIDENCE_IT
 function sidebarGroups(living: boolean): NavGroup[] {
   return living
     ? [
-        { id: 'main', items: [...LIVING_PRIMARY, ENERGY_ITEM, PROGRESS_ITEM] },
+        { id: 'main', items: [...LIVING_PRIMARY, PROGRESS_ITEM] },
         { id: 'plan', label: 'Your plan', items: [PLAN_DETAILS_ITEM] },
         { id: 'planning', label: 'Planning', items: [BODY_ITEM, SIMULATE_ITEM, PLAN_ITEM, COACH_ITEM] },
         LIBRARY,
       ]
     : // r068 L29: Progress (weigh-ins, body, blood markers) needs no plan, so Planning lists it too, after Ring as in Living
-      [{ id: 'main', items: [TODAY_ITEM, ACTIVITIES_ITEM, RING_ITEM, ENERGY_ITEM, PROGRESS_ITEM] }, { id: 'planning', label: 'Planning', items: [BODY_ITEM, SIMULATE_ITEM, PLAN_ITEM, COACH_ITEM] }, LIBRARY];
+      [{ id: 'main', items: [TODAY_ITEM, ACTIVITY_ITEM, RING_ITEM, PROGRESS_ITEM] }, { id: 'planning', label: 'Planning', items: [BODY_ITEM, SIMULATE_ITEM, PLAN_ITEM, COACH_ITEM] }, LIBRARY];
 }
 
-// (r069 D4) Energy has no dock key: it opens More, unlabelled, in both modes
-const LIVING_MORE: NavGroup[] = [{ id: 'main', items: [ENERGY_ITEM] }, YOUR_PLAN, { id: 'planning', label: 'Planning', items: [BODY_ITEM, SIMULATE_ITEM, PLAN_ITEM] }, LIBRARY, { id: 'app', label: 'App', items: [SETTINGS_ITEM] }];
+const LIVING_MORE: NavGroup[] = [YOUR_PLAN, { id: 'planning', label: 'Planning', items: [BODY_ITEM, SIMULATE_ITEM, PLAN_ITEM] }, LIBRARY, { id: 'app', label: 'App', items: [SETTINGS_ITEM] }];
 /**
  * Planning mode's More: the dock's Plan key already stands for Body · Simulate · Plan, so of the planning places only
  * the Coach is left; it shares a group with Evidence (the two places that explain), rather than three groups of one.
@@ -122,7 +121,7 @@ const LIVING_MORE: NavGroup[] = [{ id: 'main', items: [ENERGY_ITEM] }, YOUR_PLAN
  */
 const PLANNING_MORE: NavGroup[] = [
   // r068 L29: Progress needs no plan (weigh-ins, body, markers) and has no dock key in Planning, so it leads More
-  { id: 'main', items: [ENERGY_ITEM, PROGRESS_ITEM] },
+  { id: 'main', items: [PROGRESS_ITEM] },
   { id: 'library', label: 'Guidance', items: [COACH_ITEM, EVIDENCE_ITEM] },
   { id: 'app', label: 'App', items: [SETTINGS_ITEM] },
 ];
@@ -138,7 +137,7 @@ export function useShellNav(): ShellNav {
     mode,
     override,
     plan,
-    primary: living ? LIVING_PRIMARY : [TODAY_ITEM, planningKey(), ACTIVITIES_ITEM, RING_ITEM],
+    primary: living ? LIVING_PRIMARY : [TODAY_ITEM, planningKey(), ACTIVITY_ITEM, RING_ITEM],
     groups: sidebarGroups(living),
     more: living ? LIVING_MORE : PLANNING_MORE,
   };

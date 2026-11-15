@@ -54,6 +54,7 @@ import type { RingActivity } from '@/features/ring/activities';
 import { shiftDate } from '@/features/ring/model';
 import { ringCommands } from '@/features/ring/commands';
 import { publishEnergyFigures } from '@/features/ring/planEnergy';
+import { publishPlanSteps } from '@/features/ring/stepsHeadline';
 import type { ActionOutcome } from '../data/actions';
 import { liveDetections, subscribeLiveDetections, type LiveDetection } from '@/state/liveDetections';
 
@@ -319,6 +320,11 @@ function useAppToday(date: string, isToday: boolean): TodayActivityView | null {
         view.model.energy ? { planActiveKcal: planActive, totalKcal: total, activeKcal: active } : null,
       );
   }, [view, date, planActive, total, active]);
+  // (r087) today's steps model reaches Ring even when the Steps card is not on Today
+  const planSteps = view?.model.steps ?? null;
+  useEffect(() => {
+    if (planSteps) publishPlanSteps(date, planSteps);
+  }, [planSteps, date]);
   return view;
 }
 
@@ -468,13 +474,16 @@ function useAppHeartPoints(from: string, to: string): HeartPointsView | null {
     progressActualsRevision,
     progressActualsRevision,
   );
-  const [askedAt] = useState(rev);
+  // (r087) the revision when this window was first asked: a move of the window starts its own wait
+  const win = `${from}:${to}`;
+  const [asked, setAsked] = useState({ win, rev });
+  if (asked.win !== win) setAsked({ win, rev });
+  const askedAt = asked.win === win ? asked.rev : rev;
   return useMemo(() => {
     const days = progressActualsAdapter().progressActuals(from, to);
     // still null once the adapter answered (its revision moved on): no history to read, unknown rather than loading
     return heartPointsView(days, to) ?? (rev !== askedAt ? { today: null, week: null } : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [from, to, rev]);
+  }, [from, to, rev, askedAt]);
 }
 
 function useAppHeartPointsDays(

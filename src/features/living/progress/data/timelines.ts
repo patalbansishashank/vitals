@@ -1,120 +1,56 @@
 /**
- * The fused minute timelines (S2 `timeline?date`, energy SPEC §2.2) that Progress's Heart Points and energy allocation and
- * the HRmax suggestion's evidence read, one cached answer per local date. Today and yesterday are asked again after a few
- * minutes because the ring is still uploading them; older days after half an hour (r063 S27/A29: a late correction shows
- * without a reload). A new fusion context (r063 S6: approved bouts, corrections, step settings) drops them all. A date
- * the server cannot answer is null (no coverage, never zeros) and is asked again after a minute.
+ * The fused minute timelines (S2 `timeline?date`, energy SPEC §2.2) that Progress's Heart Points and energy allocation, the
+ * HRmax suggestion's evidence and the Ring's training load read: one kept answer per local date, shared by every screen
+ * that needs the day (`./dayStore.ts` holds the rules). Today and yesterday are asked again after a few minutes and when
+ * new data is announced, because the ring is still uploading them; an older day is kept for hours and then asked again a
+ * couple at a time (r063 S27/A29: a late correction still shows without a reload; r087 C3: never as a burst of requests).
+ * A new fusion context (r063 S6: approved bouts, corrections, step settings) drops them all. A date the server cannot
+ * answer is null (no coverage, never zeros) and is asked again after a wait that grows with each failure.
  *
  * (0.6.3 FX1, sR15) A refused read (401/403, not paired) is not an offline one: every day kept is dropped, never shown
  * again from before the refusal.
  */
-import { gaugeApi, onFusionContextChange, type GaugeProblem, type GaugeTimeline } from '@/net/gauge';
-import { onGaugeDataChanged, onGaugeIdentityChange } from '@/net/gaugeIdentity';
-import { addDays, compareDates, localToInstant } from '@/living/dates';
+import type { GaugeProblem, GaugeTimeline } from '@/net/gauge';
+import { localToInstant } from '@/living/dates';
 import type { LocalDate } from '@/living';
 import type { Ms } from '@/living/sensors';
+import { createDayStore, type DayStore } from './dayStore';
 
 export type TimelineSource = (date: LocalDate) => Promise<GaugeTimeline | null>;
-
-const defaultSource: TimelineSource = (date) => (gaugeApi.timeline ? gaugeApi.timeline(date).catch(() => null) : Promise.resolve(null));
-let source: TimelineSource = defaultSource;
 /** (FX1) Why the source's last read got nothing (the Gauge client's status by default). */
 export type TimelineProblem = () => GaugeProblem | null;
-const defaultProblem: TimelineProblem = () => {
-  try {
-    return gaugeApi.status().problem;
-  } catch {
-    return null;
-  }
-};
-let problemOf: TimelineProblem = defaultProblem;
-const refused = (p: GaugeProblem | null) => p === 'unauthorized' || p === 'not_paired';
 
-/** Recent dates are asked again after this long (P). */
-const RECENT_TTL_MS = 5 * 60_000;
-/** (r063 S27/A29) Older dates too, less often: a late correction or upload on the server shows without a reload (P). */
-const PAST_TTL_MS = 30 * 60_000;
-/** (r063 S27/A29) A date the server could not answer (null) is asked again after this long, never kept for the session. */
-const NULL_RETRY_MS = 60_000;
-/** At most this many requests at once. */
-const CONCURRENCY = 6;
-
-/** Each date's answer and until when it stands (r063 S27/A29: every answer expires). */
-const cache = new Map<LocalDate, { until: number; value: GaugeTimeline | null }>();
-const inflight = new Map<LocalDate, Promise<GaugeTimeline | null>>();
+/** The days' timelines, one store for every reader. */
+export const timelineDays: DayStore<GaugeTimeline> = createDayStore<GaugeTimeline>({
+  read: (api, date) => (api.timeline ? api.timeline(date) : Promise.resolve(null)),
+  signature: (t) => timelineSignature(t),
+});
 
 /**
  * Tests and the screenshot harness: read timelines from here (null restores the server), with why a read got nothing
- * (`problem`; default: never refused for a custom source, the Gauge client's status for the server). Drops the cache.
+ * (`problem`; default: never refused for a custom source, the read's own status for the server). Drops the cache.
  */
 export function setTimelineSource(s: TimelineSource | null, problem?: TimelineProblem): void {
-  source = s ?? defaultSource;
-  problemOf = problem ?? (s ? () => null : defaultProblem);
-  clearTimelines();
+  timelineDays.setSource(s, problem);
 }
-
-/** Bumped when the cache is dropped: an answer for an older generation is not kept. */
-let gen = 0;
 
 export function clearTimelines(): void {
-  cache.clear();
-  inflight.clear();
-  gen++;
+  timelineDays.clear();
 }
 
-// (r063 S6) a new fusion context on the server changes every fused minute: the past days' cache is dropped too
-onFusionContextChange(() => clearTimelines());
-// (0.6.3 A30) another server or person (or an unpairing) holds other minutes: nothing kept before stands
-onGaugeIdentityChange(() => clearTimelines());
-// (0.6.3 S28) an import brought new minutes: the recent dates are asked again on the next read
-onGaugeDataChanged(() => {
-  const t = new Date(Date.now() - 3 * 86_400_000);
-  const since = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-  for (const [d, hit] of cache) if (d >= since || hit.value === null) cache.delete(d);
-});
-
-function fresh(date: LocalDate, now: number): boolean {
-  const hit = cache.get(date);
-  return !!hit && now < hit.until;
+/**
+ * The timelines of `dates` (deduplicated; future dates are null without a request). Waits for the days not held yet and
+ * for today's and yesterday's when they are due; an older day past its keep time answers what is held and is asked
+ * again in the background (`onTimelinesChanged` tells when it changed). `reader` names who asks (a screen's window), for
+ * the turns of the shared queue.
+ */
+export function timelinesFor(dates: readonly LocalDate[], today: LocalDate, now: number = Date.now(), reader?: string): Promise<Map<LocalDate, GaugeTimeline | null>> {
+  return timelineDays.load(dates, today, now, reader);
 }
 
-const ttlOf = (date: LocalDate, today: LocalDate) => (compareDates(date, addDays(today, -1)) < 0 ? PAST_TTL_MS : RECENT_TTL_MS);
-
-/** The timelines of `dates` (deduplicated; future dates are null without a request). */
-export async function timelinesFor(dates: readonly LocalDate[], today: LocalDate, now: number = Date.now()): Promise<Map<LocalDate, GaugeTimeline | null>> {
-  const want = [...new Set(dates)];
-  const ask = want.filter((d) => compareDates(d, today) <= 0 && !fresh(d, now));
-  let next = 0;
-  const worker = async () => {
-    while (next < ask.length) {
-      const d = ask[next++]!;
-      let p = inflight.get(d);
-      if (!p) {
-        const g = gen;
-        p = source(d)
-          .catch(() => null)
-          .then((v) => {
-            if (g !== gen) return v ?? null;
-            if (!v && refused(problemOf())) {
-              // (FX1, sR15) refused: nothing kept from before stands (this day and every other)
-              clearTimelines();
-              cache.set(d, { until: now + NULL_RETRY_MS, value: null });
-              return null;
-            }
-            const prev = cache.get(d)?.value ?? null;
-            // a failed re-read keeps the day it had (and is asked again after the short wait)
-            const t = now;
-            cache.set(d, v ? { until: t + ttlOf(d, today), value: v } : { until: t + NULL_RETRY_MS, value: prev });
-            inflight.delete(d);
-            return v ?? prev;
-          });
-        inflight.set(d, p);
-      }
-      await p;
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ask.length) }, worker));
-  return new Map(want.map((d) => [d, cache.get(d)?.value ?? null] as const));
+/** Hear when a day that had an answer got another one (the day's date). */
+export function onTimelinesChanged(listener: (date: LocalDate) => void): () => void {
+  return timelineDays.onChange(listener);
 }
 
 /* ---- one minute of the fused timeline, by absolute time ------------------------------------------------------------ */

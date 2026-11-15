@@ -15,6 +15,7 @@ export type {
   GaugeDailySummary,
   GaugeDayMetric,
   GaugeDeviceState,
+  GaugePriority,
   GaugeProblem,
   GaugeProvenance,
   GaugeRawPoint,

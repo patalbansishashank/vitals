@@ -115,7 +115,7 @@ export function DayScoreCard({ date, day, link = true, infoFooter, parts: showPa
       as="section"
       domain={RING_DOMAIN.dayScore}
       href={link && ready ? ringPaths.tab('scores', date) : undefined}
-      head={<CardHead as="h2" icon={Gauge} title={C.dayScore} meta={!link ? <MonoMeta>{s?.source === 'legacy' ? 'On-device (legacy)' : 'Vitals'}</MonoMeta> : undefined} info={info} />}
+      head={<CardHead as="h2" icon={Gauge} title={C.dayScore} meta={!link ? <MonoMeta>{s?.source === 'legacy' ? C.sources.phone : C.sources.estimate}</MonoMeta> : undefined} info={info} />}
       foot={
         ready && score !== null ? (
           <CardFoot

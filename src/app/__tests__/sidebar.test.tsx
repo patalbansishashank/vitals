@@ -92,14 +92,14 @@ const groupLabels = () => [...sidebar().querySelectorAll('.lm-side__group-label'
 const rowNames = (el: HTMLElement) => [...el.querySelectorAll('a, button')].map((r) => r.getAttribute('aria-label') ?? r.textContent);
 
 describe('the desktop sidebar (SPEC §8.2, r068 U14)', () => {
-  it('Living: the brand, then one list in labelled groups: Today · Food · Train · Ring / Your plan / Planning / Library, Settings at the foot', () => {
+  it('Living: the brand, then one list in labelled groups: Today · Food · Activity · Ring · Progress / Your plan / Planning / Library, Settings at the foot', () => {
     appMode.mode = 'living';
     renderSidebar('/today');
     const nav = sidebar();
     expect(nav).toHaveAttribute('id', SIDEBAR_ID);
     expect(within(nav).getByRole('link', { name: 'Vitals, home' })).toHaveAttribute('href', '/');
     expect(within(nav).getByText('Vitals')).toBeInTheDocument();
-    expect(rowNames(group('main'))).toEqual(['today', 'food', 'train', 'ring', 'energy', 'progress']);
+    expect(rowNames(group('main'))).toEqual(['today', 'food', 'activity', 'ring', 'progress']);
     // (r068 final M19) the running plan's own page is the only row a plan adds; Progress and Coach keep their groups
     expect(rowNames(group('plan'))).toEqual(['plan details']);
     expect(rowNames(group('planning'))).toEqual(['body', 'simulate', 'plan', 'coach']);
@@ -133,24 +133,38 @@ describe('the desktop sidebar (SPEC §8.2, r068 U14)', () => {
     expect(within(group('plan')).getByRole('link', { name: 'plan details' })).toHaveAttribute('aria-current', 'page');
   });
 
-  // the list is stable: Planning mode leaves out only the places a plan opens (Food, Plan details) and names Train's hub
-  // "Activities"; Progress needs no plan (r068 L29: weigh-ins, body, markers) and follows Ring
-  it('Planning: the same rows in the same order, without Food and Plan details; Activities opens Train’s activity hub', () => {
+  // the list is stable: Planning mode leaves out only the places a plan opens (Food, Plan details); Activity keeps its
+  // name without a plan (r087); Progress needs no plan (r068 L29: weigh-ins, body, markers) and follows Ring
+  it('Planning: the same rows in the same order, without Food and Plan details; Activity opens on Train', () => {
     renderSidebar('/body');
-    expect(rowNames(group('main'))).toEqual(['today', 'activities', 'ring', 'energy', 'progress']);
+    expect(rowNames(group('main'))).toEqual(['today', 'activity', 'ring', 'progress']);
     expect(rowNames(group('planning'))).toEqual(['body', 'simulate', 'plan', 'coach']);
     expect(rowNames(group('library'))).toEqual(['evidence']);
     expect(rowNames(group('app'))).toEqual(['settings']);
-    expect(within(group('main')).getByRole('link', { name: 'activities' })).toHaveAttribute('href', '/train');
+    expect(within(group('main')).getByRole('link', { name: 'activity' })).toHaveAttribute('href', '/train');
     // its only button is its own key (r068 U13)
     expect(within(sidebar()).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(['Sidebar']);
+  });
+
+  // (r087) one row for everything about moving: it is current on each of Activity's three tabs, dated or not
+  // a workout's page is opened from Movement's list and its Back key returns there, so it is Activity's too
+  it.each(['/train', '/train/2026-10-01', '/activity', '/energy', '/ring/workouts/run-1'])('Activity is the current row on %s, and no other row is', (path) => {
+    appMode.mode = 'living';
+    renderSidebar(path);
+    expect(within(sidebar()).getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page').map((a) => a.getAttribute('aria-label'))).toEqual(['activity']);
+  });
+
+  it.each(['/ring', '/ring/sleep', '/ring/scores', '/ring/signals/hrv', '/ring/short-videos', '/ring/device'])('Ring is the current row on %s, and no other row is', (path) => {
+    appMode.mode = 'living';
+    renderSidebar(path);
+    expect(within(sidebar()).getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page').map((a) => a.getAttribute('aria-label'))).toEqual(['ring']);
   });
 
   it('the planning override changes nothing in the list', () => {
     appMode.mode = 'living';
     appMode.override = true;
     renderSidebar('/simulate');
-    expect(rowNames(group('main'))).toEqual(['today', 'food', 'train', 'ring', 'energy', 'progress']);
+    expect(rowNames(group('main'))).toEqual(['today', 'food', 'activity', 'ring', 'progress']);
     expect(within(group('planning')).getByRole('link', { name: 'simulate' })).toHaveAttribute('aria-current', 'page');
     expect(within(sidebar()).queryByRole('button', { name: 'Back to Today' })).toBeNull();
   });
@@ -178,7 +192,7 @@ describe('expanded and collapsed', () => {
     appMode.mode = 'living';
     renderSidebar('/today');
     expect(sidebar()).toHaveAttribute('data-collapsed', 'true');
-    expect(rowNames(group('main'))).toEqual(['today', 'food', 'train', 'ring', 'energy', 'progress']);
+    expect(rowNames(group('main'))).toEqual(['today', 'food', 'activity', 'ring', 'progress']);
     expect(rowNames(group('plan'))).toEqual(['plan details']);
     expect(rowNames(group('planning'))).toEqual(['body', 'simulate', 'plan', 'coach']);
     expect(rowNames(group('app'))).toEqual(['settings']);

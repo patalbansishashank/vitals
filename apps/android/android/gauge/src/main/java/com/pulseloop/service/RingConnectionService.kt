@@ -43,12 +43,19 @@ class RingConnectionService : Service() {
     /** Whether this evaluation connected the ring (vs. running for the phone alone). */
     private var linkActive = false
     private var promotedTypes: Int? = null
+    /** The ring's cadence while this service hosts the link ([BackgroundRingLoop]). */
+    private var passJob: Job? = null
+    private var passLoop: BackgroundRingLoop? = null
     private val evaluation = kotlinx.coroutines.sync.Mutex()
     private val systemEvents = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val client = PulseLoopRuntime.ensureRing(context).bleClient
             when (intent.action) {
-                Intent.ACTION_SCREEN_ON -> client.reconnectIfNeeded()
+                Intent.ACTION_SCREEN_ON -> {
+                    client.reconnectIfNeeded()
+                    // A pass that came due while the phone slept need not wait for the loop's next look at the clock.
+                    passLoop?.nudge()
+                }
             }
         }
     }
@@ -122,6 +129,7 @@ class RingConnectionService : Service() {
                 linkActive = link
                 running = link
                 if (types != promotedTypes) promote(types)
+                if (link) startBackgroundPasses(runtime) else { passJob?.cancel(); passJob = null; passLoop = null }
                 // As before on every start command; from an in-process re-evaluation only when the link
                 // was not already hosted (a foreground return must not re-dial a working link).
                 if (link && (fromStartCommand || linkChanged)) runtime.bleClient.connectLastKnown()
@@ -136,6 +144,25 @@ class RingConnectionService : Service() {
                 if (linkChanged) publishNotification()
                 if (updateJob == null) updateJob = launch { collectNotificationState(runtime) }
             }
+        }
+    }
+
+    private fun startBackgroundPasses(runtime: PulseLoopRuntime.RingRuntime) {
+        if (passJob?.isActive == true) return
+        val client = runtime.bleClient
+        val alarm = BackgroundPassAlarm(this, com.pulseloop.command.PowerWakeHold(this, "Gauge:pass-wake")) { passLoop?.nudge() }
+        val loop = BackgroundRingLoop(
+            mayRun = { linkActive && backgroundPassAllowed(this, client, runtime.apiKeyStore.keepConnected) },
+            startPass = runtime.coordinator::refreshForeground,
+            passRunning = { client.syncEngine?.isHistorySyncRunning == true },
+            wake = com.pulseloop.command.PowerWakeHold(this, "Gauge:pass"),
+            clock = android.os.SystemClock::elapsedRealtime,
+            // A phone that is low and not charging is not woken for a pass it would skip.
+            wakeAt = { at -> if (PhoneBattery.isLow(this)) alarm.cancel() else alarm.arm(at) },
+        )
+        passLoop = loop
+        passJob = scope.launch {
+            try { loop.run() } finally { alarm.cancel() }
         }
     }
 
@@ -199,6 +226,21 @@ class RingConnectionService : Service() {
             private set
         @Volatile private var instance: RingConnectionService? = null
         private val startScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+        /**
+         * What a background pass needs on top of the pass's own guards ([RingSyncCoordinator.refreshForeground]):
+         * keep-connected still on, the app not in front (there its own cadence reads the ring,
+         * [PulseLoopRuntime.onForeground]), no Disconnect by the person, and a phone that is not low on battery.
+         */
+        internal fun backgroundPassAllowed(
+            context: Context,
+            client: RingBLEClient,
+            keepConnected: Boolean,
+            appInFront: Boolean = ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
+        ): Boolean = keepConnected && !appInFront && com.pulseloop.GaugeEngine.isActive(context) &&
+            !context.getSharedPreferences("ring_ble", Context.MODE_PRIVATE)
+                .getBoolean(RingBLEClient.USER_DISCONNECTED_KEY, false) &&
+            client.hasPermissions() && !PhoneBattery.isLow(context)
 
         /** The ring link's eligibility only (paired real ring, keep-connected, no user disconnect). */
         suspend fun eligible(context: Context): Boolean = plan(context).link

@@ -3,10 +3,20 @@
  * while the app is open (web, desktop and Android alike, since all talk to the home server), read the ring's daily steps
  * and sleep sessions (`gaugeApi.activity` / `gaugeApi.sleep`) and hand them to `log.fromGauge`, which writes them as
  * ordinary daily-log entries. The first run fills the last 30 days; later runs re-read from two days before the last
- * day every feed imported (a ring that synced late still lands; a feed that failed is read again from where it stopped).
+ * day every feed imported (a ring that synced late still lands), never more than the last `GAUGE_RECENT_MAX_DAYS` days:
+ * a feed that keeps failing, or a device away for weeks, leaves its older days to the reconcile below, so a slow server
+ * is never asked for a longer window because it was slow.
  * (r063 S14/A21) The advertised 30-day correction window is really revisited: once an hour a rotating chunk of a week of
- * it is read again (late corrections and uploads anywhere in it land within a few hours), and workouts new or revised since
- * the last import get their minute timelines whatever their age (bounded per run).
+ * it is read again (late corrections and uploads anywhere in it land within a few hours; days the recent window left
+ * unread come first), and workouts new or revised since the last import get their minute timelines whatever their age
+ * (bounded per run).
+ *
+ * The server answers every read on one thread, so a run is a quiet client (r087): at most
+ * `GAUGE_IMPORT_PARALLEL_READS` of its requests are out at once, all at background priority (the screens' reads go
+ * first); the timer rests while the app is hidden (coming back to the front imports); a run in which nothing has
+ * answered for `GAUGE_IMPORT_DEADLINE_MS` is given up, so one stuck command or read never holds back every later
+ * import (a slow run that still gets answers is left to finish and save); and the screens are told only when a run
+ * wrote something, at most every `GAUGE_IMPORT_NOTIFY_GAP_MS`.
  *
  * Devices: every paired device imports, and that is safe with Evolu sync because the import is idempotent across devices —
  * an entry's id is computed from its key, reading and predecessor (`gaugeEntryId`), so two devices that read the same
@@ -55,8 +65,8 @@ import { appDayStepsOf } from '@/living/stepsAppDay';
 import type { LogEntry } from '@/living/types';
 import { setLiveTodaySteps } from './liveSteps';
 import { setLiveDetections, type LiveDetection } from './liveDetections';
-import { gaugeIdentity } from '@/net/gaugeIdentity';
-import { GAUGE_DETECTIONS_MAX, GAUGE_STATE_MAX_REFS, gaugeApi, type GaugeApi, type GaugeDetections, type GaugeBaselines, type GaugeChange, type GaugeFuseActivity, type GaugeFuseCorrection, type GaugeHc, type GaugeStepsFuseRequest, type GaugeSteps, type GaugeHrIntervals, type GaugeSubjectRef, type GaugeTimeline, type GaugeV2Api, type GaugeWorkouts, restingProxyOf } from '@/net/gauge';
+import { gaugeIdentity, notifyGaugeDataChanged, onGaugeDataChanged } from '@/net/gaugeIdentity';
+import { GAUGE_DETECTIONS_MAX, GAUGE_STATE_MAX_REFS, gaugeApi, type GaugeApi, type GaugeCallOptions, type GaugeDetections, type GaugeBaselines, type GaugeChange, type GaugeFuseActivity, type GaugeFuseCorrection, type GaugeHc, type GaugeStatus, type GaugeStepsFuseRequest, type GaugeSteps, type GaugeHrIntervals, type GaugeSubjectRef, type GaugeTimeline, type GaugeV2Api, type GaugeWorkouts, restingProxyOf } from '@/net/gauge';
 
 /** (energy SPEC §V3.6) Only the last few days' minute timelines are read for the detectors (P: one request per day). */
 export const GAUGE_TIMELINE_DAYS = 3;
@@ -125,6 +135,27 @@ export const GAUGE_IMPORT_INTERVAL_MS = 5 * 60_000;
 export const GAUGE_BACKFILL_DAYS = 30;
 /** Later runs re-read this many days before the last imported day. */
 export const GAUGE_OVERLAP_DAYS = 2;
+/**
+ * (r087) The recent window is at most this many days, today included (P: the overlap and a day to spare). Its reads run
+ * on every import, so they stay short whatever failed before; older days are the reconcile chunk's, once an hour.
+ */
+export const GAUGE_RECENT_MAX_DAYS = 4;
+/** (r087) At most this many of a run's requests are out at once (P: the server answers them one at a time anyway). */
+export const GAUGE_IMPORT_PARALLEL_READS = 2;
+/**
+ * (r087) A run is given up when none of its requests or commands has answered for this long (P: under the timer's
+ * interval, many times the client's own request timeout). It is not a limit on the whole run: one that is slow but
+ * still getting answers saves what it read, where giving it up would have the next run ask for all of it again.
+ */
+export const GAUGE_IMPORT_DEADLINE_MS = 4 * 60_000;
+/** (r087) The screens hear of an import's writes at most this often: the pulse's own gap (`PULSE_REFRESH_GAP_MS`). */
+export const GAUGE_IMPORT_NOTIFY_GAP_MS = 30_000;
+/**
+ * (r087) A word that waited for the gap is said this long after it ends (P). The pulse keeps the same gap from the same
+ * moment, so its next refresh can fall due at the very end of it too: that one then goes first and stands for both
+ * (`onGaugeDataChanged` below), where two words at once made every question on screen be asked twice.
+ */
+export const GAUGE_IMPORT_NOTIFY_MARGIN_MS = 250;
 
 /** (r063 S13) One retraction the import applied because the source was deleted upstream (this device's audit trail). */
 export interface GaugeRetraction {
@@ -159,9 +190,10 @@ export interface GaugeImportState {
   feeds?: Partial<Record<GaugeFeed, string>>;
   /**
    * (r063 S14/A21) The rotating reconcile of the 30-day correction window: the oldest day of the next chunk to re-read and
-   * when the last chunk was read (ISO). It advances only when every feed of the chunk succeeded.
+   * when the last chunk was read (ISO). It advances only when every feed of the chunk succeeded. (r087) `owed`: the first
+   * owed day the rotation already left its place for (`reconcileWindow`), kept while that day is still the one owed.
    */
-  reconcile?: { next: string | null; at: string | null };
+  reconcile?: { next: string | null; at: string | null; owed?: string };
   /** (0.6.3 FX1, sR02/aR04) A resync in progress: the feed cursor to save once every imported ref was checked. */
   resync?: GaugeResync;
   /** (0.6.3 FX1, sR14/aR04) The minute timelines still to read for activity evidence (bounded, oldest first). */
@@ -211,8 +243,12 @@ export type GaugeImportOutcome =
 export interface GaugeImportDeps {
   /** The client; the §2.2 routes (`steps`, `timeline`, `hc`) are used when it has them. */
   api: GaugeApi & Partial<GaugeV2Api>;
-  /** Runs `activity.fromGauge`; resolves its output, or null when the command failed (absent = no activity import). */
-  activityImporter?: (input: ActivityImportInput) => Promise<{ created: unknown[]; updated: unknown[] } | null>;
+  /**
+   * Runs `activity.fromGauge`; resolves its output, or null when the command failed (absent = no activity import).
+   * (r087) With what else it wrote, so the screens hear of it: the activities it withdrew (`superseded`), the old records
+   * it compacted, and how many activities `activity.autoAccept` decided after it (`decided`).
+   */
+  activityImporter?: (input: ActivityImportInput) => Promise<{ created: unknown[]; updated: unknown[]; superseded?: unknown[]; compacted?: number; decided?: number } | null>;
   /** The person's zone (local dates of fused intervals, `tz` of every read); default the runtime zone. */
   tz?: () => string;
   /** (audit F12) The app day's rollover hour (`settings.dayRolloverH`): fused steps are written on app days. Default 4. */
@@ -231,8 +267,9 @@ export interface GaugeImportDeps {
   /**
    * Runs `log.fromGauge`; resolves its output, or null when the command failed. (FX1) `answered`: what the server answered
    * in full this run (the steps app days, the sleep wake dates), so entries it no longer supports are retracted.
+   * `weights.created`: the Health Connect weights it wrote (the command lists them apart from the steps and nights).
    */
-  importer: (input: { steps: GaugeStepsDay[]; sleep: GaugeSleepEpisode[]; weights?: Array<{ id: string; at: string; kg: number; origin?: string }>; answered?: { steps?: string[]; sleep?: { from: string; to: string } } }) => Promise<{ created: unknown[]; skipped: unknown[] } | null>;
+  importer: (input: { steps: GaugeStepsDay[]; sleep: GaugeSleepEpisode[]; weights?: Array<{ id: string; at: string; kg: number; origin?: string }>; answered?: { steps?: string[]; sleep?: { from: string; to: string } } }) => Promise<{ created: unknown[]; skipped: unknown[]; weights?: { created: unknown[] } } | null>;
   /**
    * (0.6.3 FX1, sR02/aR04) What this person imported that a resync checks: the source refs of activities still counted
    * or waiting (`gauge:<id>`, `hc:<id>`) and the Health Connect ids of the weights in force. Null when it cannot be read.
@@ -284,7 +321,7 @@ export function readGaugeImportState(storage: Pick<Storage, 'getItem'> | null = 
       ...(typeof v.changesCursor === 'string' && v.changesCursor.length <= GAUGE_CURSOR_MAX ? { changesCursor: v.changesCursor } : {}),
       ...(retractions.length ? { retractions } : {}),
       ...(Object.keys(feeds).length > 0 ? { feeds } : {}),
-      ...(rc && typeof rc === 'object' ? { reconcile: { next: isDate(rc.next) ? rc.next : null, at: typeof rc.at === 'string' ? rc.at : null } } : {}),
+      ...(rc && typeof rc === 'object' ? { reconcile: { next: isDate(rc.next) ? rc.next : null, at: typeof rc.at === 'string' ? rc.at : null, ...(isDate(rc.owed) ? { owed: rc.owed } : {}) } } : {}),
       ...(resync ? { resync } : {}),
       ...(evidence.length ? { evidence: { v: 1 as const, dates: evidence.map((x) => ({ date: x.date, at: x.at })) } } : {}),
       ...(typeof v.detector === 'string' && /^detect\/\d{1,3}$/.test(v.detector) ? { detector: v.detector } : {}),
@@ -324,23 +361,37 @@ function save(storage: GaugeImportDeps['storage'], s: GaugeImportState): void {
   listeners.forEach((l) => l());
 }
 
+const ALL_FEEDS: readonly GaugeFeed[] = ['ring', 'sleep', 'steps', 'activities'];
+
 /**
- * The days to read: the last 30 on the first run, else from two days before the OLDEST feed's last successful day (a
- * failed feed is read again from where it stopped), never more than 30. `feeds` lists the feeds this run has (default
- * all four; a state without per-feed days uses `lastDate` for each).
+ * The first day still owed: two days before the OLDEST feed's last successful day (a failed feed is owed from where it
+ * stopped; one that never succeeded on this device is owed the whole window), never more than 30 days back. Null before
+ * the backfill (the first run owes all 30). A state without per-feed days uses `lastDate` for each feed.
  */
-export function importWindow(state: GaugeImportState, today: string, feeds: readonly GaugeFeed[] = ['ring', 'sleep', 'steps', 'activities']): { from: string; to: string } {
+function owedFrom(state: GaugeImportState, today: string, feeds: readonly GaugeFeed[]): string | null {
+  if (!state.backfilled || !state.lastDate) return null;
   const earliest = addDays(today, -(GAUGE_BACKFILL_DAYS - 1));
-  if (!state.backfilled || !state.lastDate) return { from: earliest, to: today };
   let last = state.lastDate < today ? state.lastDate : today;
   if (state.feeds) for (const f of feeds) {
     const d = state.feeds[f];
-    // a feed that never succeeded on this device is read over the whole window
-    if (!d) return { from: earliest, to: today };
+    if (!d) return earliest;
     if (d < last) last = d;
   }
   const from = addDays(last, -GAUGE_OVERLAP_DAYS);
-  return { from: from < earliest ? earliest : from, to: today };
+  return from < earliest ? earliest : from;
+}
+
+/**
+ * The days to read now: the last 30 on the first run, else from the first day owed (`owedFrom`), at most the last
+ * `GAUGE_RECENT_MAX_DAYS` days. (r087) Days owed before that are not read here: every import would repeat them until
+ * each feed succeeded, and a slow server times out sooner on a longer window; `reconcileWindow` reads them first.
+ * `feeds` lists the feeds this run has (default all four).
+ */
+export function importWindow(state: GaugeImportState, today: string, feeds: readonly GaugeFeed[] = ALL_FEEDS): { from: string; to: string } {
+  const owed = owedFrom(state, today, feeds);
+  if (owed === null) return { from: addDays(today, -(GAUGE_BACKFILL_DAYS - 1)), to: today };
+  const cap = addDays(today, -(GAUGE_RECENT_MAX_DAYS - 1));
+  return { from: owed < cap ? cap : owed, to: today };
 }
 
 /**
@@ -348,8 +399,14 @@ export function importWindow(state: GaugeImportState, today: string, feeds: read
  * `GAUGE_RECONCILE_INTERVAL_MS`, the next `GAUGE_RECONCILE_CHUNK_DAYS` days of the 30-day correction window older than
  * the recent window, rotating from the oldest day (so a late correction or upload anywhere in the advertised window is read
  * again within a few hours, at a bounded 3-4 requests a chunk). `next` is where the following chunk starts.
+ *
+ * (r087) `feeds`: days a feed is still owed before the recent window (a device away for a week, a feed that kept
+ * failing) are read first: the rotation jumps to the first of them unless it is already among them, and carries on from
+ * there, so they land with this run's chunk and the next ones instead of waiting for the rotation to come round. It
+ * jumps once for an owed day (`owed`, to be saved with the cursor): a feed that goes on failing in the recent window
+ * keeps that day owed, and jumping to it every hour would leave the days before it unread for as long.
  */
-export function reconcileWindow(state: GaugeImportState, today: string, recentFrom: string, nowMs: number): { from: string; to: string; next: string } | null {
+export function reconcileWindow(state: GaugeImportState, today: string, recentFrom: string, nowMs: number, feeds?: readonly GaugeFeed[]): { from: string; to: string; next: string; owed?: string } | null {
   if (!state.backfilled) return null;
   const at = state.reconcile?.at ? Date.parse(state.reconcile.at) : Number.NaN;
   if (Number.isFinite(at) && nowMs - at < GAUGE_RECONCILE_INTERVAL_MS) return null;
@@ -357,10 +414,17 @@ export function reconcileWindow(state: GaugeImportState, today: string, recentFr
   if (!(earliest < recentFrom)) return null;
   let from = state.reconcile?.next ?? earliest;
   if (from < earliest || from >= recentFrom) from = earliest;
+  const owed = feeds ? owedFrom(state, today, feeds) : null;
+  const before = owed !== null && owed < recentFrom ? owed : null;
+  let jumped = before !== null && state.reconcile?.owed === before;
+  if (before !== null && !jumped && from < before) {
+    from = before;
+    jumped = true;
+  }
   let to = addDays(from, GAUGE_RECONCILE_CHUNK_DAYS - 1);
   if (to >= recentFrom) to = addDays(recentFrom, -1);
   const after = addDays(to, 1);
-  return { from, to, next: after >= recentFrom ? earliest : after };
+  return { from, to, next: after >= recentFrom ? earliest : after, ...(before !== null && jumped ? { owed: before } : {}) };
 }
 
 let running: Promise<GaugeImportOutcome> | null = null;
@@ -369,6 +433,62 @@ let runningGeneration = 0;
 
 class PairingChanged extends Error {}
 class DataReplaced extends Error {}
+/** (r087) The run passed its deadline: whatever it was waiting for, it writes nothing more. */
+class GivenUp extends Error {}
+
+/**
+ * One run: `signal` aborts when it is given up; `wrote` once it created, updated or removed something; `answered` is
+ * called whenever one of its requests or commands settles (the deadline counts from the last of them).
+ */
+interface ImportRun {
+  signal: AbortSignal;
+  wrote: boolean;
+  answered: () => void;
+}
+
+let toldAt = Number.NEGATIVE_INFINITY;
+let tellTimer: ReturnType<typeof setTimeout> | null = null;
+/** When the last import with a notification waiting finished (ms). */
+let wroteAt = 0;
+/** The screens were told, by anyone: an import's word keeps its gap from now, and one still waiting is not needed. */
+const told = (): void => {
+  toldAt = Date.now();
+  if (tellTimer) clearTimeout(tellTimer);
+  tellTimer = null;
+};
+// the pulse, a finished measurement, an import
+onGaugeDataChanged(told);
+/** `changedAt` is the notification's newer argument (r087): a read begun after it is fresh already. An older one ignores it. */
+function tellScreens(changedAt?: number): void {
+  try {
+    notifyGaugeDataChanged(changedAt);
+  } catch {
+    // a listener that threw is that screen's failure: the import it heard of succeeded, and its state is saved
+    told();
+  }
+}
+
+/**
+ * (r087) Tells the screens that an import wrote something: at once when nobody told them within
+ * `GAUGE_IMPORT_NOTIFY_GAP_MS`, else once, just after that gap ends (`GAUGE_IMPORT_NOTIFY_MARGIN_MS`). A pulse tells
+ * them first and then imports, so without the gap every upload made each mounted question ask the server twice within
+ * seconds.
+ */
+function tellScreensSoon(): void {
+  wroteAt = Date.now();
+  if (tellTimer) return;
+  const wait = toldAt + GAUGE_IMPORT_NOTIFY_GAP_MS - wroteAt;
+  if (wait <= 0) tellScreens();
+  // told late, so with when the data changed: what a screen asked in the meantime already has it
+  else tellTimer = setTimeout(() => tellScreens(wroteAt), wait + GAUGE_IMPORT_NOTIFY_MARGIN_MS);
+}
+
+/** Tests: forget when the screens were last told. */
+export function resetGaugeImportNotifyForTests(): void {
+  if (tellTimer) clearTimeout(tellTimer);
+  tellTimer = null;
+  toldAt = Number.NEGATIVE_INFINITY;
+}
 
 /** One import now; a pulse can request a guarded fresh read after any already-running import. */
 export function runGaugeImport(deps: Partial<GaugeImportDeps> = {}, afterCurrent?: () => boolean): Promise<GaugeImportOutcome> {
@@ -389,22 +509,119 @@ export function runGaugeImport(deps: Partial<GaugeImportDeps> = {}, afterCurrent
   if (running) return runningIdentity === identity && runningGeneration === generation ? running : running.then(() => runGaugeImport(deps), () => runGaugeImport(deps));
   runningIdentity = identity;
   runningGeneration = generation;
-  running = importOnce(deps, identity, generation)
+  const ctl = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let over = false;
+  let giveUp: () => void = () => undefined;
+  const run: ImportRun = {
+    signal: ctl.signal,
+    wrote: false,
+    answered: () => {
+      // (a request of a run that is over may still settle: it starts no clock)
+      if (over || ctl.signal.aborted) return;
+      clearTimeout(timer);
+      timer = setTimeout(giveUp, GAUGE_IMPORT_DEADLINE_MS);
+    },
+  };
+  const deadline = new Promise<GaugeImportOutcome>((resolve) => {
+    // (r087) every later import joins the run in progress, so one that never settles (a command dispatch, a read) would
+    // end importing for the session: its reads are cancelled, it may write nothing more, and the next import starts anew
+    giveUp = () => {
+      ctl.abort();
+      resolve({ ran: false, reason: 'failed' });
+    };
+  });
+  run.answered();
+  const work = importOnce(deps, identity, generation, run);
+  // a run given up settles on its own later, or never
+  work.catch(() => undefined);
+  running = Promise.race([work, deadline])
     .catch((e: unknown) => {
       if (e instanceof DataReplaced) return { ran: false as const, reason: 'data_replaced' as const };
       if (e instanceof PairingChanged) return { ran: false as const, reason: 'identity_changed' as const };
+      if (e instanceof GivenUp) return { ran: false as const, reason: 'failed' as const };
       throw e;
     })
     .then((o) => {
-      // (0.6.3 S28) the screens reading Gauge data (Ring, Progress) ask again after a successful import
-      if (o.ran) void import('@/net/gaugeIdentity').then((m) => m.notifyGaugeDataChanged()).catch(() => undefined);
+      // (0.6.3 S28) the screens reading Gauge data (Ring, Progress) ask again after an import; (r087) only one that wrote
+      // something: a run that found nothing new leaves their answers as they are
+      if (run.wrote) tellScreensSoon();
       return o;
     })
     .finally(() => {
+      over = true;
+      clearTimeout(timer);
       running = null;
       runningIdentity = null;
     });
   return running;
+}
+
+type ImportApi = GaugeImportDeps['api'];
+/** `priority` (r087): the client sends background requests after the screens'. A client without the option ignores it. */
+type ImportCallOptions = GaugeCallOptions & { priority?: 'screen' | 'background' };
+/** The client's requests an import makes: each takes one of the run's `GAUGE_IMPORT_PARALLEL_READS` turns. */
+const IMPORT_REQUESTS = ['activity', 'sleep', 'workouts', 'steps', 'stepsFuse', 'timeline', 'baselines', 'hc', 'hrIntervals', 'changes', 'changesState', 'detections', 'fusionContext'] as const;
+
+/**
+ * (r087) The client as one run uses it. The server answers on one thread, and requests it has queued run on after the
+ * client's timeout, so a run never has more than `GAUGE_IMPORT_PARALLEL_READS` out: the rest wait their turn in the
+ * order asked. Each goes at background priority and is cancelled with the run when the client takes call options
+ * (`withOptions`; one without it is asked as it is). Each has its own view of the client, so `status()` here is the
+ * status of this run's request that settled last, whatever the screens asked meanwhile. Requests out together finish in
+ * any order, so a caller that must know why one of them got no answer asks it through `withOptions` here: the same
+ * turns, a status of its own.
+ */
+function importClient(api: ImportApi, run: Pick<ImportRun, 'signal' | 'answered'>): ImportApi {
+  const { signal } = run;
+  let out = 0;
+  const waiting: Array<() => void> = [];
+  const inTurn = async <T>(request: () => Promise<T>): Promise<T> => {
+    // a turn handed on keeps its place in the count
+    if (out >= GAUGE_IMPORT_PARALLEL_READS) await new Promise<void>((go) => waiting.push(go));
+    else out++;
+    try {
+      return await request();
+    } finally {
+      run.answered();
+      const next = waiting.shift();
+      if (next) next();
+      else out--;
+    }
+  };
+  const options: ImportCallOptions = { signal, priority: 'background' };
+  const viewOf = (): ImportApi => {
+    let last: GaugeStatus | null = null;
+    const client: Record<string, unknown> = { ...api, status: () => last ?? api.status(), withOptions: viewOf };
+    for (const name of IMPORT_REQUESTS) {
+      if (typeof api[name] !== 'function') continue;
+      client[name] = (...args: unknown[]) => inTurn(async () => {
+        // a run given up asks nothing more
+        if (signal.aborted) return null;
+        const made = typeof api.withOptions === 'function' ? api.withOptions(options) : null;
+        const view = made && typeof made[name] === 'function' ? made : api;
+        try {
+          return await (view[name] as unknown as (...a: unknown[]) => Promise<unknown>)(...args);
+        } catch (e) {
+          if (signal.aborted) return null;
+          throw e;
+        } finally {
+          last = view === api ? null : view.status();
+        }
+      });
+    }
+    return client as unknown as ImportApi;
+  };
+  return viewOf();
+}
+
+/**
+ * `api` for one request whose own outcome matters (`status()` then says why it got no answer, whatever its siblings
+ * did): a view of the client when it makes them, else the client itself.
+ */
+function ownView(api: ImportApi, name: (typeof IMPORT_REQUESTS)[number]): ImportApi {
+  const made = typeof api.withOptions === 'function' ? api.withOptions({}) : null;
+  return made && typeof made[name] === 'function' ? made : api;
 }
 
 async function defaultDeps(): Promise<GaugeImportDeps> {
@@ -457,7 +674,7 @@ async function defaultDeps(): Promise<GaugeImportDeps> {
     importer: async (input) => {
       assertCurrentWrite(generation);
       const r = await dispatch('log.fromGauge', input, { actor: { kind: 'system', id: 'gauge-import' } });
-      return r.ok && 'output' in r ? (r.output as { created: unknown[]; skipped: unknown[] }) : null;
+      return r.ok && 'output' in r ? (r.output as { created: unknown[]; skipped: unknown[]; weights?: { created: unknown[] } }) : null;
     },
     activityImporter: async (input) => {
       assertCurrentWrite(generation);
@@ -465,24 +682,46 @@ async function defaultDeps(): Promise<GaugeImportDeps> {
       // (r070) what came in is decided at once, as Google Fit counts its own sessions (never a review); a failure here
       // leaves the import as it is and the next one decides again
       assertCurrentWrite(generation);
-      if (r.ok) await dispatch('activity.autoAccept', {}, { actor: { kind: 'system', id: 'gauge-import' } }).catch(() => null);
-      return r.ok && 'output' in r ? (r.output as { created: unknown[]; updated: unknown[] }) : null;
+      const auto = r.ok ? await dispatch('activity.autoAccept', {}, { actor: { kind: 'system', id: 'gauge-import' } }).catch(() => null) : null;
+      if (!r.ok || !('output' in r)) return null;
+      const decided = auto?.ok && 'output' in auto ? autoDecided(auto.output) : 0;
+      return { ...(r.output as { created: unknown[]; updated: unknown[]; superseded?: unknown[]; compacted?: number }), decided };
     },
     storage: defaultStorage(),
     now: () => Date.now(),
   };
 }
 
-async function importOnce(over: Partial<GaugeImportDeps>, identity: string | null, generation: number): Promise<GaugeImportOutcome> {
+async function importOnce(over: Partial<GaugeImportDeps>, identity: string | null, generation: number, run: ImportRun): Promise<GaugeImportOutcome> {
   const needDefaults = !over.api || !over.enabled || !over.today || !over.importer || over.storage === undefined || !over.now;
-  const d: GaugeImportDeps = needDefaults ? { ...(await defaultDeps()), ...over } : (over as GaugeImportDeps);
-  if (!d.enabled()) return { ran: false, reason: 'off' };
-  const identityOf = d.identity ?? gaugeIdentity;
+  const given: GaugeImportDeps = needDefaults ? { ...(await defaultDeps()), ...over } : (over as GaugeImportDeps);
+  if (!given.enabled()) return { ran: false, reason: 'off' };
+  const identityOf = given.identity ?? gaugeIdentity;
   const assertIdentity = () => {
+    if (run.signal.aborted) throw new GivenUp();
     if (generation !== writeGeneration() || restoreInProgress() || externalRestoreRequired()) throw new DataReplaced();
     if (identityOf() !== identity) throw new PairingChanged();
   };
   assertIdentity();
+  // a command that answered is the run still getting somewhere, as an answered request is
+  const step = <A extends unknown[], R>(command: (...args: A) => Promise<R> | R) => async (...args: A): Promise<R> => {
+    try {
+      return await command(...args);
+    } finally {
+      run.answered();
+    }
+  };
+  const { activityImporter, retractWeights, importedRefs, stepsContext } = given;
+  const d: GaugeImportDeps = {
+    ...given,
+    api: importClient(given.api, run),
+    importer: step(given.importer),
+    // every batch of a long import is checked, so a run given up between two of them stops there
+    ...(activityImporter ? { activityImporter: step(async (input: ActivityImportInput) => (assertIdentity(), activityImporter(input))) } : {}),
+    ...(retractWeights ? { retractWeights: step(retractWeights) } : {}),
+    ...(importedRefs ? { importedRefs: step(importedRefs) } : {}),
+    ...(stepsContext ? { stepsContext: step(stepsContext) } : {}),
+  };
   const state = readGaugeImportState(d.storage, identity);
   const today = d.today();
   const feeds = feedsOf(d);
@@ -492,7 +731,7 @@ async function importOnce(over: Partial<GaugeImportDeps>, identity: string | nul
   // (r063 S14/A21) workouts new or revised since the last import get their minute timelines whatever their age
   const revisedSince = state.lastImportAt ? Date.parse(state.lastImportAt) : null;
   // Keep the historical correction due, but read current activity before that older chunk.
-  const rc = reconcileWindow(state, today, from, nowMs);
+  const rc = reconcileWindow(state, today, from, nowMs, feeds);
   // (r063 S13) what was deleted upstream since the last run: weights are removed here, activities withdraw it in the
   // recent window's import; the feed's cursor only advances once its deletions landed. (FX1) A resync in progress (or
   // one the feed asks for) checks the imported refs first, and the feed waits until it is done
@@ -509,6 +748,7 @@ async function importOnce(over: Partial<GaugeImportDeps>, identity: string | nul
     assertIdentity();
     const n = d.retractWeights ? await d.retractWeights(goneWeights.map((c) => c.id)).catch(() => null) : 0;
     assertIdentity();
+    if (n) run.wrote = true;
     if (n === null) applied = false;
     else if (d.retractWeights) retracted.push(...goneWeights.map((c) => retraction(c, d.now())));
   }
@@ -517,20 +757,20 @@ async function importOnce(over: Partial<GaugeImportDeps>, identity: string | nul
   const earliest = addDays(today, -(GAUGE_BACKFILL_DAYS - 1));
   const revisedDays = revisedChangeDates(feed?.changes ?? [], tz);
   const queued = (state.evidence?.dates ?? []).filter((x) => x.date >= earliest && x.date <= today);
-  const recent = await importRange(d, from, to, today, tz, revisedSince, goneActivities.map((c) => c.ref), { serverDetector: state.detector ?? null, live: true }, assertIdentity);
+  const recent = await importRange(d, from, to, today, tz, revisedSince, goneActivities.map((c) => c.ref), { serverDetector: state.detector ?? null, live: true }, assertIdentity, run);
   assertIdentity();
-  const recentProblem = recent.kind === 'unanswered' ? d.api.status().problem : null;
-  // Recent detections and summaries reach the store before slower historical reconciliation.
-  // Keep writes serialized and finish the due chunk before advancing any run watermarks.
-  const chunk = rc ? await importRange(d, rc.from, rc.to, today, tz, revisedSince, [], { serverDetector: state.detector ?? null }, assertIdentity) : null;
-  assertIdentity();
+  // (r087) a server that did not answer the recent days (or a failed import of them) is not asked for older ones
   if (recent.kind === 'unanswered') {
-    const problem = recentProblem;
+    const problem = d.api.status().problem;
     // (FX1, aR11) refused (unpaired, revoked, not allowed): today's live snapshot goes; offline keeps it
     if (problem === 'not_paired' || problem === 'unauthorized') setLiveTodaySteps(null);
     return { ran: false, reason: problem === 'not_paired' ? 'not_paired' : 'offline' };
   }
   if (recent.kind === 'failed') return { ran: false, reason: 'failed' };
+  // Recent detections and summaries reach the store before slower historical reconciliation.
+  // Keep writes serialized and finish the due chunk before advancing any run watermarks.
+  const chunk = rc ? await importRange(d, rc.from, rc.to, today, tz, revisedSince, [], { serverDetector: state.detector ?? null }, assertIdentity, run) : null;
+  assertIdentity();
   if (goneActivities.length) {
     if (recent.deletedApplied) retracted.push(...goneActivities.map((c) => retraction(c, d.now())));
     else applied = false;
@@ -540,7 +780,9 @@ async function importOnce(over: Partial<GaugeImportDeps>, identity: string | nul
   const due = [...new Set([...queued.map((x) => x.date), ...revisedDays])].filter((x) => x >= earliest && x <= today && !readNow.has(x)).sort().slice(0, GAUGE_REVISED_TIMELINE_DAYS);
   // (0.6.7 AD-VITALS) the detector known after the recent read: the evidence pass keeps detect/1 off with it too
   const detectorNow = recent.detector === undefined ? (state.detector ?? null) : recent.detector;
-  const pass = due.length && d.activityImporter ? await evidencePass(d, due, today, tz, detectorNow, assertIdentity) : null;
+  // (r087) the queued days wait while the server answered none of this run's own timelines: a run that timed out on
+  // three of them never asks for seven more
+  const pass = due.length && d.activityImporter && !recent.evidenceUnanswered ? await evidencePass(d, due, today, tz, detectorNow, assertIdentity, run) : null;
   assertIdentity();
   for (const x of pass?.read ?? []) readNow.add(x);
   const owed = [
@@ -554,7 +796,7 @@ async function importOnce(over: Partial<GaugeImportDeps>, identity: string | nul
   const nextFeeds: Partial<Record<GaugeFeed, string>> = { ...(state.feeds ?? (state.backfilled && state.lastDate ? Object.fromEntries(feeds.map((f) => [f, state.lastDate!])) : {})) };
   for (const f of feeds) if (recent.ok[f]) nextFeeds[f] = today;
   const chunkOk = chunk !== null && chunk.kind === 'imported' && feeds.every((f) => chunk.ok[f]);
-  const reconcile = rc ? { next: chunkOk ? rc.next : rc.from, at: new Date(nowMs).toISOString() } : state.reconcile;
+  const reconcile = rc ? { next: chunkOk ? rc.next : rc.from, at: new Date(nowMs).toISOString(), ...(rc.owed ? { owed: rc.owed } : {}) } : state.reconcile;
   // (FX1, sR02/aR04) the cursor: a resync saves its target only once every imported ref was checked and what was deleted
   // landed (its progress is kept between runs); the feed's own cursor once its deletions landed
   let cursor = state.changesCursor ?? null;
@@ -602,7 +844,7 @@ function feedsOf(d: GaugeImportDeps): GaugeFeed[] {
 type RangeResult =
   | { kind: 'unanswered' }
   | { kind: 'failed' }
-  | { kind: 'imported'; created: number; skipped: number; ok: Record<GaugeFeed, boolean>; deletedApplied: boolean; activities?: { created: number; updated: number }; evidence: EvidenceOutcome; detector?: string | null };
+  | { kind: 'imported'; created: number; skipped: number; ok: Record<GaugeFeed, boolean>; deletedApplied: boolean; activities?: { created: number; updated: number }; evidence: EvidenceOutcome; evidenceUnanswered: boolean; detector?: string | null };
 
 /** (FX1) The minute timelines a pass read, could not read (failed) and left for a later run (over the per-run cap). */
 export interface EvidenceOutcome {
@@ -613,7 +855,7 @@ export interface EvidenceOutcome {
 const NO_EVIDENCE: EvidenceOutcome = { read: [], failed: [], deferred: [] };
 
 /** One window's reads and imports (the recent days, or a reconcile chunk), with each feed's success. */
-async function importRange(d: GaugeImportDeps, from: string, to: string, today: string, tz: string, revisedSince: number | null, feedDeleted: readonly string[], det: { serverDetector: string | null; live?: boolean }, assertIdentity: () => void): Promise<RangeResult> {
+async function importRange(d: GaugeImportDeps, from: string, to: string, today: string, tz: string, revisedSince: number | null, feedDeleted: readonly string[], det: { serverDetector: string | null; live?: boolean }, assertIdentity: () => void, run: ImportRun): Promise<RangeResult> {
   // (FX1, aR11) whose reads these are: a snapshot read under one pairing is never kept under another
   const identity = (d.identity ?? gaugeIdentity)();
   const ctx = d.stepsContext ? await Promise.resolve(d.stepsContext(from, to)).catch(() => null) : null;
@@ -660,9 +902,12 @@ async function importRange(d: GaugeImportDeps, from: string, to: string, today: 
   const out = await d.importer({ steps, sleep: episodes, ...(weightBatches[0]?.length ? { weights: weightBatches[0] } : {}), ...(Object.keys(answered).length ? { answered } : {}) });
   assertIdentity();
   if (!out) return { kind: 'failed' };
+  if (logWrites(out) > 0) run.wrote = true;
   for (const w of weightBatches.slice(1)) {
     assertIdentity();
-    if (!(await d.importer({ steps: [], sleep: [], weights: w }))) weightsOk = false;
+    const more = await d.importer({ steps: [], sleep: [], weights: w });
+    if (!more) weightsOk = false;
+    else if (logWrites(more) > 0) run.wrote = true;
     assertIdentity();
   }
   // (energy SPEC §V3.6) detected activities: Gauge workouts, Health Connect exercise sessions, the recent minute timelines;
@@ -670,12 +915,15 @@ async function importRange(d: GaugeImportDeps, from: string, to: string, today: 
   let activities: { created: number; updated: number } | undefined;
   let activitiesOk = !d.activityImporter;
   let evidence: EvidenceOutcome = NO_EVIDENCE;
+  let evidenceUnanswered = false;
   let detector: string | null | undefined;
   if (d.activityImporter) {
     const report: ActivityInputReport = {};
     const input = await activityInput(d.api, from, to, today, tz, { revisedSince, feedDeleted, report, serverDetector: det.serverDetector });
     assertIdentity();
     const ev = report.evidence ?? NO_EVIDENCE;
+    // asked for minute timelines and got none (one bad day among answered ones is only that day's)
+    evidenceUnanswered = ev.read.length === 0 && ev.failed.length > 0;
     detector = report.detections?.detector;
     // (0.6.7 AD-VITALS) the recent window's open episodes: Today's live line (only a read that answered replaces it)
     if (det.live && report.detections?.open) setLiveDetections(report.detections.open, identity);
@@ -685,6 +933,7 @@ async function importRange(d: GaugeImportDeps, from: string, to: string, today: 
       assertIdentity();
       if (r) {
         activities = { created: r.created, updated: r.updated };
+        if (r.wrote) run.wrote = true;
         // (r063 S15) a cut Health Connect read imports what came but does not count as a success; (FX1) nor does a
         // failed workouts read. A timeline that failed or was over the cap waits in the evidence queue instead
         activitiesOk = !input.truncated && report.complete?.workouts !== false;
@@ -693,10 +942,21 @@ async function importRange(d: GaugeImportDeps, from: string, to: string, today: 
     } else evidence = ev;
   }
   const ok: Record<GaugeFeed, boolean> = { ring: !!activity && weightsOk, sleep: !!sleep, steps: !!fused || !(d.api.stepsFuse || d.api.steps), activities: activitiesOk };
-  return { kind: 'imported', created: out.created.length, skipped: out.skipped.length, ok, deletedApplied: activities !== undefined, ...(activities ? { activities } : {}), evidence, ...(detector !== undefined ? { detector } : {}) };
+  return { kind: 'imported', created: out.created.length, skipped: out.skipped.length, ok, deletedApplied: activities !== undefined, ...(activities ? { activities } : {}), evidence, evidenceUnanswered, ...(detector !== undefined ? { detector } : {}) };
 }
 
 const retraction = (c: GaugeChange, now: number): GaugeRetraction => ({ ref: c.ref, kind: c.kind, deletedAt: c.at, appliedAt: new Date(now).toISOString() });
+
+type LogImportOutput = NonNullable<Awaited<ReturnType<GaugeImportDeps['importer']>>>;
+/** What one `log.fromGauge` wrote: steps and nights (their retractions are entries too) and Health Connect weights. */
+const logWrites = (out: LogImportOutput): number => out.created.length + (Array.isArray(out.weights?.created) ? out.weights.created.length : 0);
+
+/** How many activities one `activity.autoAccept` decided (counted, merged, kept as possible, or cleared of a stale mark). */
+function autoDecided(output: unknown): number {
+  if (!isObj(output)) return 0;
+  const n = (x: unknown): number => (Array.isArray(x) ? x.length : typeof x === 'number' && Number.isFinite(x) ? x : 0);
+  return n(output.accepted) + n(output.merged) + n(output.possible) + n(output.cleared);
+}
 
 const problemOf = (api: GaugeImportDeps['api']): string | null => {
   try {
@@ -797,7 +1057,7 @@ async function resyncPages(d: GaugeImportDeps, r: GaugeResync, tz: string): Prom
  * (FX1, sR14/aR04) The evidence pass: the queued dates' minute timelines with the workouts and Health Connect sessions of
  * their span, through `activity.fromGauge`. Null when the import failed (the dates stay queued).
  */
-async function evidencePass(d: GaugeImportDeps, dates: readonly string[], today: string, tz: string, serverDetector: string | null, assertIdentity: () => void): Promise<EvidenceOutcome | null> {
+async function evidencePass(d: GaugeImportDeps, dates: readonly string[], today: string, tz: string, serverDetector: string | null, assertIdentity: () => void, run: ImportRun): Promise<EvidenceOutcome | null> {
   if (!d.activityImporter || dates.length === 0) return null;
   const sorted = [...dates].sort();
   const report: ActivityInputReport = {};
@@ -807,6 +1067,7 @@ async function evidencePass(d: GaugeImportDeps, dates: readonly string[], today:
   const r = await importActivities(d.activityImporter, input);
   assertIdentity();
   if (!r) return { read: [], failed: [...sorted], deferred: [] };
+  if (r.wrote) run.wrote = true;
   return report.evidence ?? { read: [], failed: [...sorted], deferred: [] };
 }
 
@@ -823,9 +1084,9 @@ const chunks = <T>(xs: readonly T[], n: number): T[][] => {
 /**
  * (r063 S15) `activity.fromGauge` in batches within its limits: at most 500 Gauge sessions, 500 Health Connect sessions
  * and 500 deleted refs per call; the minutes go with every call (the command is idempotent over the same evidence).
- * Null when any call failed.
+ * Null when any call failed. `wrote` (r087): some call created, updated, withdrew, compacted or decided something.
  */
-export async function importActivities(run: NonNullable<GaugeImportDeps['activityImporter']>, input: ActivityInputRead): Promise<{ created: number; updated: number } | null> {
+export async function importActivities(run: NonNullable<GaugeImportDeps['activityImporter']>, input: ActivityInputRead): Promise<{ created: number; updated: number; wrote: boolean } | null> {
   const { truncated: _t, ...rest } = input;
   void _t;
   const g = chunks(rest.gaugeSessions, SESSIONS_BATCH);
@@ -834,6 +1095,7 @@ export async function importActivities(run: NonNullable<GaugeImportDeps['activit
   const n = Math.max(1, g.length, h.length, del.length);
   let created = 0;
   let updated = 0;
+  let other = 0;
   for (let k = 0; k < n; k++) {
     const { deletedRefs: _d, ...base } = rest;
     void _d;
@@ -841,8 +1103,9 @@ export async function importActivities(run: NonNullable<GaugeImportDeps['activit
     if (!r) return null;
     created += r.created.length;
     updated += r.updated.length;
+    other += (Array.isArray(r.superseded) ? r.superseded.length : 0) + (r.compacted ?? 0) + (r.decided ?? 0);
   }
-  return { created, updated };
+  return { created, updated, wrote: created + updated + other > 0 };
 }
 
 /** (r063 S6) The fusion context covers this many days back from today (P: the Ring's month and the import's backfill). */
@@ -1091,9 +1354,11 @@ export async function activityInput(api: GaugeImportDeps['api'], from: string, t
   if (opts.timelineDates) dates.push(...[...new Set(opts.timelineDates)].sort());
   else for (let x = tlFrom < from ? from : tlFrom; x <= to; x = addDays(x, 1)) dates.push(x);
   const o = { cached: false, ...(tz ? { tz } : {}) };
+  // asked beside the other reads, and "the server has no such route" below must be this read's own answer
+  const detApi = ownView(api, 'detections');
   const [detectionsRead, workouts, hc, base, ...recentTimelines] = await Promise.all([
     // (0.6.7 AD-VITALS) the server's detection episodes of the window (every page)
-    api.detections ? (api.detections({ from, to }, o).catch(() => null) as Promise<GaugeDetections | null>) : Promise.resolve(null),
+    detApi.detections ? (detApi.detections({ from, to }, o).catch(() => null) as Promise<GaugeDetections | null>) : Promise.resolve(null),
     typeof api.workouts === 'function' ? (api.workouts(from, to, o).catch(() => null) as Promise<GaugeWorkouts | null>) : Promise.resolve(null),
     api.hc ? (api.hc('ExerciseSession', from, to, o).catch(() => null) as Promise<GaugeHc | null>) : Promise.resolve(null),
     api.baselines ? (api.baselines(today, o).catch(() => null) as Promise<GaugeBaselines | null>) : Promise.resolve(null),
@@ -1113,7 +1378,7 @@ export async function activityInput(api: GaugeImportDeps['api'], from: string, t
   const answeredDetector = detectionsRead ? (detectionsRead.detector ?? 'detect/2') : null;
   if (opts.report) {
     if (detectionsRead) opts.report.detections = { open: det.open, detector: answeredDetector };
-    else if (api.detections && problemOf(api) === 'not_supported') opts.report.detections = { open: [], detector: null };
+    else if (api.detections && problemOf(detApi) === 'not_supported') opts.report.detections = { open: [], detector: null };
   }
   // the detector the server advertises now, else the one it advertised before (a failed read never turns detect/1 back on)
   const serverDetector = detectionsRead ? answeredDetector : (opts.report?.detections ? null : (opts.serverDetector ?? null));
@@ -1216,8 +1481,9 @@ export function detectionsInput(r: GaugeDetections | null): { final: ActivityDet
 
 /**
  * (r063 S14/A21) The local dates (start and end) of the workouts and Health Connect sessions in [from, to] that are new or
- * revised since `since` (their `updatedAt` / `lastModified`; every one when `since` is null or a record has no revision
- * time), newest first.
+ * revised since `since` (their `updatedAt` / `lastModified`; every one when `since` is null), newest first. (r087) A
+ * record without a revision time counts while it ended after `since`: it used to count on every run, so its days'
+ * timelines were read each time. One that arrives late is in the change feed (`revisedChangeDates`).
  */
 export function revisedWorkoutDates(workouts: GaugeWorkouts | null, hc: GaugeHc | null, since: number | null, tz: string, from: string, to: string): string[] {
   const hits: Array<{ at: number; dates: string[] }> = [];
@@ -1226,7 +1492,7 @@ export function revisedWorkoutDates(workouts: GaugeWorkouts | null, hc: GaugeHc 
     const e = typeof end === 'string' ? Date.parse(end) : Number.NaN;
     if (!Number.isFinite(s) || !Number.isFinite(e)) return;
     const r = typeof rev === 'string' ? Date.parse(rev) : Number.NaN;
-    if (since !== null && Number.isFinite(r) && r <= since) return;
+    if (since !== null && (Number.isFinite(r) ? r : e) <= since) return;
     try {
       const ds = [...new Set([instantToLocal(new Date(s).toISOString(), tz).date, instantToLocal(new Date(e).toISOString(), tz).date])].filter((x) => x >= from && x <= to);
       hits.push({ at: Number.isFinite(r) ? r : s, dates: ds });
@@ -1286,15 +1552,18 @@ let stopper: (() => void) | null = null;
 export const FUSION_CONTEXT_DEBOUNCE_MS = 3000;
 
 /**
- * Runs the import at start, every 5 minutes, when the app comes back to the foreground, when this device pairs with a
- * server and when the person turns the import on; (r069 sync) and starts the Gauge pulse (`./gaugePulse`), which runs it
- * as soon as Gauge's new data reaches the server. Idempotent; returns the stop function.
+ * Runs the import at start, every 5 minutes while the app is in front, when it comes back to the foreground, when this
+ * device pairs with a server and when the person turns the import on; (r069 sync) and starts the Gauge pulse
+ * (`./gaugePulse`), which runs it as soon as Gauge's new data reaches the server. Idempotent; returns the stop function.
  */
 export function startGaugeImport(): () => void {
   if (stopper) return stopper;
   const report = (e: unknown) => console.error('Vitals: Gauge import failed', e);
   const run = () => void runGaugeImport().catch(report);
-  const timer = setInterval(run, GAUGE_IMPORT_INTERVAL_MS);
+  // (r087) the ring engine's service keeps a hidden app's timers running: nobody is looking, and coming back imports
+  const timer = setInterval(() => {
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') run();
+  }, GAUGE_IMPORT_INTERVAL_MS);
   const onVisible = () => {
     if (typeof document !== 'undefined' && document.visibilityState === 'visible') run();
   };

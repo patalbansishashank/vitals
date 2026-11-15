@@ -1,8 +1,7 @@
 /**
- * The Ring's cards on Today (r071). Today mounts them by name: `RingSleepToday`, `RingGlance` (heart rate now, HRV, blood
- * oxygen and stress), `RingTodayNote` (why there are none), and `RingTodayFaces` (the glance and the short-video card
- * together, as the page has always drawn them). Each opens the Ring on the same day, has its (i), and shows nothing
- * rather than nag when Gauge data is not there.
+ * The Ring's cards on Today (r071). Today mounts them by name: `RingSleepToday`, `RingGlance` (Signals: heart rate now,
+ * HRV, blood oxygen and stress), `RingShortVideos` and `RingTodayNote` (why there are none). Each opens the Ring on the
+ * same day, has its (i), and shows nothing rather than nag when Gauge data is not there.
  */
 import './clock';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -18,9 +17,7 @@ import {
   RING_TODAY_WORDS,
   RingGlance,
   RingSleepToday,
-  RingStepsToday,
   RingShortVideos,
-  RingTodayFaces,
   RingTodayNote,
 } from '../RingToday';
 import { shiftDate } from '../model';
@@ -40,15 +37,16 @@ describe('Ring on Today', () => {
     setRingCommands(null);
   });
 
-  it('the glance: heart rate now as the hero with its spark, HRV, blood oxygen and stress under it, Measure now and when Phone sent, on today', async () => {
+  it('the Signals glance: heart rate now as the hero with its spark, HRV, blood oxygen and stress under it, Measure now and when Phone sent, on today', async () => {
     setGaugeApi(makeGaugeFixture());
     render(
       <MemoryRouter>
-        <RingTodayFaces date={today} today={today} />
+        <RingGlance date={today} today={today} />
+        <RingShortVideos date={today} />
       </MemoryRouter>,
     );
     const glance = (
-      await screen.findByRole('heading', { level: 2, name: 'Heart rate' }, { timeout: 5000 })
+      await screen.findByRole('heading', { level: 2, name: 'Signals' }, { timeout: 5000 })
     ).closest('section')!;
     // the hero: heart rate, its number and its spark
     expect(
@@ -66,7 +64,7 @@ describe('Ring on Today', () => {
           .getAllByRole('link')
           .map((a) => a.querySelector('.rgo-row__label')?.textContent)
           .filter(Boolean),
-      ).toEqual(['HRV overnight', 'Blood oxygen', 'Stress']),
+      ).toEqual(['HRV', 'Blood oxygen', 'Stress']),
     );
     expect(within(glance).getByRole('link', { name: /^Stress/ })).toHaveAttribute(
       'href',
@@ -78,7 +76,7 @@ describe('Ring on Today', () => {
     expect(within(glance).getByText(/^Phone sent \d{2}:\d{2}$/)).toBeInTheDocument();
     expect(within(glance).getByRole('button', { name: 'Measure now' })).toBeInTheDocument();
     // the whole card opens the Ring (through its title); no Open key
-    expect(within(glance).getByRole('link', { name: 'Heart rate' })).toHaveAttribute('href', '/ring');
+    expect(within(glance).getByRole('link', { name: 'Signals' })).toHaveAttribute('href', '/ring');
     expect(within(glance).queryByRole('link', { name: 'Open' })).toBeNull();
     expect(await screen.findByRole('heading', { name: 'Short videos' })).toBeInTheDocument();
   });
@@ -88,16 +86,16 @@ describe('Ring on Today', () => {
     const past = shiftDate(today, -1);
     render(
       <MemoryRouter>
-        <RingTodayFaces date={past} today={today} part="glance" />
+        <RingGlance date={past} today={today} />
       </MemoryRouter>,
     );
     const glance = (
-      await screen.findByRole('heading', { level: 2, name: 'Heart rate' }, { timeout: 5000 })
+      await screen.findByRole('heading', { level: 2, name: 'Signals' }, { timeout: 5000 })
     ).closest('section')!;
     await waitFor(() => expect(within(glance).getByText('Blood oxygen')).toBeInTheDocument());
     expect(within(glance).queryByText(/Phone sent|Synced/)).toBeNull();
     expect(within(glance).queryByRole('button', { name: 'Measure now' })).toBeNull();
-    expect(within(glance).getByRole('link', { name: 'Heart rate' })).toHaveAttribute(
+    expect(within(glance).getByRole('link', { name: 'Signals' })).toHaveAttribute(
       'href',
       `/ring?date=${past}`,
     );
@@ -115,9 +113,9 @@ describe('Ring on Today', () => {
       </MemoryRouter>,
     );
     const glance = (
-      await screen.findByRole('heading', { level: 2, name: 'Heart rate' }, { timeout: 5000 })
+      await screen.findByRole('heading', { level: 2, name: 'Signals' }, { timeout: 5000 })
     ).closest('section')!;
-    await userEvent.click(within(glance).getByRole('button', { name: 'About Heart rate' }));
+    await userEvent.click(within(glance).getByRole('button', { name: 'About Signals' }));
     const panel = await screen.findByRole('dialog', { name: 'What the words mean' });
     expect(within(panel).getByText(/Readings come from the ring/)).toBeInTheDocument();
     expect(within(panel).getByRole('button', { name: 'Remove from Today' })).toBeInTheDocument();
@@ -161,27 +159,24 @@ describe('Ring on Today', () => {
       expect(within(sleep).getByText(/^Fell asleep (in the|early|late)/)).toBeInTheDocument(),
     );
     const glance = (
-      await screen.findByRole('heading', { level: 2, name: 'Heart rate' }, { timeout: 5000 })
+      await screen.findByRole('heading', { level: 2, name: 'Signals' }, { timeout: 5000 })
     ).closest('section')!;
     await waitFor(() => expect(within(glance).getAllByRole('link').length).toBeGreaterThan(1));
     expectWordsOnly(sleep);
     expectWordsOnly(glance);
   });
 
-  it.each([
-    ['Steps', RingStepsToday],
-    ['Short videos', RingShortVideos],
-  ] as const)('%s passes its Today removal action into its information panel', async (name, Card) => {
+  it('Short videos passes its Today removal action into its information panel', async () => {
     setGaugeApi(makeGaugeFixture());
     render(
       <MemoryRouter>
-        <Card date={today} today={today} infoFooter={<button type="button">Remove from Today</button>} />
+        <RingShortVideos date={today} infoFooter={<button type="button">Remove from Today</button>} />
       </MemoryRouter>,
     );
-    const section = (await screen.findByRole('heading', { level: 2, name }, { timeout: 5000 })).closest(
+    const section = (await screen.findByRole('heading', { level: 2, name: 'Short videos' }, { timeout: 5000 })).closest(
       'section',
     )!;
-    await userEvent.click(within(section).getByRole('button', { name: `About ${name}` }));
+    await userEvent.click(within(section).getByRole('button', { name: 'About Short videos' }));
     const panel = await screen.findByRole('dialog');
     expect(within(panel).getByRole('button', { name: 'Remove from Today' })).toBeInTheDocument();
   });
@@ -190,8 +185,8 @@ describe('Ring on Today', () => {
     setGaugeApi(null);
     const { container } = render(
       <MemoryRouter>
-        <RingTodayFaces date={today} today={today} />
         <RingGlance date={today} today={today} />
+        <RingShortVideos date={today} />
         <RingSleepToday date={today} today={today} />
       </MemoryRouter>,
     );

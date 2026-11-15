@@ -1,22 +1,35 @@
 # Releasing
 
-Vitals is deployed to production (https://vitals.creative.desi, Netlify site `creative-vitals`) by one GitHub Actions workflow, and only when a version tag is pushed. The same tag builds the desktop and Android apps and publishes them as a GitHub Release (a second workflow). The owner decides when a version is release-worthy.
+A release has four parts, in this order:
+
+1. **The private commit.** `pnpm release` checks the tree, bumps the version, commits and tags it in the private
+   repository (`origin`, `patalbansishashank/vitals-private`), which keeps the full history. Nothing there publishes.
+2. **The public snapshot and tag.** `scripts/publish/publish-public.sh` copies that commit, minus the private paths,
+   to the public repository (`public`, `patalbansishashank/vitals`) and pushes the tag there.
+3. **The public workflows.** The tag runs `release.yml` in the public repository: one validation of the tagged commit,
+   then the desktop apps and the signed APK as a GitHub Release, and the website on Netlify
+   (https://vitals.creative.desi, site `creative-vitals`) through `deploy.yml`.
+4. **The phones.** Phones update only from the home server's update feed, and no workflow feeds it.
+   `pnpm release:ota` publishes the signed APK and the web bundle there.
+
+The release and deploy workflows run only in the public repository (`github.repository == 'patalbansishashank/vitals'`),
+so pushing a tag to `origin` builds and deploys nothing. The owner decides when a version is release-worthy.
 
 | Event | What happens on GitHub |
 |---|---|
-| Push to `main` or `wp/r063-int`, pull request | Credential-free `.github/workflows/ci.yml`: software gates, production web build and unsigned Android unit tests. Nothing deploys. Other branch pushes alone run nothing. |
-| Push of a tag `vX.Y.Z` | `release.yml` resolves the tag to one immutable commit, runs the shared validation workflow once, then packages apps and calls the reusable production deployment. |
-| Push of a tag `vX.Y.Z-rc.N` | Builds all app platforms as run artifacts only. No GitHub Release and no website deploy. |
-| Manual run ("Run workflow") | `.github/workflows/deploy.yml` for the branch or tag picked in "Use workflow from"; `release.yml` for the tag typed in its `tag` field |
+| Push to `main` or `wp/r063-int`, pull request | Credential-free `.github/workflows/ci.yml`: software gates, production web build and unsigned Android unit tests. Nothing deploys. Other branch pushes alone run nothing. It also runs in the private repository. |
+| Push of a tag `vX.Y.Z` (public repository) | `release.yml` resolves the tag to one immutable commit, runs the shared validation workflow once, then packages the apps and calls `deploy.yml` for the website. |
+| Push of a tag `vX.Y.Z-rc.N` (public repository) | Builds all app platforms as run artifacts only. No GitHub Release and no website deploy. |
+| Manual run ("Run workflow") | `deploy.yml` for the branch or tag picked in "Use workflow from" (it runs the validation gate for that commit first); `release.yml` for the tag typed in its `tag` field |
 
 The quality gate runs locally in `pnpm release` and on GitHub before a tag can package or deploy. Release validation,
-packaging and deployment use the same resolved commit SHA. A manually dispatched deployment runs the shared gate for
-its selected commit. Pull requests never receive deployment or signing secrets. Only the existing public-repository
-release/deployment paths publish; private copies can run validation without publishing.
+packaging and deployment use the same resolved commit SHA. Pull requests never receive deployment or signing secrets.
 
 ## Cutting a release
 
-From a clean, up-to-date `main`:
+### 1. The private commit
+
+From a clean, up-to-date release branch (`main`, or the integration branch the round ships from):
 
 ```sh
 git switch main && git pull
@@ -30,9 +43,15 @@ git push --follow-tags origin main
 2. `pnpm audit:planner`: fresh staged planner evidence audit; only successful reports replace published artifacts.
 3. `pnpm version <patch|minor|major>`: refuses a dirty working tree, updates the version, commits it and creates the tag.
 
-The bump argument is appended to the end of the script, so it reaches `pnpm version` (checked with pnpm 11.17). If anything fails, no commit and no tag are made; fix it and run `pnpm release` again.
+The bump argument is appended to the end of the script, so it reaches `pnpm version` (checked with pnpm 11.17). If
+anything fails, no commit and no tag are made; fix it and run `pnpm release` again.
 
-`git push --follow-tags` pushes the version commit and the tag together. The main/integration-branch commit triggers credential-free CI; the tag triggers gated packaging and deployment.
+`pnpm version` changes only the root `package.json` and refuses a dirty tree, so commit the rest first: the version's
+`CHANGELOG.md` section (the GitHub Release notes are that section), and the same version in
+`apps/android/package.json`, `apps/desktop/package.json` and `packages/companion/package.json`.
+
+`git push --follow-tags origin main` stores the commit and the tag in the private repository only. Its validation run
+is the same credential-free `ci.yml`; nothing is published from there.
 
 Which part to bump:
 
@@ -40,17 +59,88 @@ Which part to bump:
 - `minor`: new features or screens, model changes that move outputs.
 - `major`: breaking changes to saved plans or URLs.
 
-Watch the deploy:
+The Android versionCode is `major*10000 + minor*100 + patch` (0.8.7 is 807). The Gradle build and
+`scripts/release/web-bundle.mjs` refuse a minor or patch above 99, which would collide with the next minor or major:
+after x.y.99 comes x.(y+1).0.
+
+### 2. The public snapshot and tag
 
 ```sh
-gh run list --workflow deploy.yml --limit 3
-gh run watch                # pick the running deploy
-gh run list --workflow release.yml --limit 3   # the apps; about 15–25 minutes
+scripts/publish/publish-public.sh "Vitals 0.8.7: what changed, in one line" --tag v0.8.7 --dry-run
+scripts/publish/publish-public.sh "Vitals 0.8.7: what changed, in one line" --tag v0.8.7
 ```
 
-The run's summary page shows the production URL, the unique deploy URL, the Netlify deploy id and a link to the Netlify deploy log.
+The script snapshots the tagged commit minus `scripts/publish/exclude.txt`, runs the public guards (passcode, ring
+brand, private names, secret-shaped strings) on that exact tree, then pushes the snapshot to `public` main and an
+annotated `v0.8.7` tag to the same commit. It refuses a tag that already exists. The private names guard needs the
+git-ignored `qa/local.config.json`. Setup and details: `scripts/publish/README.md`. Never push a branch or tag to
+`public` by hand.
 
-`v0.1.0` was the one exception to this process: `package.json` already said `0.1.0` at the initial import and the full suite had been run on that tree, so the tag was created directly with `git tag -a v0.1.0 -m "Vitals v0.1.0"`. Do not tag by hand otherwise; `pnpm version` keeps the tag and `package.json` in agreement.
+### 3. The public workflows
+
+The public tag starts `release.yml`. It checks that the tag equals `package.json`'s version, validates the tagged
+commit once, then in parallel builds the apps into a GitHub Release named `Vitals X.Y.Z` (see "The apps" below) and
+deploys the website through `deploy.yml`. The push to public `main` also starts `ci.yml` there.
+
+```sh
+R=patalbansishashank/vitals
+gh run list -R "$R" --workflow release.yml --limit 3   # the apps and the website; about 15 to 25 minutes
+gh run watch -R "$R"                                   # pick the running release
+gh release view v0.8.7 -R "$R"
+```
+
+The deploy job's summary shows the production URL, the unique deploy URL, the Netlify deploy id and a link to the
+Netlify deploy log. Desktop apps update themselves from the GitHub Release (electron-updater).
+
+### 4. Publishing to the phones
+
+The Android app checks the home server's update feed (`GET /v1/apps/vitals/latest`, docs/SERVER.md "Updates"), never
+GitHub. A release reaches phones only after both of its parts are in that feed:
+
+- **The signed APK.** Use the GitHub Release's `Vitals-android.apk`, which CI signs with the release key:
+  `gh release download v0.8.7 -R patalbansishashank/vitals -p Vitals-android.apk -D apps/android/release`. Never
+  publish `Vitals-android-unsigned.apk`; phones refuse it, and the script below does too.
+- **The web bundle.** On the release commit, `pnpm release:web` builds `dist/`, zips it with `bundle.json` and signs it
+  with the web-bundle key (`~/.config/vitals-release/web-bundle-ed25519.key`, never in the repository). It prints the
+  zip, its `.sig` and the **minimum native versionCode** it chose.
+
+The minimum native versionCode decides which phones take the bundle: the feed offers a bundle only to an installed APK
+at or above it. By default it is this release's own versionCode (807 for 0.8.7), so a phone on an older APK gets the
+bundle only after it installs this APK. When the release did not change what the web code needs from the native app,
+pass the oldest APK it works with, for example `pnpm release:web --min-native-version-code 802`, and older phones get
+the bundle straight away. Web code that reads something new from the native bridge must treat it as optional for this
+to be true.
+
+Then publish both, APK first:
+
+```sh
+pnpm release:ota --apk apps/android/release/Vitals-android.apk \
+  --web apps/android/release/web/vitals-web-<version>.zip --notes "Vitals 0.8.7: what changed"
+```
+
+`scripts/release/ota-publish.sh` reads the host from `OTA_TARGET` (`ssh:<host>`), else `serverSsh` in the git-ignored
+`qa/local.config.json`, the same host `deploy/oci-arm.sh` deploys to. It checks the APK is signed and the bundle's
+`.sig` sits beside it, reads the feed, and refuses a bundle whose minimum native versionCode is above the newest APK in
+the feed unless that APK is published in the same run. It copies the files to a private staging folder on the host, runs
+`vitals-server release publish vitals --apk …` and then `--web …` there, removes the copies, and prints what the feed
+now offers and which bundle a phone on the newest APK takes. `--dry-run` stops after the checks. Run either part alone
+when only one changed (`--apk` or `--web`).
+
+Check the feed afterwards, or at any time:
+
+```sh
+pnpm release:ota --list
+```
+
+The newest APK line should name this release's versionCode, and the first web line whose "needs versionCode" is at or
+below it is the bundle phones take. The phone shows the update banner on its next check (on launch, on returning to the
+app, or within a minute while it is open).
+
+If the home server itself changed, deploy it as well: `deploy/oci-arm.sh` (docs/SERVER.md).
+
+`v0.1.0` was the one exception to this process: `package.json` already said `0.1.0` at the initial import and the full
+suite had been run on that tree, so the tag was created directly with `git tag -a v0.1.0 -m "Vitals v0.1.0"`. Do not
+tag by hand otherwise; `pnpm version` keeps the tag and `package.json` in agreement.
 
 ## The test gate: `pnpm test:release`
 
@@ -167,16 +257,16 @@ ANDROID_KEYSTORE_B64=$(base64 -w0 ~/.config/vitals-release/android-release.jks) 
 ### Checking the release scripts
 
 ```sh
-node --test scripts/release/                   # release notes
+node --test scripts/release/*.test.mjs         # release notes, policy, web bundle, OTA publish
 actionlint .github/workflows/*.yml             # https://github.com/rhysd/actionlint (runs shellcheck too)
 ```
 
 ## Re-deploying without a new version
 
-GitHub → Actions → **Deploy** → **Run workflow**, then pick the tag to deploy under "Use workflow from" (for example `v0.1.0` to roll back to it, or the latest tag to re-deploy it). Or from a terminal:
+In the public repository: GitHub → Actions → **Deploy** → **Run workflow**, then pick the tag to deploy under "Use workflow from" (for example `v0.1.0` to roll back to it, or the latest tag to re-deploy it). Or from a terminal:
 
 ```sh
-gh workflow run deploy.yml --ref v0.1.0
+gh workflow run deploy.yml -R patalbansishashank/vitals --ref v0.1.0
 ```
 
 The deploy message on Netlify is `Release <ref name>`; a manual run from a branch shows the branch name instead of a version. Runs share the concurrency group `production` and are queued, never cancelled mid-deploy.
@@ -198,10 +288,12 @@ To rotate the token: create a new one in Netlify (User settings → Applications
 
 ## How the deploy workflow works
 
-- Steps: checkout, pnpm 11 (`pnpm/action-setup`, `version: 11`), Node from `.nvmrc` (`actions/setup-node`, pnpm cache), `pnpm install --frozen-lockfile`, `pnpm build`, then the Netlify CLI (`netlify-cli` 27 through `pnpm dlx`) uploads `dist/` with `--prod --no-build`. `--no-build` stops the CLI from running `pnpm build` a second time; `netlify.toml` (SPA fallback, cache and security headers) is still applied.
+- Steps: checkout, pnpm 11 (`pnpm/action-setup` with `version: 11`), Node from `.nvmrc` (`actions/setup-node`, pnpm cache), `pnpm install --frozen-lockfile`, `pnpm build`, then the Netlify CLI (`netlify-cli` 27 through `pnpm dlx`) uploads `dist/` with `--prod --no-build`. `--no-build` stops the CLI from running `pnpm build` a second time; `netlify.toml` (SPA fallback, cache and security headers) is still applied.
 - `netlify-cli` ships two binaries (`netlify` and `ntl`), so with pnpm 11 the command is `pnpm --package=netlify-cli@27 dlx netlify deploy ...`; `pnpm dlx netlify-cli@27 deploy ...` fails with `ERR_PNPM_DLX_MULTIPLE_BINS`.
-- If a `packageManager` field is ever added to `package.json`, remove `version:` from the pnpm setup step.
+- `package.json` has no `packageManager` field, so every pnpm setup step pins the major with `version: 11`. If the field
+  is added, drop `version:` from those steps in the same commit: `pnpm/action-setup` stops when it is given two versions.
 
 ## History
 
-- Historical policy (superseded by the credential-free gate above): on 2026-10-01 a first version also ran typecheck, lint, build and the full test suite on GitHub for every push to `main` (`ci.yml`). On the 2-core runner the test step was still running after 23 minutes, so the run was cancelled and the owner moved the gate to the local `pnpm release` script. `ci.yml` was removed; GitHub now only builds and deploys tags.
+- Historical policy (superseded by the credential-free gate above): on 2026-10-01 a first version also ran typecheck, lint, build and the full test suite on GitHub for every push to `main` (`ci.yml`). On the 2-core runner the test step was still running after 23 minutes, so the run was cancelled and the owner moved the gate to the local `pnpm release` script. `ci.yml` was removed then. It came back later as the credential-free validation described at the top of this file,
+  split into bounded parallel jobs.

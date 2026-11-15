@@ -17,7 +17,7 @@ describe('Ring screens: quiet', () => {
     ).closest('section')!;
     await within(disc).findByRole('meter', { name: 'Day score' });
     expect(within(disc).queryByText(/^\d+$/)).toBeNull();
-    expect(screen.queryByText('Ring energy estimate')).toBeNull();
+    expect(screen.queryByText('Ring energy')).toBeNull();
     expect(screen.queryByText(/kcal/)).toBeNull();
   });
 

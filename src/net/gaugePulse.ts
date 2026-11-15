@@ -3,7 +3,9 @@
  * server holds the request while `since` is current and answers when Gauge uploads (or detection writes), so Vitals
  * reads again within a second of new data landing instead of at its next 5-minute import.
  *
- * An older server has no such route (404): `not_supported`, and the caller stops asking for a while.
+ * An older server has no such route (404): `not_supported`, and the caller asks rarely once it keeps saying so.
+ *
+ * This request is held open on purpose and never passes through the Gauge client's request queue (`./gaugeQueue`).
  */
 import { ServerError, getServerClient, type ServerClient } from './server';
 

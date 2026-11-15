@@ -37,6 +37,7 @@ export const SERVER_COACH_TEXT = {
   unauthorized: 'This device is no longer connected to your server. Connect it again in Settings › Sync.',
   busy: (s?: number) => (s ? `Your server is busy. Try again in ${s} s.` : 'Your server is busy. Try again in a minute.'),
   failed: 'The Coach on your server couldn’t answer. Nothing was changed; try again.',
+  cutOff: 'The answer stopped before it was finished. Try again.',
   notImage: 'Only photos can go to the Coach on your server.',
   photoAlt: 'Your photo',
   proposalTitle: 'Plan change',
@@ -167,6 +168,12 @@ export function createServerCoachAdapter(deps: ServerCoachAdapterDeps): ServerCo
   let disposed = false;
   let timer: unknown = null;
   let statusRun: Promise<void> | null = null;
+  /** Stops the answer being streamed, if any: deleting its chat or starting a new one ends it as stopped. */
+  let inFlight: AbortController | null = null;
+  const stopInFlight = () => {
+    inFlight?.abort();
+    inFlight = null;
+  };
 
   const bump = () => {
     rev++;
@@ -300,6 +307,8 @@ export function createServerCoachAdapter(deps: ServerCoachAdapterDeps): ServerCo
   async function ensureSession(input: SendInputView, signal: AbortSignal): Promise<void> {
     if (session) return;
     const created = await deps.client.createSession({ context: { screen: input.context?.screen ?? 'coach', ...(input.context?.date ? { date: input.context.date } : {}) } }, signal);
+    // stopped meanwhile (a new chat was started): this session must not replace the cleared one
+    if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
     setSession({ id: created.sessionId, expiresAt: created.expiresAt });
     if (created.greeting) {
       // the greeting comes first: before the message that opened the session
@@ -313,6 +322,16 @@ export function createServerCoachAdapter(deps: ServerCoachAdapterDeps): ServerCo
   async function streamTurn(sessionId: string, coachId: string, body: { text: string; attachments?: CoachAttachment[] }, onEvent: (e: StreamEventView) => void, signal: AbortSignal): Promise<'done' | 'error'> {
     const running = new Map<string, string>();
     const progress = () => [...running.values()].at(-1);
+    let finished = false;
+    const endWithError = (message: string): 'error' => {
+      const error = { kind: 'error', message };
+      update(coachId, (t) => {
+        const { progress: _p, ...rest } = t;
+        return { ...rest, streaming: false, error };
+      });
+      onEvent({ type: 'error', ...error });
+      return 'error';
+    };
     for await (const ev of deps.client.send(sessionId, body, signal)) {
       if (ev.type === 'delta') {
         update(coachId, (t) => ({ ...t, text: t.text + ev.text }));
@@ -330,25 +349,38 @@ export function createServerCoachAdapter(deps: ServerCoachAdapterDeps): ServerCo
         update(coachId, (t) => ({ ...t, cards: [...t.cards, card] }));
         onEvent({ type: 'card', card });
       } else if (ev.type === 'error') {
-        const error = { kind: 'error', message: ev.message || SERVER_COACH_TEXT.failed };
-        update(coachId, (t) => {
-          const { progress: _p, ...rest } = t;
-          return { ...rest, streaming: false, error };
-        });
-        onEvent({ type: 'error', ...error });
-        return 'error';
+        return endWithError(ev.message || SERVER_COACH_TEXT.failed);
       } else if (ev.type === 'done') {
+        finished = true;
         break;
       }
     }
+    // the connection closed without `done` or `error` (a dropped network, a server that failed mid-turn): the reply is
+    // incomplete, and without saying so the turn would read as a finished answer
+    if (!finished && !signal.aborted) return endWithError(SERVER_COACH_TEXT.cutOff);
     // the session's clock restarts with every message (the server moves `expiresAt`; this is the client's estimate)
     const hours = status.state === 'ok' ? status.value.retentionHours : 24;
     if (session && session.id === sessionId) setSession({ id: sessionId, expiresAt: new Date(now().getTime() + hours * 3_600_000).toISOString() });
     return 'done';
   }
 
-  async function send(input: SendInputView, onEvent: (e: StreamEventView) => void, signal: AbortSignal): Promise<void> {
+  async function send(input: SendInputView, onEvent: (e: StreamEventView) => void, callerSignal: AbortSignal): Promise<void> {
     await reattached;
+    // linked by hand: AbortSignal.any is missing from older Android WebViews
+    const own = new AbortController();
+    const forward = () => own.abort();
+    if (callerSignal.aborted) own.abort();
+    else callerSignal.addEventListener('abort', forward, { once: true });
+    inFlight = own;
+    try {
+      await sendTurn(input, onEvent, own.signal);
+    } finally {
+      callerSignal.removeEventListener('abort', forward);
+      if (inFlight === own) inFlight = null;
+    }
+  }
+
+  async function sendTurn(input: SendInputView, onEvent: (e: StreamEventView) => void, signal: AbortSignal): Promise<void> {
     const at = nowIso();
     const you: TurnView = { id: `you-${newId()}`, role: 'you', at, text: input.text, cards: [] };
     push(you);
@@ -500,6 +532,8 @@ export function createServerCoachAdapter(deps: ServerCoachAdapterDeps): ServerCo
     async remove(id) {
       const target = id ?? session?.id;
       if (!target) return { ok: false, message: SERVER_COACH_TEXT.noChat };
+      // before the server deletes it: otherwise the answer still streaming there ends as an error on a chat being cleared
+      if (target === session?.id) stopInFlight();
       try {
         await deps.client.remove(target);
       } catch (e) {
@@ -514,6 +548,7 @@ export function createServerCoachAdapter(deps: ServerCoachAdapterDeps): ServerCo
       return { ok: true };
     },
     fresh() {
+      stopInFlight();
       setSession(null);
       turns = [];
       proposals.clear();

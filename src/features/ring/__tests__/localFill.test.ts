@@ -4,8 +4,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { GaugeLocalSnapshot } from '@/platform/gaugeLocal';
-import { LOCAL_FRESH_MS, lastSentOf, waitingOf, withLocalSteps } from '../localFill';
+import { LOCAL_FRESH_MS, lastSentOf, stepsUpdatedAt, waitingOf, withLocalHeartPoint, withLocalHeartRate, withLocalSteps } from '../localFill';
 import { sentText } from '../model';
+import type { GaugeDaily } from '../types';
 
 const snap = (o: { pending?: number; lastSentAt?: string | null; ringSteps?: number | null; date?: string } = {}): GaugeLocalSnapshot => ({
   schema: 1, at: '2026-10-29T12:00:00.000Z', app: '2.8.7',
@@ -43,6 +44,87 @@ describe('local fill', () => {
     expect(withLocalSteps(fused, { date: '2026-10-29', local: snap({ ringSteps: null }), stepsDay: day })).toBe(fused);
     // nothing on the server yet for today
     expect(withLocalSteps(null, { date: '2026-10-29', local: snap({ ringSteps: 300 }), stepsDay: null })).toEqual({ value: 300, lineage: 'ring', provisional: true });
+  });
+
+  it('"Updated" is the time of the phone\'s ring count only while that count is the total shown', () => {
+    const local = snap({ ringSteps: 6000 });
+    const phoneAt = Date.parse('2026-10-29T11:58:00.000Z');
+    const serverAt = Date.parse('2026-10-29T11:40:00.000Z');
+    const day = { ringDailyTotal: 5000, headlinePolicy: 'atLeast' as const, headline: 5200 };
+    expect(stepsUpdatedAt(serverAt, { date: '2026-10-29', local, stepsDay: day })).toBe(phoneAt);
+    // the server's timeline is already past the phone's write: its time stands
+    expect(stepsUpdatedAt(phoneAt + 60_000, { date: '2026-10-29', local, stepsDay: day })).toBe(phoneAt + 60_000);
+    // the upload landed, the server's own total is higher, the day is placed in time, another day, no local time
+    expect(stepsUpdatedAt(serverAt, { date: '2026-10-29', local, stepsDay: { ...day, ringDailyTotal: 6000 } })).toBe(serverAt);
+    expect(stepsUpdatedAt(serverAt, { date: '2026-10-29', local, stepsDay: { ...day, headline: 7000 } })).toBe(serverAt);
+    expect(stepsUpdatedAt(serverAt, { date: '2026-10-29', local, stepsDay: { ...day, headlinePolicy: 'located' } })).toBe(serverAt);
+    expect(stepsUpdatedAt(serverAt, { date: '2026-10-28', local, stepsDay: day })).toBe(serverAt);
+    expect(stepsUpdatedAt(serverAt, { date: '2026-10-29', local: { ...local, today: { ...local.today!, ringStepsAt: null } }, stepsDay: day })).toBe(serverAt);
+    expect(stepsUpdatedAt(serverAt, { date: '2026-10-29', local: null, stepsDay: day })).toBe(serverAt);
+    // nothing counted on the server yet today
+    expect(stepsUpdatedAt(null, { date: '2026-10-29', local, stepsDay: null })).toBe(phoneAt);
+  });
+
+  it('the latest heart rate is the phone\'s reading only while it is newer than the server\'s, and nothing else changes', () => {
+    // local clock times, so the day of a reading is the same in any zone the suite runs in
+    const at = (h: number, m: number, d = 29) => new Date(2026, 9, d, h, m).toISOString();
+    const hr = { unit: 'bpm', count: 40, mean: 68, min: 51, max: 122, latest: { at: at(11, 40), value: 64 }, medianGapS: 300 };
+    const empty: GaugeDaily = {
+      date: '2026-10-29', source: 'lumen_health', timeZone: 'UTC', installations: [],
+      freshness: { lastUploadAt: null, lastReadingAt: null, minutesSinceLastUpload: null, minutesSinceLastReading: null },
+    };
+    const daily: GaugeDaily = { ...empty, metrics: { hr, spo2: { unit: '%', count: 3, mean: 97, min: 96, max: 98, latest: { at: at(9, 0), value: 97 } } } };
+    const fresh = withLocalHeartRate(daily, { date: '2026-10-29', latestHr: { bpm: 71, at: at(11, 58) } })!;
+    expect(fresh.metrics!.hr).toEqual({ ...hr, latest: { at: at(11, 58), value: 71, provisional: true } });
+    // the server's own figures and every other metric are the same objects, and the server's answer is not written to
+    expect(fresh.metrics!.spo2).toBe(daily.metrics!.spo2);
+    expect(daily.metrics!.hr).toBe(hr);
+    expect(hr.latest).toEqual({ at: at(11, 40), value: 64 });
+    // the server answered with this reading, or a newer one: its summary stands, untouched
+    expect(withLocalHeartRate(daily, { date: '2026-10-29', latestHr: { bpm: 64, at: at(11, 40) } })).toBe(daily);
+    expect(withLocalHeartRate(daily, { date: '2026-10-29', latestHr: { bpm: 90, at: at(11, 10) } })).toBe(daily);
+    // the phone stamps a live reading to the millisecond and the server answers in whole seconds: still that reading
+    const live = (plusMs: number) => new Date(Date.parse(at(11, 40)) + plusMs).toISOString();
+    expect(withLocalHeartRate(daily, { date: '2026-10-29', latestHr: { bpm: 64, at: live(412) } })).toBe(daily);
+    expect(withLocalHeartRate(daily, { date: '2026-10-29', latestHr: { bpm: 64, at: live(999) } })).toBe(daily);
+    // the next second is a newer reading
+    expect(withLocalHeartRate(daily, { date: '2026-10-29', latestHr: { bpm: 66, at: live(1000) } })!.metrics!.hr).toMatchObject({ latest: { at: live(1000), value: 66, provisional: true } });
+    // a reading of another day says nothing about this one; nor does no reading, or a time that is not one
+    expect(withLocalHeartRate(daily, { date: '2026-10-29', latestHr: { bpm: 71, at: at(0, 5, 30) } })).toBe(daily);
+    expect(withLocalHeartRate(daily, { date: '2026-10-28', latestHr: { bpm: 71, at: at(11, 58) } })).toBe(daily);
+    expect(withLocalHeartRate(daily, { date: '2026-10-29', latestHr: null })).toBe(daily);
+    expect(withLocalHeartRate(daily, { date: '2026-10-29', latestHr: { bpm: 71, at: 'soon' } })).toBe(daily);
+    // the server's answer is still what the screen waits for
+    expect(withLocalHeartRate(null, { date: '2026-10-29', latestHr: { bpm: 71, at: at(11, 58) } })).toBeNull();
+    // the day's first reading: shown, with no figure made up around it
+    const first = withLocalHeartRate(empty, { date: '2026-10-29', latestHr: { bpm: 58, at: at(0, 20) } })!;
+    expect(first).toEqual({ ...empty, metrics: { hr: first.metrics!.hr } });
+    expect(first.metrics!.hr).toEqual({ unit: 'bpm', count: 0, mean: null, min: null, max: null, latest: { at: at(0, 20), value: 58, provisional: true } });
+  });
+
+  it('a day\'s heart-rate series ends with the phone\'s reading only while it is newer than the server\'s last point', () => {
+    const at = (h: number, m: number, plusMs = 0) => new Date(new Date(2026, 9, 29, h, m).getTime() + plusMs).toISOString();
+    // the server's points carry whole seconds and its own offset; a point without a value is still a time it answered for
+    const serverAt = (h: number, m: number) => at(h, m).replace(/\.\d{3}Z$/, '+00:00');
+    const points = [
+      { at: serverAt(11, 20), value: 61, provenance: 'ring' },
+      { at: serverAt(11, 40), value: 64, provenance: 'ring' },
+      { at: serverAt(11, 30), value: null, provenance: 'ring' },
+    ];
+    const before = structuredClone(points);
+    const filled = withLocalHeartPoint(points, { bpm: 71, at: at(11, 58, 412) });
+    expect(filled).toEqual([...points, { at: at(11, 58, 412), value: 71, provenance: null, provisional: true }]);
+    // the server's points are the same objects, in the order they came, and its answer is not written to
+    expect(filled.slice(0, 3).every((p, i) => p === points[i])).toBe(true);
+    expect(points).toEqual(before);
+    // the server answered with this reading (its time lost the milliseconds on the way), or a newer one
+    expect(withLocalHeartPoint(points, { bpm: 64, at: at(11, 40, 412) })).toBe(points);
+    expect(withLocalHeartPoint(points, { bpm: 90, at: at(11, 10) })).toBe(points);
+    // no reading, or a time that is not one
+    expect(withLocalHeartPoint(points, null)).toBe(points);
+    expect(withLocalHeartPoint(points, { bpm: 71, at: 'soon' })).toBe(points);
+    // the day's first reading
+    expect(withLocalHeartPoint([], { bpm: 58, at: at(0, 20) })).toEqual([{ at: at(0, 20), value: 58, provenance: null, provisional: true }]);
   });
 
   it('says when Phone sent on the clock, and what still waits', () => {

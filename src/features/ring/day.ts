@@ -15,7 +15,7 @@ import type { LocalDate } from '@/living';
 import { weekPointsPace } from '@/living/sensors';
 import { useActivity, useBaselines, useDaily, useSteps } from './data';
 import { useGoals, type RingGoals } from './goals';
-import { useGaugeLive, withLocalSteps } from './localFill';
+import { useGaugeLive, useLocalHeartRate, withLocalHeartRate, withLocalSteps } from './localFill';
 import { ringScores, type RingScores } from './indices';
 import { useRingLoad, type RingLoad } from './load';
 import { mainSession } from './model';
@@ -50,6 +50,10 @@ export function stepsHeadlineOf(i: { fused: number | null | undefined; ringSteps
 
 export interface RingDay {
   q: GaugeQuery<GaugeDaily>;
+  /**
+   * The server's day summary. (r087) On this phone its latest heart rate is the ring engine's own newer reading until the
+   * server answers with it (`./localFill`, `withLocalHeartRate`).
+   */
   daily: GaugeDaily | null;
   baselines: GaugeBaselines | null;
   night: NightView | null;
@@ -88,7 +92,10 @@ export function useRingDay(date: string): RingDay {
   const q = useDaily(date);
   const b = useBaselines(date);
   const act = useActivity(date, date);
-  const daily = q.data ?? null;
+  // (r069 sync) what this phone holds that the server has not answered with yet fills today in (never added to it)
+  const local = useGaugeLive().local;
+  const latestHr = useLocalHeartRate(date);
+  const daily = useMemo(() => withLocalHeartRate(q.data ?? null, { date, latestHr }), [q.data, date, latestHr]);
   const baselines = b.data ?? null;
   const goals = useGoals(date, daily?.activity?.ringStepGoal ?? act.data?.days[0]?.ringStepGoal ?? null);
   const entry = useSleepEntry(date);
@@ -96,8 +103,6 @@ export function useRingDay(date: string): RingDay {
   const ringSteps = daily?.activity?.steps ?? null;
   const sq = useSteps(date, date);
   const stepsDay = sq.data?.days.find((d) => d.date === date) ?? null;
-  // (r069 sync) Gauge's own count on this phone fills today in until the server has it (never added to it)
-  const local = useGaugeLive().local;
   const steps = useMemo(
     () => withLocalSteps(stepsHeadlineOf({ fused, ringSteps, stepsDay }), { date, local, stepsDay, serverRing: ringSteps }),
     [fused, ringSteps, stepsDay, date, local],

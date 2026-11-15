@@ -79,13 +79,53 @@ export function useGaugeEngine(): EngineSnapshot {
 export const engineActive = (s: EngineSnapshot = snap): boolean => s.available && s.state?.mode === 'active';
 
 /**
+ * (r087) What a newer native app adds to the engine's state: the ring's own count of the phone's today and the newest
+ * heart-rate reading, each with its time, straight from the engine's database on this phone. A phone still on the older
+ * native app sends neither, so both are optional and checked field by field.
+ */
+export interface EngineReadings {
+  today?: { date: string; ringSteps: number; ringStepsAt?: string };
+  latestHr?: LocalHeartRate;
+}
+
+/** One heart-rate reading the phone holds, with its own time (ISO). */
+export interface LocalHeartRate {
+  bpm: number;
+  at: string;
+}
+
+/** The engine's local snapshot: Gauge's shape, and the newest heart-rate reading on the phone (null when it has none). */
+export interface EngineLocalSnapshot extends GaugeLocalSnapshot {
+  latestHr: LocalHeartRate | null;
+}
+
+const isoOrNull = (v: unknown): string | null => (typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : null);
+
+function ringTodayOf(v: unknown): GaugeLocalSnapshot['today'] {
+  if (typeof v !== 'object' || v === null) return null;
+  const t = v as Record<string, unknown>;
+  if (typeof t.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(t.date)) return null;
+  if (typeof t.ringSteps !== 'number' || !Number.isInteger(t.ringSteps) || t.ringSteps < 0) return null;
+  return { date: t.date, ringSteps: t.ringSteps, ringStepsAt: isoOrNull(t.ringStepsAt) };
+}
+
+function latestHrOf(v: unknown): LocalHeartRate | null {
+  if (typeof v !== 'object' || v === null) return null;
+  const h = v as Record<string, unknown>;
+  const at = isoOrNull(h.at);
+  return typeof h.bpm === 'number' && Number.isFinite(h.bpm) && h.bpm > 0 && at ? { bpm: h.bpm, at } : null;
+}
+
+/**
  * (r070) The engine's upload state in the shape Gauge's 2.8.7 provider used (`GaugeLocalSnapshot`), so "Gauge sent hh:mm"
  * and the readings waiting on the phone come from the engine when it is active. Null when it is not: Gauge's own
- * provider answers then. The engine has no ring step count of its own here, so `today` is null (the server's steps stand).
+ * provider answers then. (r087) With them, today's ring steps and the newest heart rate when the native app sends them
+ * (`EngineReadings`): `@/features/ring/localFill` shows each only while it is newer than the server's answer.
  */
-export function engineLocalSnapshot(s: EngineSnapshot = snap): GaugeLocalSnapshot | null {
+export function engineLocalSnapshot(s: EngineSnapshot = snap): EngineLocalSnapshot | null {
   if (!engineActive(s) || !s.state || s.at === null) return null;
   const u = s.state.upload;
+  const readings = s.state as EngineState & EngineReadings;
   return {
     schema: 1,
     at: new Date(s.at).toISOString(),
@@ -99,7 +139,8 @@ export function engineLocalSnapshot(s: EngineSnapshot = snap): GaugeLocalSnapsho
       retryAt: null,
       needsRepair: false,
     },
-    today: null,
+    today: ringTodayOf(readings.today),
+    latestHr: latestHrOf(readings.latestHr),
   };
 }
 

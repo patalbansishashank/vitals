@@ -5,7 +5,7 @@
  * While the app is in front and paired, one request is held on the server's Gauge pulse (`GET /v1/gauge/pulse`, see
  * `@/net/gaugePulse`). When it answers that new readings landed, every Ring and Progress question on screen asks
  * again and Vitals runs its Gauge import (at most once every `PULSE_REFRESH_GAP_MS`; a burst of uploads is one
- * refresh at its end). The 5-minute import (`./gaugeImport`) stays as the safety net.
+ * refresh at its end; the gap counts from anyone telling the screens). The 5-minute import (`./gaugeImport`) stays as the safety net.
  *
  * On the Android app, coming to the front also asks Gauge on this phone to upload what it holds (`flushGaugeLocal`, the
  * plugin's local path): a phone that was dozing sends its queue at once, and the pulse brings it to the screen. The
@@ -14,10 +14,15 @@
  *
  * (r070) When the ring engine inside Vitals is active (`@/state/gaugeEngine`), it answers instead of Gauge's provider:
  * the same snapshot made from the engine's upload state, and no ring steps (the server's stand).
+ *
+ * (r087) The loop mends itself. A 404 can be a proxy answering for a server that is restarting, so it is asked again
+ * like any other error, and only a server that keeps saying it is left alone for longer. A refresh that was waiting
+ * (or an import that was held back and never began) when the app went hidden is owed, and paid when the app comes back.
+ * An import that had begun finishes by itself and owes nothing.
  */
 import { pulseMovedData, gaugePulseApi, type GaugePulse, type GaugePulseAnswer } from '@/net/gaugePulse';
 import { getServerClient } from '@/net/server';
-import { notifyGaugeDataChanged } from '@/net/gaugeIdentity';
+import { notifyGaugeDataChanged, onGaugeDataChanged } from '@/net/gaugeIdentity';
 import { flushGaugeLocal, readGaugeLocal, type GaugeLocalSnapshot } from '@/platform/gaugeLocal';
 import { engineActive, engineLocalSnapshot, refreshEngine } from './gaugeEngine';
 
@@ -28,6 +33,8 @@ export const LOCAL_READ_EVERY_MS = 60_000;
 /** After an error the pulse is asked again after this, doubling to `PULSE_RETRY_MAX_MS`. */
 export const PULSE_RETRY_MS = 5_000;
 export const PULSE_RETRY_MAX_MS = 60_000;
+/** This many "no such route" answers in a row mean an older server, not one that is restarting. */
+export const PULSE_UNSUPPORTED_AFTER = 4;
 /** An older server without the route is asked again after this. */
 export const PULSE_UNSUPPORTED_MS = 30 * 60_000;
 
@@ -58,8 +65,11 @@ export function onGaugeLive(fn: () => void): () => void {
 
 export interface GaugePulseDeps {
   pulse: (since: string | null, o: { wait?: number; signal?: AbortSignal }) => Promise<GaugePulseAnswer>;
-  /** Import local history and derived context; concurrent pulse requests are coalesced. */
-  refresh: (current: () => boolean) => Promise<void>;
+  /**
+   * Import local history and derived context; concurrent pulse requests are coalesced. Answers false when `current`
+   * said no before an import began (it is then still to do); any other answer means it was done.
+   */
+  refresh: (current: () => boolean) => Promise<boolean | void>;
   readLocal: () => Promise<GaugeLocalSnapshot | null>;
   flushLocal: () => Promise<GaugeLocalSnapshot | null>;
   visible: () => boolean;
@@ -69,10 +79,14 @@ export interface GaugePulseDeps {
   now: () => number;
 }
 
-async function defaultRefresh(current: () => boolean): Promise<void> {
+async function defaultRefresh(current: () => boolean): Promise<boolean> {
   const { runGaugeImport } = await import('./gaugeImport');
-  if (current()) await runGaugeImport({}, current);
+  // The importer asks `current` only before it begins a run (here, or after waiting for the run under way).
+  let began = true;
+  const go = () => (began = current());
+  if (go()) await runGaugeImport({}, go);
   // A successful import still publishes its own completion: local derived context may have changed.
+  return began;
 }
 
 function defaultDeps(): GaugePulseDeps {
@@ -114,27 +128,40 @@ export function startGaugePulse(over: Partial<GaugePulseDeps> = {}): () => void 
   let lastRefreshAt = Number.NEGATIVE_INFINITY;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
   let localTimer: ReturnType<typeof setInterval> | null = null;
-  let unsupportedUntil = 0;
   let pairingGeneration = 0;
-  let importing: Promise<void> | null = null;
+  let importing: Promise<boolean> | null = null;
   let importAgain = false;
   let refreshGeneration = 0;
+  /** When the app went hidden with a refresh still to do (ms); null when none is owed. */
+  let owedSince: number | null = null;
+  /** The import under way when the app went hidden, and when that was (ms). */
+  let cut: { work: Promise<boolean>; at: number } | null = null;
 
   const report = (e: unknown) => console.error('Vitals: Gauge refresh failed', e);
   const fire = () => {
     refreshTimer = null;
     lastRefreshAt = d.now();
+    // An owed refresh is about data from before the app went hidden: what the screens asked on coming back has it.
+    const changedAt = owedSince ?? undefined;
+    owedSince = null;
     // Server reads need not wait for local reconciliation, even during a long import.
-    notifyGaugeDataChanged();
+    notifyGaugeDataChanged(changedAt);
     if (importing) { importAgain = true; return; }
     const gen = pairingGeneration;
     const refreshGen = refreshGeneration;
-    const work = d.refresh(() => gen === pairingGeneration && refreshGen === refreshGeneration && d.visible() && d.isPaired()).catch(report);
+    const work = d.refresh(() => gen === pairingGeneration && refreshGen === refreshGeneration && d.visible() && d.isPaired())
+      .then((began) => began !== false, (e: unknown) => { report(e); return true; });
     importing = work;
-    void work.finally(() => {
+    void work.then((began) => {
       if (importing !== work) return;
       importing = null;
-      if (gen !== pairingGeneration || !importAgain || !d.visible() || !d.isPaired()) return;
+      if (cut?.work === work) {
+        // going hidden held it back before it began: what it was for is still to do
+        if (!began && owedSince === null) owedSince = cut.at;
+        cut = null;
+      }
+      if (gen !== pairingGeneration || !d.visible() || !d.isPaired()) return;
+      if (!importAgain && owedSince === null) return;
       importAgain = false;
       // A pulse arriving after the old import read detections must get a fresh read.
       // Reuse the same cadence; never retry merely because an import completed.
@@ -157,6 +184,7 @@ export function startGaugePulse(over: Partial<GaugePulseDeps> = {}): () => void 
 
   async function loop(signal: AbortSignal) {
     let backoff = PULSE_RETRY_MS;
+    let unsupported = 0;
     while (!signal.aborted) {
       let r: GaugePulseAnswer;
       try {
@@ -171,25 +199,37 @@ export function startGaugePulse(over: Partial<GaugePulseDeps> = {}): () => void 
           publish({ pulse: null });
           return; // the pairing subscription starts it again
         }
-        if (r.problem === 'not_supported') {
-          unsupportedUntil = d.now() + PULSE_UNSUPPORTED_MS;
-          return;
+        unsupported = r.problem === 'not_supported' ? unsupported + 1 : 0;
+        if (unsupported >= PULSE_UNSUPPORTED_AFTER) {
+          // an older server: asked rarely, but still asked, so an updated one is found without a restart of the app
+          await sleep(PULSE_UNSUPPORTED_MS, signal);
+          continue;
         }
         await sleep(backoff, signal);
         backoff = Math.min(backoff * 2, PULSE_RETRY_MAX_MS);
         continue;
       }
       backoff = PULSE_RETRY_MS;
+      unsupported = 0;
       const prev = live.pulse;
       since = r.pulse.token;
       publish({ pulse: r.pulse });
-      if (pulseMovedData(prev, r.pulse)) refreshSoon();
+      if (pulseMovedData(prev, r.pulse)) {
+        // newer than anything owed: the refresh is about now again
+        owedSince = null;
+        refreshSoon();
+      }
       // Gauge sent something: its queue on this phone moved too
       if (prev && prev.uploads !== r.pulse.uploads) readLocal();
     }
   }
 
   const stop = () => {
+    // The pulse has already moved past this data, so it will not report it again: remember that a refresh is owed.
+    if ((refreshTimer || importAgain) && owedSince === null) owedSince = d.now();
+    // An import that has begun runs to its end by itself, and the app importing again on its return would only repeat
+    // it. Whether this one had begun is known when it answers.
+    if (importing && !cut) cut = { work: importing, at: d.now() };
     refreshGeneration++;
     importAgain = false;
     if (refreshTimer) clearTimeout(refreshTimer);
@@ -200,7 +240,7 @@ export function startGaugePulse(over: Partial<GaugePulseDeps> = {}): () => void 
     localTimer = null;
   };
   const begin = () => {
-    if (ctl || !d.visible() || !d.isPaired() || d.now() < unsupportedUntil) return;
+    if (ctl || !d.visible() || !d.isPaired()) return;
     const c = new AbortController();
     ctl = c;
     void loop(c.signal).finally(() => {
@@ -214,7 +254,17 @@ export function startGaugePulse(over: Partial<GaugePulseDeps> = {}): () => void 
     void d.flushLocal().then((s) => takeLocal(s, gen), () => undefined);
     if (!localTimer) localTimer = setInterval(readLocal, LOCAL_READ_EVERY_MS);
     begin();
+    if (owedSince !== null && d.isPaired()) refreshSoon();
   };
+  // (r087) the gap counts from anyone's word to the screens (the importer, a finished measurement), not only the pulse's
+  const offData = onGaugeDataChanged(() => {
+    lastRefreshAt = d.now();
+    if (refreshTimer) {
+      clearTimeout(refreshTimer);
+      refreshTimer = null;
+      refreshSoon();
+    }
+  });
   const onVisible = () => front();
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', onVisible);
@@ -226,8 +276,10 @@ export function startGaugePulse(over: Partial<GaugePulseDeps> = {}): () => void 
     pairingGeneration++;
     importing = null;
     stop();
+    // what was owed belonged to the previous pairing
+    owedSince = null;
+    cut = null;
     since = null;
-    unsupportedUntil = 0;
     lastRefreshAt = Number.NEGATIVE_INFINITY;
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = null;
@@ -238,6 +290,8 @@ export function startGaugePulse(over: Partial<GaugePulseDeps> = {}): () => void 
   stopper = () => {
     pairingGeneration++;
     stop();
+    owedSince = null;
+    cut = null;
     if (refreshTimer) clearTimeout(refreshTimer);
     refreshTimer = null;
     if (typeof document !== 'undefined') {
@@ -245,6 +299,7 @@ export function startGaugePulse(over: Partial<GaugePulseDeps> = {}): () => void 
       document.removeEventListener('resume', onVisible);
     }
     offPairing();
+    offData();
     stopper = null;
   };
   return stopper;

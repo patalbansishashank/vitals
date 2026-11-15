@@ -22,7 +22,7 @@ export function dayScoreInfo(o: {
     source: {
       kind: 'ring',
       words: o.legacy
-        ? "On-device scores, until the server sends the nights Vitals needs."
+        ? 'Phone scores, until the server sends the nights Vitals needs.'
         : 'Worked out in Vitals from your ring and phone, with a named method for each part.',
     },
     range: o.quiet ? undefined : 'Excellent 85 and up · Good 70 to 84 · Fair 55 to 69 · Needs work under 55',
@@ -53,12 +53,14 @@ export function scoreInfo(o: {
     sleep: 'Sleep weighs time asleep, window continuity and the midpoint against your usual night.',
     activity: 'Activity weighs steps, Heart Points pace and planned sessions.',
   }[o.id];
+  // The phone's own legacy scores are named 'Phone (legacy)'; 'On-device' is the older wording for the same source.
+  const phone = /^(Phone|On-device)\b/.test(o.source);
   return {
-    body: o.source.startsWith('On-device')
+    body: phone
       ? 'The phone works out this score with its own method. Vitals uses it as a legacy fallback until the server can supply the inputs for Vitals’ indices. Compare it with its own history; the two methods can give different numbers.'
       : `${o.source} works out this index from your ring and phone. ${method} Missing inputs drop out and the remaining weights are shared out. ${o.period ? 'The number is the average for the dates shown; the contributor list describes the latest day.' : 'The line shows the recent history; a missing day stays a gap.'}`,
     source: {
-      kind: o.source.startsWith('On-device') ? 'phone' : 'engine',
+      kind: phone ? 'phone' : 'engine',
       words: `${o.source}. Compare this score with its own history.`,
     },
     range: o.quiet

@@ -17,6 +17,8 @@ export const PROGRESS_COPY = {
     log: 'Log',
     checkins: 'Check-ins',
   },
+  /** (r087 IA) The phone's one group heading: the ring's readings, body and blood markers after the plan story. */
+  measured: 'Measured',
   rangeLabel: 'Trend range',
   ranges: { '2wk': '2 wk', '4wk': '4 wk', '12wk': '12 wk', all: 'All' },
   showNumbers: 'Show numbers',
@@ -119,7 +121,7 @@ export const MEASURE_COPY = {
 
 /** Progress › activity cards (energy SPEC §V4.6). The calorie wording is "estimated"; Heart Points carry their label. */
 export const ACTIVITY_COPY = {
-  faces: { points: 'Heart Points', energy: 'Energy out and intake', steps: 'Steps', overnight: 'Overnight' },
+  faces: { points: 'Heart Points', energy: 'Energy balance', steps: 'Steps', overnight: 'Overnight' },
   table: 'Table',
 
   /* Heart Points */
@@ -150,7 +152,7 @@ export const ACTIVITY_COPY = {
   fewDays: 'Not enough fully logged days yet',
   energyHidden: 'Energy is hidden while quiet mode is on.',
   energyCols: { date: 'Date', out: 'Energy out (estimated)', range: 'Scenario range', intake: 'Intake (logged)' },
-  energySummary: (days: number, both: number) => `Energy out and intake by day, ${days} days; ${both} days have both.`,
+  energySummary: (days: number, both: number) => `Energy balance by day, ${days} days; ${both} days have both.`,
 
   /* steps */
   last7: 'Last 7 days',
@@ -166,12 +168,12 @@ export const ACTIVITY_COPY = {
   stepsSummary: (days: number, mean: string, goal: string) => `Steps by day, last ${days} days. Last 7 days ${mean} a day. ${goal}`,
 
   /* overnight */
-  lowHr: 'Sleeping low HR',
+  lowHr: 'Low sleeping heart rate',
   hrv: 'HRV',
   last7Nights: 'Last 7 nights',
   usual: 'usual',
   usualLabel: 'Usual',
   calibrating: (n: number, of: number) => `Calibrating · night ${n} of ${of}`,
-  nightCols: { date: 'Night to', lowHr: 'Sleeping low HR', hrv: 'HRV' },
+  nightCols: { date: 'Night to', lowHr: 'Low sleeping heart rate', hrv: 'HRV' },
   nightSummary: (what: string, nights: number, median: string, usual: string) => `${what} by night, last ${nights} nights: median of the last 7 nights ${median}. ${usual}`,
 } as const;

@@ -153,6 +153,9 @@ describe('sR02/aR04: resync reconciles the imported refs before the cursor is sa
   });
 });
 
+/** A minute timeline the server answers (r087: queued days are read only while it answers the run's own). */
+const answeredTimeline = (date: string) => ({ date, start: localToInstant(date, 0, TZ), minutes: 2, steps: { selected: [1, 2] }, hr: { bpm: [null, null], supportedS: [null, null] }, sleep: { stage: [null, null] } });
+
 /** A workout on `date` at 07:00 local, revised now. */
 const workoutOn = (date: string, id: string) => ({ id, type: 'run', start: localToInstant(date, 7, TZ), end: localToInstant(date, 7.5, TZ), updatedAt: '2026-10-20T06:30:00Z' });
 
@@ -160,7 +163,7 @@ describe('sR14/aR04: the per-run timeline cap defers work, never drops it', () =
   it('the probe: eight older workout days; the eighth is read on the next run', async () => {
     const storage = memoryStorage();
     const older = Array.from({ length: 8 }, (_, k) => addDays(TODAY, -(5 + k)));
-    const f = fakeApi({ workouts: () => ({ sessions: older.map((d, k) => workoutOn(d, `w${k}`)) }) });
+    const f = fakeApi({ workouts: () => ({ sessions: older.map((d, k) => workoutOn(d, `w${k}`)) }), timeline: answeredTimeline });
     await runGaugeImport(deps({ api: f.api, storage, activityImporter: okImporter() }));
     const first = new Set(f.timelines);
     expect(older.filter((d) => first.has(d))).toHaveLength(7);
@@ -188,7 +191,7 @@ describe('sR14/aR04: the per-run timeline cap defers work, never drops it', () =
   it('a workout the feed reports revised gets its day read, whatever its age', async () => {
     const storage = memoryStorage(backfilled({ changesCursor: 'c1.5.0' }));
     const day = addDays(TODAY, -20);
-    const f = fakeApi({ feed: () => ({ cursor: 'c1.6.0', resync: false, truncated: false, changes: [{ kind: 'workout', id: 'w-old', ref: 'gauge:w-old', change: 'revised', start: localToInstant(day, 7, TZ), end: localToInstant(day, 7.5, TZ), at: null }] }) });
+    const f = fakeApi({ timeline: answeredTimeline, feed: () => ({ cursor: 'c1.6.0', resync: false, truncated: false, changes: [{ kind: 'workout', id: 'w-old', ref: 'gauge:w-old', change: 'revised', start: localToInstant(day, 7, TZ), end: localToInstant(day, 7.5, TZ), at: null }] }) });
     const inputs: ActivityImportInput[] = [];
     await runGaugeImport(deps({ api: f.api, storage, activityImporter: okImporter(inputs) }));
     expect(f.timelines).toContain(day);

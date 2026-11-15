@@ -1,7 +1,7 @@
 {
   "name": "vitals",
   "private": true,
-  "version": "0.8.6",
+  "version": "0.8.7",
   "type": "module",
   "engines": {
     "node": ">=26.10.0"
@@ -15,6 +15,8 @@
     "bench:planner": "vitest run --config vitest.bench.config.ts",
     "test:release": "node scripts/validation/release-gate.mjs",
     "release": "pnpm check && pnpm audit:planner && pnpm version",
+    "release:web": "node scripts/release/web-bundle.mjs",
+    "release:ota": "bash scripts/release/ota-publish.sh",
     "audit:planner": "node scripts/validation/planner-audit.mjs",
     "lint": "eslint .",
     "typecheck": "tsc -b --noEmit",

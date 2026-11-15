@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Client, StreamableHTTPClientTransport } from '../mcpTestClient.ts';
 import { startCompanion, type Companion } from '../server.ts';
 import { GAUGE_ROUTES } from './gaugeRoutes.ts';
+import { KEPT_IDLE_MS } from './lumen.ts';
 import { activityDaily, battery, deletion, hcRecord, hr, insight, INSTALL, OTHER_INSTALL, phoneAcquisition, phoneSteps, ringSteps, shortVideo, sleepPacket, workout } from './lumenFixtures.ts';
 import { offsetMinutes } from './lumenTools.ts';
 import type { PersonRequest, PersonResponse } from './personRpc.ts';
@@ -209,6 +210,123 @@ describe('GET /v1/gauge/*', () => {
     expect(changed.body.data.count).toBe(3);
     // an auth failure is never a 304
     expect((await t.call(url, { token: gauge, headers: { 'if-none-match': etag } })).status).toBe(403);
+  });
+
+  it('(r087) the idle sweep leaves a store open while answers are kept for it: the read after a quiet spell is still from memory', async () => {
+    const t = await boot();
+    const a = await t.person();
+    const gauge = await t.pairGauge(a.id);
+    await t.upload(gauge, [...ringData(), ringSteps('2026-10-18T04:00:00Z', 10)]);
+    const url = '/v1/gauge/timeline?date=2026-10-18&tz=Asia%2FKolkata';
+    const first = await t.call(url, { token: a.device });
+    const store = t.home.lumen.peek(a.id)!;
+    // longer than the phone's 15 minutes between background uploads, with nobody reading
+    t.clock.now += 3 * 3_600_000;
+    t.home.lumen.sweepIdle();
+    const before = store.sqlReads();
+    const again = await t.call(url, { token: a.device, headers: { 'if-none-match': first.headers.get('etag')! } });
+    expect([again.status, store.sqlReads() - before]).toEqual([304, 0]);
+    expect(t.home.lumen.peek(a.id)).toBe(store);
+    // nobody for two days: the store is closed and what was kept for it let go
+    t.clock.now += KEPT_IDLE_MS + 60_000;
+    t.home.lumen.sweepIdle();
+    expect(t.home.lumen.reads.holds(store)).toBe(false);
+    expect(t.home.lumen.peek(a.id)).not.toBe(store);
+    const cold = await t.call(url, { token: a.device });
+    expect([cold.status, cold.body.data.inputsHash]).toEqual([200, first.body.data.inputsHash]);
+  });
+
+  it('(r087) a store nothing is kept for is closed after ten idle minutes, as before', async () => {
+    const t = await boot();
+    const a = await t.person();
+    const gauge = await t.pairGauge(a.id);
+    await t.upload(gauge, ringData());
+    const store = t.home.lumen.peek(a.id)!;
+    t.clock.now += 11 * 60_000;
+    t.home.lumen.sweepIdle();
+    expect(t.home.lumen.peek(a.id)).not.toBe(store);
+  });
+
+  it('(r087) a repeat is answered from memory: a matching If-None-Match is a 304 before the store is read, and an upload that cannot reach the day reads nothing either', async () => {
+    const t = await boot();
+    const a = await t.person();
+    const gauge = await t.pairGauge(a.id);
+    await t.upload(gauge, [...ringData(), ...Array.from({ length: 30 }, (_, i) => ringSteps(new Date(Date.parse('2026-10-18T04:00:00Z') + i * 60_000).toISOString(), 10 + i)), hr('2026-10-18T04:10:00Z', 77)]);
+    const store = t.home.lumen.peek(a.id)!;
+    /** The store reads one request made. */
+    const reading = async <R>(f: () => Promise<R>): Promise<[R, number]> => {
+      const before = store.sqlReads();
+      const r = await f();
+      return [r, store.sqlReads() - before];
+    };
+    const url = '/v1/gauge/timeline?date=2026-10-18&tz=Asia%2FKolkata';
+    const [first, cold] = await reading(() => t.call(url, { token: a.device }));
+    expect(first.status).toBe(200);
+    expect(cold).toBeGreaterThan(0);
+    const etag = first.headers.get('etag')!;
+    const [same, none] = await reading(() => t.call(url, { token: a.device, headers: { 'if-none-match': etag } }));
+    expect([same.status, same.text, none]).toEqual([304, '', 0]);
+    expect(same.headers.get('etag')).toBe(etag);
+    // what a kept answer does cost: one question for the file's version (a pragma, no table read)
+    const checks = store.versionChecks();
+    expect((await t.call(url, { token: a.device, headers: { 'if-none-match': etag } })).status).toBe(304);
+    expect(store.versionChecks() - checks).toBe(1);
+    expect(same.headers.get('last-modified')).toBe(first.headers.get('last-modified'));
+    expect(same.headers.get('cache-control')).toBe('private, max-age=30');
+    // without the tag: the same bytes, still without a read; the clock moves only the counters
+    const [again, none2] = await reading(() => t.call(url, { token: a.device }));
+    expect([again.text, none2]).toEqual([first.text, 0]);
+    t.clock.now += 5 * 60_000;
+    const [later, none3] = await reading(() => t.call(url, { token: a.device, headers: { 'if-none-match': etag } }));
+    expect([later.status, none3]).toEqual([304, 0]);
+    expect((await t.call(url, { token: a.device })).body.data.freshness.minutesSinceLastUpload).toBe(5);
+    // the POST route is kept too
+    const fuse = { from: '2026-10-18', to: '2026-10-18', tz: 'Asia/Kolkata' };
+    const posted = await t.call('/v1/gauge/steps/fuse', { method: 'POST', token: a.device, body: fuse });
+    const [posted2, none4] = await reading(() => t.call('/v1/gauge/steps/fuse', { method: 'POST', token: a.device, body: fuse }));
+    expect([posted.status, posted2.status, posted2.text, none4]).toEqual([200, 200, posted.text, 0]);
+
+    // readings two days later: the day's answer stands (no read); only "last upload" moved, and the tag with it
+    t.clock.now += 60_000;
+    await t.upload(gauge, [hr('2026-10-20T03:00:00Z', 71), ringSteps('2026-10-20T03:00:00Z', 12)]);
+    const [moved, none5] = await reading(() => t.call(url, { token: a.device, headers: { 'if-none-match': etag } }));
+    expect([moved.status, none5]).toEqual([200, 0]);
+    expect(moved.headers.get('etag')).not.toBe(etag);
+    expect(moved.body.data.inputsHash).toBe(first.body.data.inputsHash);
+    expect(moved.body.data.freshness.lastUploadAt).not.toBe(first.body.data.freshness.lastUploadAt);
+    const [held, none6] = await reading(() => t.call(url, { token: a.device, headers: { 'if-none-match': moved.headers.get('etag')! } }));
+    expect([held.status, none6]).toEqual([304, 0]);
+
+    // a reading of that day: derived again
+    await t.upload(gauge, [ringSteps('2026-10-18T05:00:00Z', 50)]);
+    const [fresh, some] = await reading(() => t.call(url, { token: a.device, headers: { 'if-none-match': moved.headers.get('etag')! } }));
+    expect(fresh.status).toBe(200);
+    expect(some).toBeGreaterThan(0);
+    expect(fresh.body.data.inputsHash).not.toBe(first.body.data.inputsHash);
+    // an auth failure is never answered from memory
+    expect((await t.call(url, { token: gauge, headers: { 'if-none-match': fresh.headers.get('etag')! } })).status).toBe(403);
+    expect((await t.call(url, { headers: { 'if-none-match': fresh.headers.get('etag')! } })).status).toBe(401);
+  });
+
+  it('(r087) a burst of reads beside /health, an upload and the pulse: every one is answered', async () => {
+    const t = await boot();
+    const a = await t.person();
+    const gauge = await t.pairGauge(a.id);
+    await t.upload(gauge, ringData());
+    const days = Array.from({ length: 12 }, (_, i) => `2026-10-${String(9 + i).padStart(2, '0')}`);
+    // (that the loop gets its turn between two reads is shown on the queue itself, `gaugeReads.test.ts`)
+    const burst = days.flatMap((d) => [1, 2].map(() => t.call(`/v1/gauge/timeline?date=${d}&tz=Asia%2FKolkata`, { token: a.device })));
+    const health = t.call('/health');
+    const pulse = t.call('/v1/gauge/pulse', { token: a.device });
+    const up = t.upload(gauge, [hr('2026-10-20T04:00:00Z', 66)]);
+    const answers = await Promise.all(burst);
+    expect(answers.map((r) => r.status)).toEqual(burst.map(() => 200));
+    // the same day asked twice at once: one answer
+    for (let i = 0; i < answers.length; i += 2) expect(answers[i + 1]!.body.data.inputsHash).toBe(answers[i]!.body.data.inputsHash);
+    expect((await health).status).toBe(200);
+    expect((await pulse).status).toBe(200);
+    expect((await up).accepted).toBe(1);
+    expect(t.home.lumen.reads.stats().queued).toBe(0);
   });
 
   it('answers the browser preflight, allowing If-None-Match and the JSON POST of /steps/fuse', async () => {

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Activity, ChartSpline, ClipboardList, Flame, LayoutGrid, MessageSquareText, SunDim, Utensils } from 'lucide-react';
+import { Activity, ChartSpline, ClipboardList, LayoutGrid, MessageSquareText, SunDim, Utensils } from 'lucide-react';
 import type { IconComponent } from '@/components/icons/Icon';
 import * as Glyphs from '@/components/icons/glyphs';
 
@@ -8,7 +8,7 @@ export type Destination = 'body' | 'simulate' | 'plan' | 'evidence';
 export type LivingDestination = 'today' | 'food' | 'train' | 'coach' | 'progress';
 
 export interface NavItem {
-  id: Destination | LivingDestination | 'settings' | 'ring' | 'energy' | 'more' | 'planDetails';
+  id: Destination | LivingDestination | 'settings' | 'ring' | 'more' | 'planDetails';
   to: string;
   /**
    * The key's accessible name. Kept lowercase, as these names have always been; where it is drawn (the dock's label,
@@ -18,7 +18,7 @@ export interface NavItem {
   icon: IconComponent;
   /**
    * The paths this key stands for, when more than its own: the Planning dock's Plan key is current on all three
-   * planning steps. Default: `to` and everything under it.
+   * planning steps, Activity on its three tabs. Default: `to` and everything under it.
    */
   match?: RegExp;
 }
@@ -40,28 +40,33 @@ export const DESTINATIONS: NavItem[] = [
 
 export const SETTINGS_ITEM: NavItem = { id: 'settings', to: '/settings', label: 'settings', icon: Glyphs.SlidersGlyph };
 
-/** Ring (Gauge's readings: sleep, activity, workouts, heart signals, scores): a dock key and a sidebar row in both modes. */
-export const RING_ITEM: NavItem = { id: 'ring', to: '/ring', label: 'ring', icon: Activity };
+/**
+ * Ring (the ring's readings of the body at rest: sleep, heart signals, scores): a dock key and a sidebar row in both
+ * modes. A workout's page keeps its `/ring/workouts/…` address but is Activity's: Movement's list opens it and its Back
+ * key returns there.
+ */
+export const RING_ITEM: NavItem = { id: 'ring', to: '/ring', label: 'ring', icon: Activity, match: /^\/ring(?!\/workouts(?:\/|$))(?:\/|$)/ };
 
-/** (r069 D4) The day Energy page (what a day burned and when): a sidebar row after Ring and a More row, in both modes. */
-export const ENERGY_ITEM: NavItem = { id: 'energy', to: '/energy', label: 'energy', icon: Flame };
+/**
+ * Activity's three tabs (r087): Train (`/train`), Movement (`/activity`) and Energy (`/energy`), and the workout pages
+ * Movement opens. One key and one sidebar row stand for all of them, so movement data has one home.
+ */
+export const ACTIVITY_PATTERN = /^\/(?:train|activity|energy|ring\/workouts)(?:\/|$)/;
 
-/** Living mode: Today (home) · Food · Train · Coach · Progress (IA §3.5; full words, never abbreviated). */
+/** Living mode: Today (home) · Food · Activity · Coach · Progress (IA §3.5; full words, never abbreviated). */
 export const LIVING_DESTINATIONS: NavItem[] = [
   { id: 'today', to: '/today', label: 'today', icon: SunDim },
   { id: 'food', to: '/food', label: 'food', icon: Utensils },
-  { id: 'train', to: '/train', label: 'train', icon: Glyphs.DumbbellPlate },
+  // one name with or without a plan; it opens on Train, its first tab
+  { id: 'train', to: '/train', label: 'activity', icon: Glyphs.DumbbellPlate, match: ACTIVITY_PATTERN },
   { id: 'coach', to: '/coach', label: 'coach', icon: MessageSquareText },
   { id: 'progress', to: '/progress', label: 'progress', icon: ChartSpline },
 ];
 
-/** Train's activity hub without a plan (log, record, review): the same screen under its planless name. */
-export const ACTIVITIES_ITEM: NavItem = { id: 'train', to: '/train', label: 'activities', icon: Glyphs.DumbbellPlate };
-
 /** Today, home in every mode (0.6.3): the first key everywhere. */
 export const TODAY_ITEM: NavItem = LIVING_DESTINATIONS[0]!;
 export const FOOD_ITEM: NavItem = LIVING_DESTINATIONS[1]!;
-export const TRAIN_ITEM: NavItem = LIVING_DESTINATIONS[2]!;
+export const ACTIVITY_ITEM: NavItem = LIVING_DESTINATIONS[2]!;
 export const COACH_ITEM: NavItem = LIVING_DESTINATIONS[3]!;
 export const PROGRESS_ITEM: NavItem = LIVING_DESTINATIONS[4]!;
 export const BODY_ITEM: NavItem = DESTINATIONS[0]!;

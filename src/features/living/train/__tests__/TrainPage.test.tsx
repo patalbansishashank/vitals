@@ -81,8 +81,13 @@ describe('TrainPage', () => {
 
   it('renders the composed lift with exercise rows in plain words', async () => {
     renderTrain(`/train/${WED}`);
-    // the header: the destination's name, the date once under it
-    expect(await screen.findByRole('heading', { level: 1, name: 'Train' })).toBeInTheDocument();
+    // the header: the place's name (r087: Activity, with or without a plan), its tabs, the date once under it
+    expect(await screen.findByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
+    const tabs = screen.getByRole('navigation', { name: 'Activity section' });
+    expect(within(tabs).getByRole('link', { name: 'Train' })).toHaveAttribute('aria-current', 'page');
+    // the day travels to the other two tabs
+    expect(within(tabs).getByRole('link', { name: 'Movement' })).toHaveAttribute('href', `/activity?date=${WED}`);
+    expect(within(tabs).getByRole('link', { name: 'Energy' })).toHaveAttribute('href', `/energy?date=${WED}`);
     expect(screen.getByText('Wednesday, 30 September')).toBeInTheDocument();
     const session = screen.getByRole('region', { name: /^Lift · \d+ min · home$/ });
     const names = within(session)
@@ -369,6 +374,17 @@ describe('TrainPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Ask the Coach for options' }));
     expect(await screen.findByRole('heading', { name: 'coach page' })).toBeInTheDocument();
     expect(h.router.state.location.state).toEqual({ draft: { text: 'Options to swap dand today?', context: { date: '2026-09-30', screen: 'train' } } });
+  });
+
+  // (r087) Activity's other two tabs name a day as ?date=: Train takes that form too and opens the day at its own address
+  it('opens the day named as ?date=, and today for a date it cannot read', async () => {
+    const a = renderLiving(<TrainPage />, { route: 'train/:date?', path: `/train?date=${WED}` });
+    await waitFor(() => expect(a.router.state.location.pathname).toBe(`/train/${WED}`));
+    expect(a.router.state.location.search).toBe('');
+    expect(await screen.findByText('Wednesday, 30 September')).toBeInTheDocument();
+    a.result.unmount();
+    const b = renderLiving(<TrainPage />, { route: 'train/:date?', path: '/train?date=soon' });
+    await waitFor(() => expect(b.router.state.location.pathname + b.router.state.location.search).toBe('/train'));
   });
 
   it('moves one day with [ and ]', async () => {

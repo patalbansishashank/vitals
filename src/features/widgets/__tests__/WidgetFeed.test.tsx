@@ -17,6 +17,7 @@ const m = vi.hoisted(() => ({
   useAvailability: vi.fn(),
   useTimeline: vi.fn(),
   useRingDay: vi.fn(),
+  useLocalHeartRate: vi.fn(),
   ringTimeline: vi.fn(),
   living: { today: vi.fn(), trend: vi.fn() },
 }));
@@ -28,9 +29,10 @@ vi.mock('@/features/living/data/source', () => ({ useLiving: (select: (s: unknow
 vi.mock('@/features/ring/day', () => ({ useRingDay: m.useRingDay }));
 vi.mock('@/features/ring/data', () => ({
   useTimeline: m.ringTimeline,
-  useDaily: () => ({ data: { metrics: { hr: { latest: { value: 79, at: '2026-10-28T07:46:00Z' } } } } }),
+  useDaily: () => ({ data: { date: '2026-10-28', metrics: { hr: { unit: 'bpm', count: 300, mean: 70, min: 52, max: 118, latest: { value: 79, at: '2026-10-28T07:46:00Z' } } } } }),
   useAvailability: m.useAvailability,
 }));
+vi.mock('@/features/ring/localFill', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useLocalHeartRate: m.useLocalHeartRate }));
 vi.mock('@/features/ring/RingToday', () => ({ useRingTodayState: () => 'ready' }));
 vi.mock('@/features/ring/components/parts', () => ({ useUnitPrefs: () => ({ units: 'metric' }) }));
 vi.mock('@/features/ring/views/cards', () => ({ useRingState: () => ({ battery: 64, batteryAt: '2026-10-28T07:30:00Z' }) }));
@@ -103,6 +105,7 @@ beforeEach(() => {
   m.useAvailability.mockReset().mockReturnValue({ data: { freshness: { lastUploadAt: '2026-10-28T07:47:00Z' } } });
   m.useTimeline.mockReset().mockReturnValue(timeline);
   m.ringTimeline.mockReset().mockReturnValue({ status: 'ready', data: timeline });
+  m.useLocalHeartRate.mockReset().mockReturnValue(null);
   m.useRingDay.mockReset().mockReturnValue({ night, goals: { sleepMin: { value: 450 } } });
   m.living.today.mockReset().mockReturnValue({ trendWeight: { kg: 85.2, sd: 0.2 }, drift: [{ state: 'onTrack' }] });
   m.living.trend.mockReset().mockReturnValue({ trend: [86.1, 86, 85.8, Number.NaN, 85.5, 85.2] });
@@ -130,6 +133,13 @@ describe('the feed reads the models, not the cards', () => {
     expect(snap.today?.sleep).toMatchObject({ value: '7 h 56', word: 'Goal met', goal: '7 h 30' });
     expect(snap.ring?.hr).toMatchObject({ value: '79', unit: 'bpm', state: 'Normal' });
     expect(snap.ring?.battery).toMatchObject({ value: '64', word: 'Fine' });
+  });
+
+  it('the Heart rate widget shows the phone\'s newer reading until the server\'s day has it', async () => {
+    m.useLocalHeartRate.mockReturnValue({ bpm: 96, at: new Date(2026, 9, 28, 23, 0, 0, 412).toISOString() });
+    const s = await mount(shell({ placed: 5, byCard: placed, contract: 2, pin: true }));
+    expect(m.useLocalHeartRate).toHaveBeenCalled();
+    expect(lastSnapshot(s).ring?.hr).toMatchObject({ value: '96', unit: 'bpm', state: 'Elevated' });
   });
 
   it('does not read or send what no widget of this shell draws: the week’s Heart Points and the last sync', async () => {

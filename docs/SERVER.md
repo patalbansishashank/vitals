@@ -509,7 +509,9 @@ tool and `briefing_get` with an agent token over `/mcp`, unpairs and stops the s
 ## Updates
 
 The server delivers app updates over the air, so the owner's phone never needs USB or wireless debugging. Vitals gets
-silent web-bundle updates and APK updates; ring app gets APK updates. The binding contract is
+silent web-bundle updates and APK updates. The ring engine has been part of Vitals since 0.7.0, so the retired
+standalone ring app (app `gauge`) gets no new releases; its feed and its token routes stay only so a phone that still
+has it installed keeps working. The binding contract is
 `vitals-research/ota/CONTRACT.md`. The code is in `packages/companion/src/home/releases.ts`.
 
 **Store.** Releases live in `<dataDir>/releases/<app>/<channel>/`, with app `vitals` or `gauge` and channel `stable`.
@@ -517,11 +519,11 @@ silent web-bundle updates and APK updates; ring app gets APK updates. The bindin
 keeps the last 3 APKs and the last 3 web bundles of each app and channel. When a release drops off the index, its files
 are deleted.
 
-**Publish.** The orchestrator copies the files to the host with scp, then runs on the host:
+**Publish.** `pnpm release:ota` (`scripts/release/ota-publish.sh`, docs/RELEASING.md "Publishing to the phones")
+copies the files to the host with scp and runs these on the host; `pnpm release:ota --list` prints the feed:
 
 ```sh
 vitals-server release publish vitals --apk vitals-release.apk [--version-name 0.7.0 --version-code 14] [--notes "…"] [--sha256 <hex>]
-vitals-server release publish gauge  --apk gauge-debug.apk --version-name 0.3.0 --version-code 3
 vitals-server release publish vitals --web vitals-web-202610260809-10ecce3.zip --sig vitals-web-202610260809-10ecce3.zip.sig [--version 202610260809-10ecce3] [--sha256 <hex>]
 vitals-server release list vitals
 ```
@@ -530,7 +532,9 @@ vitals-server release list vitals
   when the manifest cannot be read. When both are present they must agree. A versionCode that is already published
   with another file, or that is lower than the newest one, is refused (Android cannot install it as an update).
 - **Web bundle** (Vitals only). The zip must have `bundle.json` at its top level:
-  `{ "version", "minNativeVersionCode", "builtAt" }`. The server reads all three from it. `--version` is a check: it
+  `{ "version", "minNativeVersionCode", "builtAt" }`. The server reads all three from it. `web-bundle.mjs` sets
+  `minNativeVersionCode` to the release's own versionCode unless given `--min-native-version-code`, so by default a
+  bundle reaches only phones that have installed that release's APK (the `web` rule below); publish that APK too. `--version` is a check: it
   must match. `--sig` is the detached ed25519 signature over the zip's sha256 hex: 64 bytes, given raw, as hex or as
   base64. The server stores the file as given (`<file>.sig`) and returns the signature as base64. It never verifies the
   signature; only the app holds the public key. A version that is already published with another file is refused.
@@ -1009,10 +1013,25 @@ Memory (31 s ago): server rss 412 MB, main heap 53 MB, 2 of at most 4 persons op
 shows here once it ends).
 
 **Watchdog.** `deploy/oci-arm.sh` installs `~/vitals-server/bin/vitals-watchdog` and the user timer
-`vitals-watchdog.timer`: every minute it asks `/health` (10 s limit) and restarts `vitals-server` after 3 failures in a
-row, never in the first 3 minutes after a start; it logs to `~/.local/state/vitals-server/watchdog.log`.
-`systemctl --user list-timers vitals-watchdog.timer` shows it; `systemctl --user disable --now vitals-watchdog.timer`
-pauses it.
+`vitals-watchdog.timer`: every minute it asks `/health` (20 s limit). A check with no answer counts as *busy* when the
+server's main thread used CPU since the last check, and as *stalled* when it did not. It restarts `vitals-server` after
+3 stalled failures in a row or 6 failures of any kind in a row, never in the first 3 minutes after a start; it logs to
+`~/.local/state/vitals-server/watchdog.log`. So a server that is slow because it is working is left alone, and one
+that is hung is still restarted. `systemctl --user list-timers vitals-watchdog.timer` shows it;
+`systemctl --user disable --now vitals-watchdog.timer` pauses it.
+
+**Kept ring reads.** The answers of the ring read routes (`/v1/gauge/*` and the `gauge_*` tools) are kept in memory
+(at most 4,000 entries and about 96 MB) and reused until a write changes the days they read: an upload for today
+leaves past days kept. A kept answer is served, or answered with 304, without reading the database. Heavy reads run
+one at a time through a queue that yields to `/health`, uploads and the pulse between reads. A person's `lumen.db`
+stays open for up to 36 idle hours while it has kept answers (10 minutes otherwise). The pulse's counters are kept in
+`persons/<id>/gauge-pulse.json`, so a restart of the same version does not make every device read everything again.
+After a write drops kept answers, the server works out again, by itself, those a device asked for in the last 6 hours
+(at most 24 per person, 5 seconds after the last write, always behind real requests, and for at most about 6 seconds
+of work per upload), so the next request finds them kept.
+`lumen.db` has a 64 MB limit on its write-ahead log; nothing is pruned or compacted.
+`packages/companion/scripts/bench-gauge-reads.mjs --db <copy of lumen.db> --tz <zone> --server <build dir>` times the
+reads cold and kept against a **copy** of the file and prints only timings and counts.
 
 **Other log lines to look for.**
 

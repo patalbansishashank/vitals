@@ -56,6 +56,15 @@ describe('Progress page', () => {
         'markers',
       ].filter((id) => phone.result.container.querySelector(`#${id}`)),
     );
+    // (r087) one heading between the plan story and the measured cards, no subtext under it
+    const measured = screen.getByRole('heading', { level: 2, name: 'Measured' });
+    const after = (id: string) => {
+      const el = phone.result.container.querySelector(`#${id}`);
+      return el ? !!(measured.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) : null;
+    };
+    expect(['trend', 'energy', 'adherence', 'log', 'checkins'].map(after).filter((x) => x !== null)).not.toContain(true);
+    expect(['steps', 'heart-points', 'overnight', 'hrv', 'body', 'markers'].map(after).filter((x) => x !== null)).not.toContain(false);
+    expect(after('body')).toBe(true);
     phone.result.unmount();
 
     const original = window.matchMedia;
@@ -80,6 +89,7 @@ describe('Progress page', () => {
       expect(right).toContain('body');
       expect(left).toContain('checkins');
       expect(desk.result.container.querySelector('.lv-prog__hero > #goals')).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Measured' })).toBeNull();
     } finally {
       window.matchMedia = original;
     }

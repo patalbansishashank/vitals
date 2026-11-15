@@ -30,6 +30,11 @@
  *   them and the copies show again.
  * - `installationId` is any 8–64 character id of letters, digits and dashes: Lumen sends its MQTT id (32 lowercase hex,
  *   a UUID without dashes); a dashed UUID is accepted too.
+ * - Every committed write tells the store's listeners what it can have changed (`onChange`, `StoreChange`): the windows
+ *   of observed and support time, the detection tables, or everything. The cached reads (`./gaugeReads.ts`) drop only
+ *   what a write touches; `foreignWrites` names a write by another process (`vitals-server gauge dedupe`).
+ * - The WAL is checkpointed by SQLite's own auto-checkpoint and cut back to `WAL_LIMIT_BYTES` after one (a migration or
+ *   a state rebuild can grow it by hundreds of MB). Nothing is pruned and the file is never vacuumed here.
  */
 import Database from 'better-sqlite3';
 import { chmodSync, existsSync } from 'node:fs';
@@ -41,6 +46,7 @@ import {
 import { rebuildState, stateStale, stateWriter } from './lumenState.ts';
 import { createDetectionStore, type DetectionStore } from './detect/episodes.ts';
 import { mergeRanges, touchOf } from './detect/queue.ts';
+import { kindOf, mergeWindows, noteDetectionsRead, noteRawRead, noteRead, type Window } from './readScope.ts';
 
 export { instantMs, LUMEN_SCHEMA_VERSION, MAX_SPAN_MS, SPAN_CATEGORIES, type Lineage, type SpanCategory } from './lumenMigrate.ts';
 
@@ -120,6 +126,37 @@ export interface DedupeResult {
   written: number;
 }
 
+/** The WAL file is cut back to this size after a checkpoint (`PRAGMA journal_size_limit`). */
+export const WAL_LIMIT_BYTES = 64 * 1024 * 1024;
+
+/** What one committed write can have changed in the answers derived from the store. */
+export interface StoreChange {
+  /** Closed windows `[lo, hi]` of observed time and of support time (one list), each with the kind of events written (`kindOf`). */
+  ranges: readonly Window[];
+  /** No window bounds it: a wide deletion, dedupe or its undo, a state rebuild, the installations' roles, another process. */
+  everything: boolean;
+  /** The detection tables (episodes, the queue, the run marks). */
+  detections: boolean;
+}
+
+/** One visible `state/sync` coverage report (`health.sync.coverage`), its data parsed once (null when it is not an object). */
+export interface CoverageReport {
+  id: string;
+  observedMs: number;
+  data: Record<string, unknown> | null;
+}
+
+const DAY_MS = 24 * 3_600_000;
+/**
+ * The window that stands for a coverage report's days `fromDay`..`toDay` (YYYY-MM-DD, compared as dates, whatever the
+ * zone): a writer and a reader get windows that meet exactly when they name a day in common. Null for a malformed day.
+ */
+export function coverageWindow(fromDay: string, toDay: string): [number, number] | null {
+  const a = /^\d{4}-\d{2}-\d{2}$/.test(fromDay) ? Date.parse(`${fromDay}T00:00:00Z`) : Number.NaN;
+  const b = /^\d{4}-\d{2}-\d{2}$/.test(toDay) ? Date.parse(`${toDay}T00:00:00Z`) : Number.NaN;
+  return Number.isFinite(a) && Number.isFinite(b) ? [a, b + DAY_MS - 1] : null;
+}
+
 export const READ_DEFAULT_LIMIT = 2000;
 export const READ_MAX_LIMIT = 10_000;
 
@@ -193,6 +230,8 @@ export interface MetricSample {
   provenance: string | null;
   deviceKey: string | null;
   firmware: string | null;
+  /** The reading's declared `cadence_s`, as stored (null when it declares none). */
+  cadenceS: unknown;
   /** The physical source: `ring:<device_key>`, or `ring:installation:<id>` for a row without one (every Gauge metric is ring-derived). */
   source: string;
 }
@@ -223,9 +262,30 @@ export interface LumenStore {
   readMetricSamples(kind: string, fromMs: number, toMs: number, o?: PageOptions): Page<MetricSample>;
   /** (r067 AD-SERVER) The detection episodes and the queue ingest fills (`./detect/episodes.ts`). */
   readonly detections: DetectionStore;
-  /** Read-only SQL over the views (the MCP tools' queries). */
+  /**
+   * Read-only SQL over the views (the MCP tools' queries). Inside a read scope (`./readScope.ts`) the caller runs it in
+   * `readWindow`, which names what it looks at; a read outside one makes the answer depend on every write.
+   */
   all<T>(sql: string, ...params: unknown[]): T[];
   get<T>(sql: string, ...params: unknown[]): T | undefined;
+  /**
+   * Every visible `state/sync` coverage report, kept in memory: read once, then only the reports uploaded since (a
+   * deletion or a rebuild reads them all again). A raw read for the scope, like `all`.
+   */
+  syncCoverage(): readonly CoverageReport[];
+  /** Calls `listener` after each committed write with what it can have changed; returns the unsubscribe. */
+  onChange(listener: (c: StoreChange) => void): () => void;
+  /** Moves whenever `installations()` can answer differently (an upload moves `lastIngestAt`). */
+  rosterRevision(): number;
+  /**
+   * True when another connection (another process: the admin CLI) committed to the file since this was last asked: the
+   * store then forgets what it kept in memory and tells its listeners `everything`. One pragma, no table read.
+   */
+  foreignWrites(): boolean;
+  /** How many SQL statements the read helpers have run (the bench and the tests count reads with it). */
+  sqlReads(): number;
+  /** How many times `foreignWrites` asked the file's version: the one statement a kept answer costs, counted apart from the reads. */
+  versionChecks(): number;
   close(): void;
 }
 
@@ -535,6 +595,8 @@ export function openLumenStore(file: string): LumenStore {
   db.pragma('journal_mode = WAL');
   db.pragma('synchronous = NORMAL');
   db.pragma('busy_timeout = 2000');
+  // (r087) a checkpoint cuts the WAL back to this; without it the file keeps the size of its largest transaction
+  db.pragma(`journal_size_limit = ${WAL_LIMIT_BYTES}`);
   migrateLumen(db);
   // rows an older server appended to a migrated file (and, the first time, every row) get their span; a file another
   // writer changed since the state was last kept gets its state rebuilt (one set-based pass)
@@ -567,22 +629,111 @@ export function openLumenStore(file: string): LumenStore {
 
   const writeSpan = spanWriter(db);
   const state = stateWriter(db);
-  const detections = createDetectionStore(db);
-  // (r067) a Health Connect tombstone touches the record it retracts (every version's span, through the subject index)
-  // (r070) a Health Connect record is the store's, not the installation's: every installation's versions of it
-  const hcSpan = db.prepare<[string], { a: number | null; b: number | null }>(`SELECT MIN(s.start_ms) AS a, MAX(s.end_ms) AS b FROM events e JOIN event_spans s ON s.id = e.id
-    WHERE e.subject = ? AND e.category = 'hc/record'`);
-  const ingestTx = db.transaction((installationId: string, events: readonly unknown[], nowMs: number): IngestResult => {
+
+  // --- what a write can have changed (r087): told to the listeners after it commits
+  const listeners = new Set<(c: StoreChange) => void>();
+  const emit = (c: StoreChange) => {
+    if (!c.everything && !c.detections && c.ranges.length === 0) return;
+    for (const f of [...listeners]) f(c);
+  };
+  let reads = 0;
+  let versionChecks = 0;
+  let rosterRev = 0;
+  let roster: InstallationRow[] | null = null;
+  /** `syncCoverage`'s rows and the events rowid they reach; null = read them all again. */
+  let coverage: { rows: CoverageReport[]; seq: number } | null = null;
+  /** The newest events rowid (null = not read yet). */
+  let eventsSeq: number | null = null;
+  /** The longest stored span per category, and per Health Connect record type (null = not read yet). */
+  const spanMax = new Map<string, number>();
+  let hcTypeMax: Map<string, number> | null = null;
+  const forget = () => {
+    roster = null;
+    rosterRev++;
+    coverage = null;
+    eventsSeq = null;
+    spanMax.clear();
+    hcTypeMax = null;
+  };
+  const noteSpan = (category: string, subject: string, lengthMs: number) => {
+    const cur = spanMax.get(category);
+    if (cur !== undefined && lengthMs > cur) spanMax.set(category, Math.min(lengthMs, MAX_SPAN_MS));
+    if (category === HC_RECORD_CATEGORY && hcTypeMax) {
+      const type = subject.slice(0, subject.indexOf(':'));
+      hcTypeMax.set(type, Math.max(hcTypeMax.get(type) ?? 0, lengthMs));
+    }
+  };
+
+  const det = createDetectionStore(db);
+  const seen = <A extends unknown[], R>(f: (...a: A) => R) => (...a: A): R => {
+    reads++;
+    noteDetectionsRead();
+    return f(...a);
+  };
+  interface Dirty { ranges: Window[]; everything: boolean; detections: boolean }
+  /** The upload being stored: what it changes is told once, after it commits. */
+  let uploading: Dirty | null = null;
+  const moved = <A extends unknown[]>(f: (...a: A) => void) => (...a: A): void => {
+    f(...a);
+    if (uploading) uploading.detections = true;
+    else emit({ ranges: [], everything: false, detections: true });
+  };
+  // the detection tables through the same door: their reads count in a read scope, their writes reach the listeners
+  const detections: DetectionStore = {
+    enqueue: moved(det.enqueue), dequeue: moved(det.dequeue), apply: moved(det.apply), noteRun: moved(det.noteRun),
+    queue: seen(det.queue), overlapping: seen(det.overlapping), page: seen(det.page), epoch: seen(det.epoch), maxSeq: seen(det.maxSeq),
+    processedMs: seen(det.processedMs), diagnostics: seen(det.diagnostics),
+  };
+
+  // every version's span of one record (a Health Connect record or tombstone, a workout: their current version is
+  // chosen per subject) or of one version group (the rest: per subject and observed instant), through the subject index.
+  // (r070) A record is the store's, not the installation's: every installation's versions of it.
+  const subjectSpan = db.prepare<[string, string], { a: number | null; b: number | null }>(`SELECT MIN(s.start_ms) AS a, MAX(s.end_ms) AS b FROM events e JOIN event_spans s ON s.id = e.id
+    WHERE e.subject = ? AND e.category = ?`);
+  const groupSpan = db.prepare<[string, string, number], { a: number | null; b: number | null }>(`SELECT MIN(s.start_ms) AS a, MAX(s.end_ms) AS b FROM events e JOIN event_spans s ON s.id = e.id
+    WHERE e.subject = ? AND e.category = ? AND e.observed_ms = ?`);
+  /** A deletion of these is bounded by its `[from, to]`: they are only ever read by observed time. */
+  const observedOnly = (category: string) => category === 'activity/daily' || /^(?:metrics|vendor|insights)(?:\/|$)/.test(category);
+
+  const ingestTx = db.transaction((installationId: string, events: readonly unknown[], nowMs: number, dirty: Dirty): IngestResult => {
     const at = new Date(nowMs).toISOString();
     const out: IngestResult = { accepted: 0, duplicates: 0, rejected: [] };
     // (r067) the ranges detection must look at again, queued in this transaction
     const touched: Array<readonly [number, number]> = [];
     const touch = (row: { category: string; subject: string; observed_ms: number }, data: Record<string, unknown>, deletion?: { category: string; from_ms: number | null; to_ms: number | null }) => {
-      const t = touchOf({ category: row.category, subject: row.subject, observedMs: row.observed_ms, data }, isSpanCategory(row.category) ? spanOf(row.category, row.subject, data, row.observed_ms) : null, deletion, nowMs);
+      const span = isSpanCategory(row.category) ? spanOf(row.category, row.subject, data, row.observed_ms) : null;
+      // (r087) what the cached reads must drop: the event's instant, its support and that of the versions it replaces
+      const kind = kindOf(row.category);
+      dirty.ranges.push([row.observed_ms, row.observed_ms, kind]);
+      if (deletion) {
+        // a deletion hides rows by observed time; where a support can reach past it, or a record's current version is
+        // chosen across instants, no window bounds what shows again
+        if (deletion.from_ms !== null && deletion.to_ms !== null && observedOnly(deletion.category)) dirty.ranges.push([deletion.from_ms, deletion.to_ms, kindOf(deletion.category)]);
+        else dirty.everything = true;
+        if (deletion.category === '*' || deletion.category === 'state' || deletion.category === 'state/sync') coverage = null;
+      } else {
+        if (span) {
+          dirty.ranges.push([span.startMs, span.endMs, kind]);
+          const bySubject = row.category === HC_RECORD_CATEGORY || row.category === WORKOUT_CATEGORY;
+          const g = bySubject ? subjectSpan.get(row.subject, row.category) : groupSpan.get(row.subject, row.category, row.observed_ms);
+          if (g?.a != null && g.b != null) dirty.ranges.push([g.a, g.b, kind]);
+          noteSpan(row.category, row.subject, span.endMs - span.startMs);
+        }
+        if (row.category === HC_DELETED_CATEGORY) {
+          const r = subjectSpan.get(row.subject, HC_RECORD_CATEGORY);
+          if (r?.a != null && r.b != null) dirty.ranges.push([r.a, r.b, kind]);
+        }
+        if (row.category === 'state/sync' && data.stream === 'activity_detail') {
+          const w = typeof data.fromDay === 'string' && typeof data.toDay === 'string' ? coverageWindow(data.fromDay, data.toDay) : null;
+          if (w) dirty.ranges.push([w[0], w[1], kind]);
+          else if (data.fromDay !== undefined || data.toDay !== undefined) dirty.everything = true;
+        }
+      }
+      const t = touchOf({ category: row.category, subject: row.subject, observedMs: row.observed_ms, data }, span, deletion, nowMs);
       if (!t) return;
       if (Array.isArray(t)) touched.push(t as readonly [number, number]);
       else {
-        const r = hcSpan.get((t as { hcSubject: string }).hcSubject);
+        const r = subjectSpan.get((t as { hcSubject: string }).hcSubject, HC_RECORD_CATEGORY);
         if (r?.a != null && r.b != null) touched.push([r.a, Math.max(r.b, r.a + 60_000)]);
       }
     };
@@ -598,11 +749,14 @@ export function openLumenStore(file: string): LumenStore {
       if (!inserted) {
         if (q.redelivered.run(c.row.received_ms, c.row.id, c.row.received_ms).changes > 0) {
           state.redelivered(c.row.id);
+          // an old report can show again: its rowid is behind the ones `syncCoverage` has read
+          if (c.row.category === 'state/sync') coverage = null;
           touch(c.row, c.data);
         }
         out.duplicates++;
         return;
       }
+      if (eventsSeq !== null) eventsSeq = Math.max(eventsSeq, Number(ins.lastInsertRowid));
       writeSpan({ ...c.row, installation_id: installationId }, c.data);
       if (c.deletion) {
         const d = { id: c.row.id, installation_id: installationId, ...c.deletion, observed_at: c.row.observed_at, received_at: c.row.received_at, data: c.row.data, ingested_at: at };
@@ -618,6 +772,32 @@ export function openLumenStore(file: string): LumenStore {
     q.touch.run(installationId, at);
     return out;
   });
+
+  const changedEverything = () => {
+    forget();
+    emit({ ranges: [], everything: true, detections: false });
+  };
+  const ingest = (installationId: string, events: readonly unknown[], nowMs: number): IngestResult => {
+    const known = installations().some((i) => i.id === installationId);
+    const dirty: Dirty = { ranges: [], everything: false, detections: false };
+    let out: IngestResult;
+    uploading = dirty;
+    try {
+      out = ingestTx(installationId, events, nowMs, dirty);
+    } catch (e) {
+      // rolled back: what the transaction noted in memory on its way names rows that are not there
+      forget();
+      throw e;
+    } finally {
+      uploading = null;
+    }
+    // the upload moved this installation's `lastIngestAt`; a first upload also adds it to the roster, which answers read
+    const at = new Date(nowMs).toISOString();
+    roster = known && roster ? roster.map((i) => (i.id === installationId ? { ...i, lastIngestAt: at } : i)) : null;
+    rosterRev++;
+    emit({ ranges: mergeWindows(dirty.ranges), everything: dirty.everything || !known, detections: dirty.detections });
+    return out;
+  };
 
   // the current version of each record: a slot whose newest version is a copy goes whole (every version at that instant)
   const dedupeSelect = db.prepare<{ c: string }, DedupeRow>(`SELECT id, installation_id, category, subject, observed_ms, received_ms, data FROM current_events
@@ -657,6 +837,7 @@ export function openLumenStore(file: string): LumenStore {
       if (written > 0) state.rebuild();
       o.inspect?.();
       db.exec(o.dryRun ? 'ROLLBACK' : 'COMMIT');
+      if (!o.dryRun && written > 0) changedEverything();
       return { offsets, removals: unique, written: o.dryRun ? 0 : written };
     } catch (e) {
       if (db.inTransaction) db.exec('ROLLBACK');
@@ -664,20 +845,47 @@ export function openLumenStore(file: string): LumenStore {
     }
   }
 
+  const hcTypeSpans = db.prepare<[], { t: string; m: number }>(`SELECT substr(subject, 1, instr(subject, ':') - 1) AS t, MAX(end_ms - start_ms) AS m FROM event_spans WHERE category = '${HC_RECORD_CATEGORY}' GROUP BY t`);
+  /**
+   * How far before a window an overlap read must look: the longest stored span of the category (a ring minute: one
+   * minute; never more than `MAX_SPAN_MS`), or of the one Health Connect record type asked for. Null when the store
+   * holds no record of that type at all. Kept in memory: ingest raises it, a foreign write forgets it.
+   */
+  const lookBack = (category: SpanCategory, recordType?: HcRecordType): number | null => {
+    if (recordType !== undefined) {
+      if (!hcTypeMax) {
+        reads++;
+        hcTypeMax = new Map(hcTypeSpans.all().map((r) => [r.t, r.m]));
+      }
+      const m = hcTypeMax.get(recordType);
+      return m === undefined ? null : Math.min(m, MAX_SPAN_MS);
+    }
+    let m = spanMax.get(category);
+    if (m === undefined) {
+      reads++;
+      spanMax.set(category, (m = spanMaxMs(db, category)));
+    }
+    return m;
+  };
+
   const readIntervals = (category: SpanCategory, fromMs: number, toMs: number, o: IntervalOptions = {}): Page<IntervalRow> => {
     if (!isSpanCategory(category)) throw new LumenReadError('unknown_category', `Not a category with time support: ${String(category)}.`);
     const { limit, after } = pageArgs('i', fromMs, toMs, o);
     if (o.recordType !== undefined && (category !== HC_RECORD_CATEGORY || !isHcType(o.recordType))) throw new LumenReadError('invalid_kind', `recordType is a Health Connect record type, for hc/record only.`);
+    noteRead(fromMs, toMs, kindOf(category));
     const src = category === HC_RECORD_CATEGORY ? 'hc_records' : category === WORKOUT_CATEGORY ? 'workout_sessions' : 'current_spans';
-    // only as far back as the category's longest stored span (a ring minute: one minute; never more than MAX_SPAN_MS)
-    const back = spanMaxMs(db, category);
+    const back = lookBack(category, o.recordType);
+    if (back === null) return { rows: [], next: null };
+    // (r087) one record type by its subject (`<type>:<id>`, `hcSubjectOk`): a range on the span row, so the other types'
+    // rows are passed over before their events (and their sample payloads) are ever read
     const sql = `SELECT seq, id, installation_id, category, subject, lineage, support, start_ms, end_ms, rev_ms, observed_ms, received_ms, ingested_ms, data FROM ${src}
       WHERE category = @c AND start_ms >= @lo AND start_ms < @to AND MAX(COALESCE(end_ms, start_ms), start_ms + 1) > @from
-        AND (start_ms > @cs OR (start_ms = @cs AND id > @cid))${o.installationId !== undefined ? ' AND installation_id = @inst' : ''}${o.recordType !== undefined ? " AND json_extract(data, '$.record_type') = @rt" : ''}
+        AND (start_ms > @cs OR (start_ms = @cs AND id > @cid))${o.installationId !== undefined ? ' AND installation_id = @inst' : ''}${o.recordType !== undefined ? ' AND subject >= @rt0 AND subject < @rt1' : ''}
       ORDER BY start_ms, id LIMIT @n`;
+    reads++;
     const rows = stmt(sql).all({
       c: category, from: fromMs, to: toMs, lo: Math.max(fromMs - back, after?.[0] ?? -Infinity), cs: after?.[0] ?? -1e15, cid: after?.[1] ?? '', n: limit + 1,
-      ...(o.installationId !== undefined ? { inst: o.installationId } : {}), ...(o.recordType !== undefined ? { rt: o.recordType } : {}),
+      ...(o.installationId !== undefined ? { inst: o.installationId } : {}), ...(o.recordType !== undefined ? { rt0: `${o.recordType}:`, rt1: `${o.recordType};` } : {}),
     }) as Array<{ seq: number; id: string; installation_id: string; category: SpanCategory; subject: string; lineage: Lineage | null; support: string | null; start_ms: number; end_ms: number | null; rev_ms: number | null; observed_ms: number; received_ms: number; ingested_ms: number; data: string }>;
     return page(rows, limit, (r) => [r.start_ms, r.id], 'i', (r) => ({
       id: r.id, seq: r.seq, installationId: r.installation_id, category: r.category, subject: r.subject, lineage: r.lineage, support: r.support,
@@ -689,15 +897,22 @@ export function openLumenStore(file: string): LumenStore {
   const readMetricSamples = (kind: string, fromMs: number, toMs: number, o: PageOptions = {}): Page<MetricSample> => {
     if (typeof kind !== 'string' || !NAME.test(kind)) throw new LumenReadError('invalid_kind', `Not a metric kind: ${String(kind)}.`);
     const { limit, after } = pageArgs('m', fromMs, toMs, o);
-    const rows = stmt(`SELECT seq, id, installation_id, category, kind, observed_ms, value, systolic, diastolic, unit, quality, provenance, device_key, firmware FROM metric_series
-      WHERE kind = @k AND observed_ms >= @lo AND observed_ms < @to AND (observed_ms > @cs OR (observed_ms = @cs AND id > @cid))
+    noteRead(fromMs, toMs, 'metric');
+    reads++;
+    // `metric_series`' rows and columns, with the reading's declared cadence beside them (one read, not a second pass)
+    const rows = stmt(`SELECT seq, id, installation_id, category, subject AS kind, observed_ms, json_extract(data, '$.value') AS value, json_extract(data, '$.systolic') AS systolic,
+        json_extract(data, '$.diastolic') AS diastolic, json_extract(data, '$.unit') AS unit, json_extract(data, '$.quality') AS quality, json_extract(data, '$.provenance') AS provenance,
+        json_extract(data, '$.device_key') AS device_key, json_extract(data, '$.firmware') AS firmware, json_extract(data, '$.cadence_s') AS cadence_s
+      FROM current_events
+      WHERE subject = @k AND ((category >= 'metrics/' AND category < 'metrics0') OR (category >= 'vendor/' AND category < 'vendor0'))
+        AND observed_ms >= @lo AND observed_ms < @to AND (observed_ms > @cs OR (observed_ms = @cs AND id > @cid))
       ORDER BY observed_ms, id LIMIT @n`).all({ k: kind, lo: Math.max(fromMs, after?.[0] ?? -Infinity), to: toMs, cs: after?.[0] ?? -1e15, cid: after?.[1] ?? '', n: limit + 1 }) as Array<{
       seq: number; id: string; installation_id: string; category: string; kind: string; observed_ms: number; value: number | null; systolic: number | null; diastolic: number | null;
-      unit: string | null; quality: string | null; provenance: string | null; device_key: string | null; firmware: string | null;
+      unit: string | null; quality: string | null; provenance: string | null; device_key: string | null; firmware: string | null; cadence_s: unknown;
     }>;
     return page(rows, limit, (r) => [r.observed_ms, r.id], 'm', (r) => ({
       id: r.id, seq: r.seq, installationId: r.installation_id, category: r.category, kind: r.kind, tMs: r.observed_ms, value: r.value, systolic: r.systolic, diastolic: r.diastolic,
-      unit: r.unit, quality: r.quality, provenance: r.provenance, deviceKey: r.device_key, firmware: r.firmware,
+      unit: r.unit, quality: r.quality, provenance: r.provenance, deviceKey: r.device_key, firmware: r.firmware, cadenceS: r.cadence_s,
       source: r.device_key ? `ring:${r.device_key}` : `ring:installation:${r.installation_id}`,
     }));
   };
@@ -709,10 +924,12 @@ export function openLumenStore(file: string): LumenStore {
     return st;
   };
   const installations = (): InstallationRow[] => {
+    if (roster) return roster;
+    reads++;
     const rows = q.installations.all();
     // the embedded installation paired last and not unpaired supersedes every standalone Gauge installation
     const embedded = rows.filter((r) => r.app === 'vitals' && !r.unpaired_at).sort((a, b) => (b.paired_at ?? '').localeCompare(a.paired_at ?? '') || (a.id < b.id ? -1 : 1))[0];
-    return rows.map((r) => {
+    roster = rows.map((r) => {
       const app: InstallationApp = r.app === 'vitals' ? 'vitals' : 'gauge';
       const by = app === 'gauge' && !r.unpaired_at && embedded ? embedded.id : null;
       return {
@@ -720,17 +937,49 @@ export function openLumenStore(file: string): LumenStore {
         app, unpairedAt: r.unpaired_at, status: r.unpaired_at ? 'unpaired' : by ? 'superseded' : 'active', supersededBy: by,
       };
     });
+    return roster;
   };
+
+  const COVERAGE = `SELECT st.seq AS seq, e.id AS id, st.observed_ms AS observed_ms, e.data AS data FROM event_state st`;
+  const COVERAGE_WHERE = `JOIN events e ON e.rowid = st.seq WHERE st.category = 'state/sync' AND st.hidden = 0 AND e.type = 'health.sync.coverage'`;
+  type CoverageRow = { seq: number; id: string; observed_ms: number; data: string };
+  const coverageAll = db.prepare<[], CoverageRow>(`${COVERAGE} ${COVERAGE_WHERE} ORDER BY st.seq`);
+  // the reports uploaded since: the newest rowids only (`NOT INDEXED`: a walk of that short rowid range)
+  const coverageSince = db.prepare<[number], CoverageRow>(`${COVERAGE} NOT INDEXED ${COVERAGE_WHERE} AND st.seq > ? ORDER BY st.seq`);
+  const topSeq = db.prepare<[], { m: number | null }>('SELECT MAX(rowid) AS m FROM events');
+  const syncCoverage = (): readonly CoverageReport[] => {
+    noteRawRead();
+    if (coverage && coverage.seq === eventsSeq) return coverage.rows;
+    reads++;
+    const top = eventsSeq ?? (eventsSeq = topSeq.get()?.m ?? 0);
+    const fresh = (coverage ? coverageSince.all(coverage.seq) : coverageAll.all()).map((r): CoverageReport => {
+      let d: unknown;
+      try {
+        d = JSON.parse(r.data);
+      } catch {
+        d = null;
+      }
+      return { id: r.id, observedMs: r.observed_ms, data: isObj(d) ? d : null };
+    });
+    coverage = { rows: coverage ? [...coverage.rows, ...fresh] : fresh, seq: top };
+    return coverage.rows;
+  };
+
+  const dataVersion = db.prepare('PRAGMA data_version').pluck();
+  let fileVersion = dataVersion.get() as number;
 
   return {
     file,
     detections,
-    ingest: (installationId, events, nowMs = Date.now()) => ingestTx(installationId, events, nowMs),
+    ingest: (installationId, events, nowMs = Date.now()) => ingest(installationId, events, nowMs),
     noteInstallation(id, o) {
       q.note.run({ id, device_name: o.deviceName ?? null, app_version: o.appVersion ?? null, paired_at: o.pairedAt, app: o.app ?? null });
+      // an installation's role (which app, superseded or not) is part of many answers
+      changedEverything();
     },
     retireInstallation(id, atIso) {
       q.retire.run(atIso, id);
+      changedEverything();
     },
     status() {
       const last = q.last.get();
@@ -749,15 +998,42 @@ export function openLumenStore(file: string): LumenStore {
     undoDedupe({ dryRun = false } = {}) {
       const like = `${DEDUPE_ID_PREFIX}%`;
       if (dryRun) return db.prepare<[string], { n: number }>('SELECT COUNT(*) AS n FROM deletions WHERE id LIKE ?').get(like)?.n ?? 0;
-      return db.transaction(() => {
+      const removed = db.transaction(() => {
         const n = db.prepare('DELETE FROM deletions WHERE id LIKE ?').run(like).changes;
         if (n > 0) state.rebuild();
         return n;
       }).immediate();
+      if (removed > 0) changedEverything();
+      return removed;
     },
-    all: <T>(sql: string, ...params: unknown[]) => stmt(sql).all(...params) as T[],
-    get: <T>(sql: string, ...params: unknown[]) => stmt(sql).get(...params) as T | undefined,
+    all: <T>(sql: string, ...params: unknown[]) => {
+      reads++;
+      noteRawRead();
+      return stmt(sql).all(...params) as T[];
+    },
+    get: <T>(sql: string, ...params: unknown[]) => {
+      reads++;
+      noteRawRead();
+      return stmt(sql).get(...params) as T | undefined;
+    },
+    syncCoverage,
+    onChange(listener) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    rosterRevision: () => rosterRev,
+    foreignWrites() {
+      versionChecks++;
+      const v = dataVersion.get() as number;
+      if (v === fileVersion) return false;
+      fileVersion = v;
+      changedEverything();
+      return true;
+    },
+    sqlReads: () => reads,
+    versionChecks: () => versionChecks,
     close() {
+      listeners.clear();
       if (db.open) db.close();
     },
   };

@@ -4,6 +4,7 @@
  *
  * - HRV and skin temperature are the night's values against S2's nightly baselines (A.2 #5); the catalogue lists
  *   skin temperature under `latest`, but a daytime reading against a nightly usual would always read low (DECISIONS).
+ *   (r087 IA) Labels are the one name each signal has everywhere; "overnight" is the `aggregate`, said in the (i).
  * - `available` says whether this build and this ring can supply it. An entry it cannot supply is never listed: the
  *   energy entries need the engine's day (Today's run: a plan, or Your body without one), training load an approved
  *   activity in the last 28 days (V2 `train-load/1`; its value then says when it waits on a resting heart rate); breathing
@@ -31,13 +32,13 @@ export interface MonitorEntry {
 
 export const MONITOR_CATALOGUE: readonly MonitorEntry[] = [
   { id: 'hr', label: 'Heart rate', unit: 'bpm', aggregate: 'latest', source: 'metrics', metric: 'hr', icon: HeartPulse },
-  { id: 'sleepLowHr', label: 'Sleeping low HR', unit: 'bpm', aggregate: 'nightLow', source: 'sleep', icon: Moon },
-  { id: 'hrv', label: 'HRV overnight', unit: 'ms', aggregate: 'nightMedian', source: 'sleep', metric: 'hrv', icon: Waves },
+  { id: 'sleepLowHr', label: 'Low sleeping heart rate', unit: 'bpm', aggregate: 'nightLow', source: 'sleep', icon: Moon },
+  { id: 'hrv', label: 'HRV', unit: 'ms', aggregate: 'nightMedian', source: 'sleep', metric: 'hrv', icon: Waves },
   { id: 'spo2', label: 'Blood oxygen', unit: '%', aggregate: 'latest', source: 'metrics', metric: 'spo2', icon: Droplet },
   { id: 'stress', label: 'Stress', unit: 'ring index', aggregate: 'latest', source: 'metrics', metric: 'stress', icon: Gauge },
-  { id: 'temp', label: 'Skin temperature overnight', unit: '°C', aggregate: 'nightMedian', source: 'sleep', metric: 'temp', icon: Thermometer },
+  { id: 'temp', label: 'Skin temperature', unit: '°C', aggregate: 'nightMedian', source: 'sleep', metric: 'temp', icon: Thermometer },
   { id: 'peakHr', label: 'Highest reading', unit: 'bpm', aggregate: 'dayMax', source: 'derived', icon: TrendingUp },
-  { id: 'avgWorkoutHr', label: 'Average workout HR', unit: 'bpm', aggregate: 'day', source: 'derived', icon: Activity },
+  { id: 'avgWorkoutHr', label: 'Average activity HR', unit: 'bpm', aggregate: 'day', source: 'derived', icon: Activity },
   { id: 'nonExerciseHr', label: 'Non-exercise HR', unit: 'bpm', aggregate: 'day', source: 'derived', icon: HeartPulse },
   { id: 'sleepDuration', label: 'Sleep duration', unit: null, aggregate: 'mainSleep', source: 'sleep', icon: MoonStar },
   { id: 'fellAsleep', label: 'Fell asleep', unit: null, aggregate: 'mainSleep', source: 'sleep', icon: Moon },

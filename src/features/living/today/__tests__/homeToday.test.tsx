@@ -126,11 +126,11 @@ describe('Today without a plan (Planning mode)', () => {
     expect(steps).toHaveAttribute('data-size', 'card');
     await waitFor(() => expect(within(steps).getByRole('img', { name: /^Steps through the day/ })).toBeInTheDocument());
 
-    await addCards('Ring signals', 'Heart Points', "Today's activities");
-    const glance = await findCard('Heart rate');
-    expect(within(glance).getByRole('link', { name: 'Heart rate' })).toHaveAttribute('href', '/ring');
+    await addCards('Signals', 'Heart Points', "Today's activities");
+    const glance = await findCard('Signals');
+    expect(within(glance).getByRole('link', { name: 'Signals' })).toHaveAttribute('href', '/ring');
     // r071: heart rate is the hero; Day score has its own library card.
-    await waitFor(() => expect(within(glance).getByRole('heading', { name: 'Heart rate' })).toBeInTheDocument());
+    await waitFor(() => expect(within(glance).getByRole('img', { name: /^Heart rate, \d+ beats per minute$/ })).toBeInTheDocument());
     expect(within(glance).queryByText(/^Day score \d+/)).toBeNull();
 
     const activity = await findCard('Today’s activities');
@@ -160,11 +160,11 @@ describe('Today without a plan (Planning mode)', () => {
     expect(await screen.findByText(RING_NOTE_WORDS.unreachable, {}, { timeout: 5000 })).toBeInTheDocument();
     expect(card(PLANLESS_COPY.noPlan)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 2, name: 'Sleep' })).toBeNull();
-    expect(await findCard('Steps')).toHaveTextContent('No step data yet');
+    expect(await findCard('Steps')).toHaveTextContent('No reading');
     // (r068 V25) one small Ring card holding the line, not an error wall: no alert, no banner, no signals
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.getAllByRole('heading', { level: 2, name: 'Ring' })).toHaveLength(1);
-    expect(within(card('Ring')).queryByText('Heart rate')).toBeNull();
+    expect(within(card('Ring')).queryByText('Signals')).toBeNull();
   });
 
   it('not connected to a server: the line says so and leads to Settings › Sync', async () => {
@@ -203,11 +203,11 @@ describe('Today without a plan (Planning mode)', () => {
     renderAt('/today');
     await screen.findByRole('heading', { level: 1, name: 'Today' }, { timeout: 8000 });
     // Optional signals and activity cards remain available through the library in quiet mode.
-    await addCards('Ring signals', 'Short videos', 'Heart Points', "Today's activities");
+    await addCards('Signals', 'Short videos', 'Heart Points', "Today's activities");
     const names = [
       'Sleep',
       RING_TODAY_WORDS.steps,
-      'Heart rate',
+      'Signals',
       'Short videos',
       'Heart Points',
       'Today’s activities',
@@ -217,7 +217,7 @@ describe('Today without a plan (Planning mode)', () => {
     await waitFor(() =>
       expect(within(card('Sleep')).getByText(/^Fell asleep (?:in the|early|late).* · Woke (?:in the|early|late).*$/, { selector: '.lm-overflow__item' })).toBeInTheDocument(),
     );
-    await waitFor(() => expect(within(card('Heart rate')).getByRole('heading', { name: 'Heart rate' })).toBeInTheDocument());
+    await waitFor(() => expect(within(card('Signals')).getAllByRole('link').length).toBeGreaterThan(1));
     for (const n of names) {
       const el = card(n);
       expect(el.textContent, n).not.toMatch(/\d/);
@@ -277,9 +277,9 @@ describe('Today with a live plan (Living mode)', () => {
     expect(await findCard('Weight')).toBeInTheDocument();
     const sleep = await findCard('Sleep');
     expect(within(sleep).getByRole('link', { name: 'Sleep' }).getAttribute('href')).toMatch(/^\/sleep/);
-    await addCards('Ring signals', 'Heart Points', "Today's activities");
-    const glance = await findCard('Heart rate');
-    expect(within(glance).getByRole('link', { name: 'Heart rate' })).toHaveAttribute('href', '/ring');
+    await addCards('Signals', 'Heart Points', "Today's activities");
+    const glance = await findCard('Signals');
+    expect(within(glance).getByRole('link', { name: 'Signals' })).toHaveAttribute('href', '/ring');
     expect(await findCard('Heart Points')).toBeInTheDocument();
     expect(await findCard('Today’s activities')).toBeInTheDocument();
     // no planless pieces on a planned day

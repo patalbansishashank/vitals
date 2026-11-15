@@ -76,8 +76,19 @@ const STATE_INDEX_NAMES = ['event_state_group', 'event_state_scope', 'event_stat
 const NARROW_MS = 3_600_000;
 /** `deletions_wide`'s predicate, verbatim (a partial index serves a query only when the query repeats it). */
 const WIDE = 'from_ms IS NULL OR to_ms IS NULL OR to_ms - from_ms > 3600000';
-/** A deletion that covers more rows than this rebuilds the state in one pass instead of row by row. */
+/**
+ * `event_state_scope`'s predicate, verbatim, for the queries that name one scope (`scope = 'hc'`): the planner does not
+ * see that a named scope is never '', and without this it walks every row of the category for each Health Connect record.
+ */
+const SHARED = (alias = '') => `${alias ? `${alias}.` : ''}scope <> ''`;
+/**
+ * A deletion that covers more rows than this may rebuild the state in one pass instead of row by row. It does only
+ * when it also covers at least one event in `BULK_SHARE` (r087): row by row costs a few index seeks per covered row,
+ * the rebuild a pass over every event and all seven indexes, and both run inside the upload's transaction. On a store
+ * of 600k events a deletion of a few thousand rows is far cheaper row by row.
+ */
 export const BULK_ROWS = 2000;
+export const BULK_SHARE = 8;
 const LO = -8_640_000_000_000_000;
 const HI = 8_640_000_000_000_000;
 
@@ -220,6 +231,20 @@ export function stateStale(db: Database.Database): boolean {
   return rowid !== (last?.r ?? 0) || lastId !== (last?.id ?? '') || dels !== nowDels;
 }
 
+/**
+ * One Health Connect record's rule (`latest`, `retracted`), run for every record a write touches: its newest visible
+ * revision, whether a tombstone retracts it, and the update. Each must search `event_state_scope` by subject.
+ */
+export const HC_STATE_SQL = {
+  winner: `SELECT st.seq, s.rev_ms FROM event_state st JOIN events e ON e.rowid = st.seq JOIN event_spans s ON s.id = e.id
+    WHERE st.scope = 'hc' AND ${SHARED('st')} AND st.category = '${HC_RECORD}' AND st.subject = @s AND st.hidden = 0
+    ORDER BY COALESCE(s.rev_ms, 0) DESC, e.received_ms DESC, e.ingested_ms DESC, e.rowid DESC LIMIT 1`,
+  gone: `SELECT 1 AS x FROM event_state
+    WHERE scope = 'hc' AND ${SHARED()} AND category = '${HC_DELETED}' AND subject = @s AND hidden = 0 AND observed_ms >= @rev LIMIT 1`,
+  set: `UPDATE event_state SET latest = (seq IS @w AND NOT @gone), retracted = (seq IS @w AND @gone)
+    WHERE scope = 'hc' AND ${SHARED()} AND category = '${HC_RECORD}' AND subject = @s AND (latest <> (seq IS @w AND NOT @gone) OR retracted <> (seq IS @w AND @gone))`,
+} as const;
+
 interface Key { seq: number; installation_id: string; category: string; subject: string; observed_ms: number }
 export interface DeletionRow { installation_id: string; category: string; kind: string | null; from_ms: number | null; to_ms: number | null; at_ms: number }
 
@@ -263,13 +288,9 @@ export function stateWriter(db: Database.Database) {
       ORDER BY e.received_ms DESC, e.ingested_ms DESC, e.rowid DESC LIMIT 1`),
     setShared: db.prepare(`UPDATE event_state SET current = (inst_current = 1 AND seq IS @w)
       WHERE scope = @sc AND category = @c AND subject = @s AND observed_ms = @o AND current <> (inst_current = 1 AND seq IS @w)`),
-    hcWinner: db.prepare<Record<string, unknown>, { seq: number; rev_ms: number | null }>(`SELECT st.seq, s.rev_ms FROM event_state st JOIN events e ON e.rowid = st.seq JOIN event_spans s ON s.id = e.id
-      WHERE st.scope = 'hc' AND st.category = '${HC_RECORD}' AND st.subject = @s AND st.hidden = 0
-      ORDER BY COALESCE(s.rev_ms, 0) DESC, e.received_ms DESC, e.ingested_ms DESC, e.rowid DESC LIMIT 1`),
-    hcGone: db.prepare<Record<string, unknown>, { x: number }>(`SELECT 1 AS x FROM event_state
-      WHERE scope = 'hc' AND category = '${HC_DELETED}' AND subject = @s AND hidden = 0 AND observed_ms >= @rev LIMIT 1`),
-    setHc: db.prepare(`UPDATE event_state SET latest = (seq IS @w AND NOT @gone), retracted = (seq IS @w AND @gone)
-      WHERE scope = 'hc' AND category = '${HC_RECORD}' AND subject = @s AND (latest <> (seq IS @w AND NOT @gone) OR retracted <> (seq IS @w AND @gone))`),
+    hcWinner: db.prepare<Record<string, unknown>, { seq: number; rev_ms: number | null }>(HC_STATE_SQL.winner),
+    hcGone: db.prepare<Record<string, unknown>, { x: number }>(HC_STATE_SQL.gone),
+    setHc: db.prepare(HC_STATE_SQL.set),
     sessionWinner: db.prepare<Record<string, unknown>, { seq: number; hidden: number }>(`SELECT st.seq, st.hidden FROM event_state st JOIN events e ON e.rowid = st.seq
       WHERE st.installation_id = @i AND st.category = '${SESSION}' AND st.subject = @s
       ORDER BY e.received_ms DESC, e.ingested_ms DESC, e.rowid DESC LIMIT 1`),
@@ -338,11 +359,12 @@ export function stateWriter(db: Database.Database) {
       q.setHidden.run(0, k.seq, 0);
       touch([k]);
     },
-    /** A new row of `deletions`: hides the visible events it covers; past `BULK_ROWS` the state is rebuilt instead. */
+    /** A new row of `deletions`: hides the visible events it covers; a deletion of a large share of the store rebuilds the state instead. */
     deletionAdded(d: DeletionRow): void {
       const p = { i: d.installation_id, c: d.category, kind: d.kind, lo: d.from_ms ?? LO, hi: d.to_ms ?? HI, at: d.at_ms };
       const rows = d.category === '*' ? q.coversAll.all(p) : [...q.coversExact.all(p), ...q.coversGroup.all(p)];
-      if (rows.length > BULK_ROWS) {
+      // events are never removed, so the newest rowid is their count
+      if (rows.length > BULK_ROWS && rows.length * BULK_SHARE >= (newest(db)?.r ?? 0)) {
         rebuildState(db);
         return;
       }

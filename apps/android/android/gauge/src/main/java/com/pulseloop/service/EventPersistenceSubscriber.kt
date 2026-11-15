@@ -42,6 +42,8 @@ class EventPersistenceSubscriber(
      */
     private val hubInstallationIdOverride: (() -> String?)? = null,
     private val hubFlushOverride: (() -> Unit)? = null,
+    /** Test seam for the upload asked for when a pass ends (no debounce). */
+    private val hubFlushNowOverride: (() -> Unit)? = null,
     /** Test seam for the ring identity stamped on ring-derived uploads (SPEC §2.1). */
     private val ringSourceOverride: (suspend () -> com.pulseloop.broadcasting.RingSourceIdentity?)? = null,
     /** Test seam for the 7-day `0x18` capture's clock (GA.3). */
@@ -212,7 +214,13 @@ class EventPersistenceSubscriber(
             if (queued) (flushOverride ?: { BroadcastOutboxDispatcher.requestFlush(context) }).invoke()
         }
         runPostCommit("hub upload request") {
-            if (hubQueued || hubDeletionsQueued) (hubFlushOverride ?: { HubSync.requestUpload(context) }).invoke()
+            // The end of a pass sends what the pass stored at once, including rows from its earlier batches that
+            // are still waiting out the debounce.
+            if (landed.any { it is PulseEvent.SyncProgress && it.stage == "done" }) {
+                (hubFlushNowOverride ?: { HubSync.requestUploadAfterPass(context) }).invoke()
+            } else if (hubQueued || hubDeletionsQueued) {
+                (hubFlushOverride ?: { HubSync.requestUpload(context) }).invoke()
+            }
         }
         for (event in landed) {
             if (isInsightInputEvent(event)) {

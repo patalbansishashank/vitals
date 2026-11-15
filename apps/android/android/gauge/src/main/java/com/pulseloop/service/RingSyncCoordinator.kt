@@ -377,6 +377,7 @@ class RingSyncCoordinator(
         // caller can wait for that pass's done event without resetting progress or replacing it.
         if (target.isHistorySyncRunning) return
         beginSyncProgress()
+        if (target.answersEveryPass) client.expectPassReply()
         target.refresh()
         lastSyncAt = System.currentTimeMillis()
     }
@@ -387,7 +388,14 @@ class RingSyncCoordinator(
         if (!isConnected || target.isHistorySyncRunning || workoutHRActive ||
             hrState == MeasureState.MEASURING || spo2State == MeasureState.MEASURING ||
             hrvState == MeasureState.MEASURING || combinedState == MeasureState.MEASURING) return false
-        if (!target.refreshForeground()) return false
+        // The pass a new connection starts by itself is never watched: a ring that stays silent is then
+        // reconnected once per later pass, not in a loop.
+        val watched = target.answersEveryPass
+        if (watched) client.expectPassReply()
+        if (!target.refreshForeground()) {
+            if (watched) client.passNotStarted()
+            return false
+        }
         beginSyncProgress()
         lastSyncAt = System.currentTimeMillis()
         return true
@@ -398,11 +406,15 @@ class RingSyncCoordinator(
      * whole history pipeline. Wired to the Sleep screen opening so a user who wants last night's
      * sleep gets a dedicated request instead of depending on the full sync's SLEEP stage
      * surviving four earlier stages. No-op when disconnected, or on rings that fetch sleep in
-     * bulk (jring).
+     * bulk (jring). False when nothing was asked of the ring: no link, or a pass still running that
+     * the read would be lost in.
      */
-    fun syncSleepNow() {
-        if (!isConnected) return
-        engine?.syncSleepNow()
+    fun syncSleepNow(): Boolean {
+        if (!isConnected) return false
+        val target = engine ?: return false
+        if (target.isHistorySyncRunning) return false
+        target.syncSleepNow()
+        return true
     }
 
     /** Pull-to-refresh entry point. */

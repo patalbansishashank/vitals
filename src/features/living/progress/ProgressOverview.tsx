@@ -1,8 +1,11 @@
-/** Goal leads the plan story. Weight and Energy share a window; every card keeps its anchor. */
+/**
+ * Goal leads the plan story. Weight and Energy share a window; every card keeps its anchor. On a phone the plan story
+ * comes first and the ring's readings, body and blood markers follow under one "Measured" heading.
+ */
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
 import { Scale } from 'lucide-react';
-import { CardFoot, DottedTrack, MQ, Page, useMediaQuery } from '@/components';
+import { CardFoot, DottedTrack, MQ, MonoMeta, Page, useMediaQuery } from '@/components';
 import { TopBar, type MenuEntry } from '@/app/shell';
 import { useQuietMode } from '@/state/settingsStore';
 import { useMarkersDoc } from '@/markers/ui/markersDoc';
@@ -132,6 +135,7 @@ function ProgressContent({ quietMode }: { quietMode: boolean }) {
               {checkins}
               {desk ? null : (
                 <>
+                  <h2 className="lv-prog__group"><MonoMeta tone="ink">{C.measured}</MonoMeta></h2>
                   <StepsSection today={today} quiet={quiet} />
                   <HeartPointsSection today={today} quiet={quiet} />
                   <OvernightSection today={today} quiet={quiet} />

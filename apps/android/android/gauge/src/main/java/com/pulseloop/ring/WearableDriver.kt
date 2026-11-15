@@ -201,6 +201,12 @@ interface RingSyncEngine {
     /** True only after every supported connection credential has been rejected. */
     val credentialAuthenticationFailed: Boolean get() = false
 
+    /**
+     * True for a family whose ring sends at least one packet in answer to every pass it is asked for, even with no
+     * new history. Only then does silence after a pass prove a deaf link ([RingBLEClient.expectPassReply]).
+     */
+    val answersEveryPass: Boolean get() = false
+
     /** A bounded foreground history pass, supported only by families with a proven shallow query. */
     fun refreshForeground(): Boolean = false
 

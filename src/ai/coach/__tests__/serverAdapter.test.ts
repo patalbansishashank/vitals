@@ -4,7 +4,7 @@
  * `coach.discardPending`, the session lives in memory (its id in tab storage, nothing in the synced collections), a
  * 404 starts a new session and sends the message again, and 401 / 429 / an unavailable server say so.
  */
-import { createServerCoachClient } from '@/net/coach';
+import { createServerCoachClient, type ServerCoachClient } from '@/net/coach';
 import { coachClientOn, fakeCoachServer, memoryStorage } from '@/net/__tests__/fakeCoachServer';
 import type { CommandResult } from '@/commands/types';
 import { createServerCoachAdapter, SERVER_COACH_TEXT, SERVER_SESSION_KEY, toolProgress, type ServerCoachBus } from '../serverAdapter';
@@ -226,6 +226,16 @@ describe('server coach adapter', () => {
     expect(last(a.adapter.history('x'))).toMatchObject({ text: 'Let me', streaming: false, error: { message: 'The server’s AI stopped answering.' } });
   });
 
+  it('a stream that closes without done or error stops waiting and says the answer was cut off', async () => {
+    const a = setup({ server: { script: () => [{ type: 'tool', name: 'gauge_sleep', status: 'start' }, { type: 'delta', text: 'Your sleep' }] } });
+    const events = await send(a.adapter, 'hi');
+    expect(events.at(-1)).toEqual({ type: 'error', kind: 'error', message: SERVER_COACH_TEXT.cutOff });
+    expect(events.some((e) => e.type === 'done')).toBe(false);
+    const turn = last(a.adapter.history('x'));
+    expect(turn).toMatchObject({ text: 'Your sleep', streaming: false, error: { message: SERVER_COACH_TEXT.cutOff } });
+    expect(turn.progress).toBeUndefined();
+  });
+
   it('offline: nothing is sent', async () => {
     const a = setup({ online: false });
     const events = await send(a.adapter, 'hi');
@@ -260,3 +270,56 @@ describe('server coach adapter', () => {
     expect(a.adapter.server.current()).toBeNull();
   });
 });
+
+describe('server coach adapter: a chat ended while its answer streams', () => {
+  /** A client whose answer streams one word, then stays open until the request is aborted (as the real stream does). */
+  function streamingClient() {
+    const removed: string[] = [];
+    let streaming!: () => void;
+    const started = new Promise<void>((r) => (streaming = r));
+    let created = 0;
+    const client: ServerCoachClient = {
+      status: async () => ({ available: true, backend: 'codex', retentionHours: 24 }),
+      createSession: async () => ({ sessionId: `sess-${++created}`, expiresAt: '2026-10-24T10:00:00.000Z' }),
+      async *send(_id, _body, signal) {
+        yield { type: 'delta', text: 'Half' };
+        streaming();
+        await new Promise<never>((_, no) => signal?.addEventListener('abort', () => no(new DOMException('Aborted', 'AbortError'))));
+      },
+      session: async () => ({ sessionId: 'sess-1', app: 'vitals', createdAt: '', expiresAt: '', messages: [] }),
+      sessions: async () => [],
+      remove: async (id) => void removed.push(id),
+      keep: async () => ({}),
+    };
+    const adapter = createServerCoachAdapter({ client, bus: fakeBus().bus, storage: memoryStorage(), recheckMs: 0, now: () => new Date('2026-10-23T10:00:00.000Z') });
+    return { adapter, removed, started };
+  }
+
+  it.each(['remove', 'fresh'] as const)('%s stops the answer: no error is reported and the chat is empty', async (how) => {
+    const { adapter, removed, started } = streamingClient();
+    const events: StreamEventView[] = [];
+    const caller = new AbortController();
+    const sending = adapter.send({ conversationId: 'x', text: 'hi' }, (e) => events.push(e), caller.signal);
+    await started;
+    if (how === 'remove') expect(await adapter.server.remove()).toEqual({ ok: true });
+    else adapter.server.fresh();
+    await sending;
+    expect(events).toEqual([{ type: 'text', delta: 'Half' }]);
+    expect(adapter.history('x')).toEqual([]);
+    expect(adapter.server.current()).toBeNull();
+    expect(removed).toEqual(how === 'remove' ? ['sess-1'] : []);
+  });
+
+  it('the caller can still stop an answer itself', async () => {
+    const { adapter, started } = streamingClient();
+    const events: StreamEventView[] = [];
+    const caller = new AbortController();
+    const sending = adapter.send({ conversationId: 'x', text: 'hi' }, (e) => events.push(e), caller.signal);
+    await started;
+    caller.abort();
+    await sending;
+    expect(events.some((e) => e.type === 'error')).toBe(false);
+    expect(adapter.history('x').at(-1)).toMatchObject({ text: 'Half', streaming: false, stopped: true });
+  });
+});
+

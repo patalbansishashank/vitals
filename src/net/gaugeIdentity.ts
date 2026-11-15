@@ -78,14 +78,25 @@ export function recheckGaugeIdentity(): string | null {
   return last ?? null;
 }
 
-const dataListeners = new Set<() => void>();
+const dataListeners = new Set<(changedAt?: number) => void>();
 
-/** New Gauge data may exist: an import succeeded, a measurement finished. */
-export function notifyGaugeDataChanged(): void {
-  for (const l of [...dataListeners]) l();
+/**
+ * New Gauge data may exist: an import succeeded, a measurement finished. `changedAt` (epoch ms, default now) is the
+ * latest moment it can have arrived: a caller that reports late (the app was hidden meanwhile) names the earlier time,
+ * so a read that began after it is known to be fresh already.
+ */
+export function notifyGaugeDataChanged(changedAt?: number): void {
+  // (r087) each listener on its own: one that throws does not keep the others from hearing it
+  for (const l of [...dataListeners]) {
+    try {
+      l(changedAt);
+    } catch (e) {
+      console.error('Vitals: a Gauge data listener failed', e);
+    }
+  }
 }
 
-export function onGaugeDataChanged(fn: () => void): () => void {
+export function onGaugeDataChanged(fn: (changedAt?: number) => void): () => void {
   dataListeners.add(fn);
   return () => void dataListeners.delete(fn);
 }

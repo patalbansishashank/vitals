@@ -19,13 +19,13 @@ fun interface WakeHold {
     }
 }
 
-/** The production hold: `PARTIAL_WAKE_LOCK` "Gauge:commands", never reference-counted. */
-class PowerWakeHold(context: Context) : WakeHold {
+/** The production hold: a `PARTIAL_WAKE_LOCK` named [tag] ("Gauge:commands" for the command loop), never reference-counted. */
+class PowerWakeHold(context: Context, private val tag: String = TAG) : WakeHold {
     private val power = context.applicationContext.getSystemService(PowerManager::class.java)
 
     override fun acquire(timeoutMs: Long): WakeHold.Held {
         val lock = runCatching {
-            power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG)?.apply {
+            power?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, tag)?.apply {
                 setReferenceCounted(false)
                 acquire(timeoutMs)
             }

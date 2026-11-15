@@ -19,6 +19,7 @@ import { commandsFixture, dayFixture, fixtureActivityData } from '../../today/__
 import { expectWordsOnly } from '../../__tests__/wordsOnly';
 import { energyText } from '../../activity/model';
 import { fmtDay } from '../../format';
+import { periodOf } from '../../period';
 import EnergyPage from '../EnergyPage';
 import {
   ENERGY_PAGE_WORDS as W,
@@ -294,6 +295,20 @@ describe('r071: the Energy page', () => {
       await screen.findByRole('heading', { name: W.throughTheDay }, { timeout: 8000 }),
     ).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /^Cumulative energy burned/ })).toBeInTheDocument();
+  });
+
+  // (r087) Energy is a tab of Activity: the place's name in the bar, the selection carried to the other two tabs
+  it('sits in Activity as its Energy tab, and the tabs keep the selected period', async () => {
+    const week = periodOf('week', addDays(FIXTURE_TODAY, -7));
+    setup({ path: `/energy?period=week&date=${week.from}` });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Activity' }, { timeout: 8000 })).toBeInTheDocument();
+    const tabs = screen.getByRole('navigation', { name: 'Activity section' });
+    expect(within(tabs).getAllByRole('link').map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
+      ['Train', '/train'],
+      ['Movement', `/activity?period=week&date=${week.from}`],
+      ['Energy', `/energy?period=week&date=${week.from}`],
+    ]);
+    expect(within(tabs).getByRole('link', { name: 'Energy' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('legacy date links and future dates still resolve correctly', async () => {

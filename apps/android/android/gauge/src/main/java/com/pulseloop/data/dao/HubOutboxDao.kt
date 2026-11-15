@@ -30,6 +30,23 @@ interface HubOutboxDao {
     )
     suspend fun pending(limit: Int): List<HubOutboxEntity>
 
+    /** Waiting rows that have failed fewer than [stuckAttempts] times, oldest first. */
+    @Query(
+        "SELECT * FROM hub_outbox WHERE uploadedAt IS NULL AND attemptCount < :stuckAttempts " +
+            "ORDER BY createdAt ASC, eventId ASC LIMIT :limit",
+    )
+    suspend fun pendingFresh(stuckAttempts: Int, limit: Int): List<HubOutboxEntity>
+
+    /**
+     * Waiting rows that have failed [stuckAttempts] times or more, the least tried first: a row that keeps being
+     * refused drifts to the back, so it cannot keep the others from their turn.
+     */
+    @Query(
+        "SELECT * FROM hub_outbox WHERE uploadedAt IS NULL AND attemptCount >= :stuckAttempts " +
+            "ORDER BY attemptCount ASC, createdAt ASC, eventId ASC LIMIT :limit",
+    )
+    suspend fun pendingStuck(stuckAttempts: Int, limit: Int): List<HubOutboxEntity>
+
     @Query("SELECT COUNT(*) FROM hub_outbox WHERE uploadedAt IS NULL")
     suspend fun pendingCount(): Int
 

@@ -44,8 +44,11 @@ object RingSleepReadHold {
         requestedUntilMs = nowMs + REQUEST_MS
     }
 
+    /** Whether someone asked for the sync running now ([request]). */
+    fun requested(nowMs: Long = System.currentTimeMillis()): Boolean = nowMs < requestedUntilMs
+
     fun mayRead(now: Instant, zone: ZoneId): Boolean {
-        if (now.toEpochMilli() < requestedUntilMs) return true
+        if (requested(now.toEpochMilli())) return true
         if (interactive()) return true
         val t = now.atZone(zone)
         return !window.contains(t.hour * 60 + t.minute)

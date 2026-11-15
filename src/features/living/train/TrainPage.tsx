@@ -1,12 +1,13 @@
 import '../boot';
 import './train.css';
 /**
- * Train (`/train`, `/train/:date`; design/screens/living-mode.md, Train): the day's sessions as concrete exercises on the
+ * Activity › Train (`/train`, `/train/:date`; design/screens/living-mode.md, Train): the day's sessions as concrete exercises on the
  * person's equipment, ten-second logging (tick = as planned, Session done = the rest as planned), swaps and "something
  * else" credited by the catalogue's equivalence (never refused). The date control (one day; its calendar picks another,
  * r069 U2) shares the selected date with Today and Food through the URL; `[` and `]` move one day. The week list sits beside the
  * day on desktop and opens from the header ⋯ on phones ("This week"); equipment and things to buy open from the ⋯ too
- * ("Equipment"), so the page is the day's training only. Header: "Train", the date, a pause icon on paused days (it opens Plan details).
+ * ("Equipment"), so the page is the day's training only. Header: "Activity" with its tabs (Train · Movement · Energy, r087: the
+ * same name with or without a plan), the date, a pause icon on paused days (it opens Plan details).
  *
  * One ⋯ per screen: the header's. Its page items start with the open sessions' own actions (Swap for a one-exercise
  * session · I did something else · Skipped the <session>; grouped under each session's name when the day has more than
@@ -26,6 +27,7 @@ import { useLoggedDays } from '../components/dateMarks';
 import { dayPeriod } from '../period';
 import { EquivalenceQuietProvider } from '../components/EquivalenceMeter';
 import { ConflictNotice } from '../components/LogConflict';
+import { ACTIVITY_COPY, ActivityTabs, activityDocumentTitle } from '../activity/ActivityTabs';
 import { useLivingClock, useToday } from '../clock';
 import { useLivingActions } from '../data/actions';
 import { useLiving } from '../data/source';
@@ -73,10 +75,22 @@ function longDay(date: LocalDate): string {
 /** The app clock hour of now: 24 h and more between midnight and the rollover, as the app's own clock helpers read it. */
 const nowHour = (clock: { now(): Date; tz: string; rolloverH: number }): number => appClockH(clock.now().getTime(), clock.tz, clock.rolloverH).clockH;
 
-/** A bad date in the address goes to the page for today, as Today does (`/train/xx` → `/train`). */
+/**
+ * A bad date in the address goes to the page for today, as Today does (`/train/xx` → `/train`). The day may also come
+ * as `?date=`, the form Activity's other two tabs use: it opens the same day at its own address, keeping the rest of
+ * the query (`?log=1`).
+ */
 export default function TrainPage() {
   const { date } = useParams();
+  const [search] = useSearchParams();
   if (date !== undefined && !isLocalDate(date)) return <Navigate to={livingPaths.train()} replace />;
+  const asked = search.get('date');
+  if (asked !== null) {
+    const rest = new URLSearchParams(search);
+    rest.delete('date');
+    const day = date ?? (isLocalDate(asked) ? asked : undefined);
+    return <Navigate to={{ pathname: livingPaths.train(day), search: rest.toString() }} replace />;
+  }
   return <TrainScreen />;
 }
 
@@ -92,7 +106,7 @@ function TrainScreen() {
   if (setupView.status !== 'ready')
     return (
       <>
-        <TopBar title={TRAIN_COPY.title} subtitle={longDay(date)} />
+        <TopBar title={ACTIVITY_COPY.title} documentTitle={activityDocumentTitle('train')} subtitle={longDay(date)} tabs={<ActivityTabs period={dayPeriod(date)} today={today} />} />
         <Page className="lv-train">
           <EmptyStage title={setupView.status === 'error' ? TRAIN_COPY.setupError : TRAIN_COPY.setupLoading} />
         </Page>
@@ -376,7 +390,7 @@ function TrainDay({ profile, ctx, personal, typicalBody }: { profile: TrainingPr
   const weekCard = !!view;
 
   const main = !view ? (
-    // (0.6.3 S24/A7) no plan: the activity hub (log, record, review); a plan stays optional
+    // (0.6.3 S24/A7) no plan: log, record and review; a plan stays optional
     <ActivityHub id="session" date={date} today={today} quiet={quiet} {...(future ? {} : { onLog: openLog })} />
   ) : !rx ? (
     <Faceplate title={TRAIN_COPY.outsidePlan} id="session" />
@@ -411,8 +425,10 @@ function TrainDay({ profile, ctx, personal, typicalBody }: { profile: TrainingPr
   return (
     <EquivalenceQuietProvider quiet={quiet}>
       <TopBar
-        title={view ? TRAIN_COPY.title : TRAIN_COPY.hub.title}
+        title={ACTIVITY_COPY.title}
+        documentTitle={activityDocumentTitle('train')}
         subtitle={longDay(date)}
+        tabs={<ActivityTabs period={dayPeriod(date)} today={today} />}
         status={rx?.paused ? <StatusCapsule icon={CirclePause} label={TRAIN_COPY.paused} to={livingPaths.planActive} /> : undefined}
         menu={menu}
       />

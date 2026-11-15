@@ -9,6 +9,7 @@ import { todayActual } from '@/living/todayReplay';
 import type { DayTemplate } from '@/engine';
 import type { LogEntry, PrescribedDaySnapshot } from '@/living/types';
 import type { GaugeTimeline } from '@/net/gauge';
+import { DAY_PAST_TTL_MS } from '../data/dayStore';
 import { clearTimelines, setTimelineSource, timelinesFor } from '../data/timelines';
 import { PROGRESS_GAUGE_RETRY_MS, setProgressGauge, useProgressGauge, type ProgressGauge } from '../data/gauge';
 
@@ -46,7 +47,9 @@ describe('A29: Progress caches expire and retry failures', () => {
     vi.useRealTimers();
   });
 
-  it('timelines: a failed (null) date is asked again after a minute; an old date after half an hour', async () => {
+  // (r087 C3) an old day used to be asked again after half an hour, and awaited: over an 8-week window that was a burst
+  // of requests. Now it is kept for hours and then asked again in the background.
+  it('timelines: a failed (null) date is asked again after a minute; an old date is kept for hours', async () => {
     let calls = 0;
     let up = false;
     setTimelineSource(async (date) => {
@@ -61,10 +64,12 @@ describe('A29: Progress caches expire and retry failures', () => {
     expect(calls).toBe(1);
     expect((await timelinesFor(['2026-10-10'], TODAY, t0 + 61_000)).get('2026-10-10')).not.toBeNull();
     expect(calls).toBe(2);
-    await timelinesFor(['2026-10-10'], TODAY, t0 + 20 * 60_000);
-    expect(calls).toBe(2);
     await timelinesFor(['2026-10-10'], TODAY, t0 + 32 * 60_000);
-    expect(calls).toBe(3);
+    await timelinesFor(['2026-10-10'], TODAY, t0 + DAY_PAST_TTL_MS);
+    expect(calls).toBe(2);
+    // past its keep time: answered at once from what is held, and asked again behind it
+    expect((await timelinesFor(['2026-10-10'], TODAY, t0 + 61_000 + DAY_PAST_TTL_MS)).get('2026-10-10')).not.toBeNull();
+    await vi.waitFor(() => expect(calls).toBe(3));
   });
 
   it('a failed Gauge answer is asked again while the card is on screen', async () => {

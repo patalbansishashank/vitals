@@ -16,32 +16,43 @@
  * The code is the person's ordinary one-time pairing code (`POST /v1/pair/code`, `vitals-server pair-code`). The token
  * is a device token of kind `lumen` (hash only, in `persons/<id>/devices.json`): `resolvePerson` refuses it on every
  * route but these. A person's `lumen.db` is opened on first use in the main thread (it never needs the person's
- * worker or Evolu replica) and closed after 10 minutes idle. Payloads are never logged; only counts are.
+ * worker or Evolu replica) and closed after 10 minutes idle (36 hours while reads are kept for it). Payloads are never logged; only counts are.
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { existsSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { gunzip } from 'node:zlib';
 import type { DeviceStore } from './devices.ts';
 import type { PersonContext } from './home.ts';
 import { INSTALLATION_ID, LUMEN_MAX_BATCH, LUMEN_MAX_BYTES, openLumenStore, type LumenStore } from './lumenStore.ts';
-import { lumenToolSet, type LumenToolSet } from './lumenTools.ts';
+import type { LumenToolSet } from './lumenTools.ts';
+import { createGaugeReads, REWARM_AFTER_MS, type GaugeReads } from './gaugeReads.ts';
 import { createFusionContextStore, type FusionContextStore } from './fusionContext.ts';
 import { createDetectionJob, type DetectionJob } from './detect/job.ts';
-import { createGaugePulse, readingsOf, type GaugePulse } from './gaugePulse.ts';
+import { createGaugePulse, readingsOf, validPulseRecord, type GaugePulse, type PulseStorage } from './gaugePulse.ts';
 import type { PersonRegistry } from './persons.ts';
 import { createRateLimiter, HttpError, readBody, readJson, sendJson, type Logger } from '../security.ts';
 
 const gunzipAsync = promisify(gunzip);
 export const LUMEN_EVENTS_PER_MINUTE = 120;
 const IDLE_MS = 10 * 60_000;
+/**
+ * A store the kept reads hold answers for stays open this long without use (r087): the phone uploads in the background
+ * every 15 minutes, and closing between two uploads would throw away every kept answer, so the read after the person
+ * opens the app would be cold again. What stays in memory is bounded by the reads themselves (`./gaugeReads.ts`).
+ */
+export const KEPT_IDLE_MS = 36 * 3_600_000;
 
 export interface LumenHub {
   /** The person's store, created on first use. */
   store(personId: string): LumenStore;
   /** The person's store only when Lumen has paired or uploaded before (reads never create the file). */
   peek(personId: string): LumenStore | null;
+  /** The person's `gauge_*` tools; they answer through `reads`. */
   toolsFor(personId: string, timeZone: string): LumenToolSet;
+  /** (r087) The Gauge reads, answered from memory while nothing they read was written, else in their turn (`./gaugeReads.ts`). */
+  reads: GaugeReads;
   /** (r063 S6) Each person's stored step-fusion context; every fused read of `toolsFor` resolves it. */
   fusionContext: FusionContextStore;
   /**
@@ -59,6 +70,8 @@ export interface LumenHub {
    * state, a few seconds on 180k events) runs right after start instead of inside the first Gauge request.
    */
   warm(): Promise<void>;
+  /** Closes the stores nobody used for a while (runs every minute; tests call it). */
+  sweepIdle(): void;
   owns(path: string): boolean;
   handle(req: IncomingMessage, res: ServerResponse, path: string): Promise<void>;
   close(): void;
@@ -72,6 +85,8 @@ export interface LumenHubOptions {
   resolveDevice: (req: IncomingMessage) => Promise<PersonContext>;
   /** (r067) The detection job's debounce (ms); tests pass 0 or call `detection.run`. */
   detectDebounceMs?: number;
+  /** (r087) How long after the last write the kept reads it dropped are derived again (ms; `./gaugeReads.ts`). */
+  rewarmAfterMs?: number;
   /** The per-address limit of the pairing routes. */
   limitPairing: (req: IncomingMessage) => void;
   log: Logger;
@@ -92,7 +107,35 @@ export function createLumenHub(o: LumenHubOptions): LumenHub {
   const open = new Map<string, { store: LumenStore; usedAt: number }>();
   const fusionContext = createFusionContextStore((personId) => persons.paths(personId).fusionContext);
   let closed = false;
-  const pulse = createGaugePulse({ now });
+  // (r087) each person's pulse beside their store, under this server version: a restart of the same version keeps the
+  // tokens their devices hold; another version starts a new boot. Counts and times only. Losing a write costs one wake
+  // (the devices' own 5-minute import still runs), so a failure is logged and never fails the upload.
+  const pulseFile = (personId: string) => join(persons.paths(personId).dir, 'gauge-pulse.json');
+  const pulseStorage: PulseStorage = {
+    load(personId) {
+      try {
+        const f = pulseFile(personId);
+        if (!existsSync(f)) return null;
+        const v = JSON.parse(readFileSync(f, 'utf8')) as { version?: unknown; pulse?: unknown };
+        return v.version === version && validPulseRecord(v.pulse) ? v.pulse : null;
+      } catch {
+        return null;
+      }
+    },
+    save(personId, r) {
+      try {
+        const f = pulseFile(personId);
+        if (!existsSync(persons.paths(personId).dir)) return;
+        const tmp = `${f}.tmp-${process.pid}`;
+        writeFileSync(tmp, JSON.stringify({ version, pulse: r }), { mode: 0o600 });
+        chmodSync(tmp, 0o600);
+        renameSync(tmp, f);
+      } catch (e) {
+        log(`person ${personId}: the Gauge pulse could not be kept (${e instanceof Error ? e.name : 'error'})`);
+      }
+    },
+  };
+  const pulse = createGaugePulse({ now, storage: pulseStorage });
   const detection = createDetectionJob({
     open: (personId) => (closed ? null : peek(personId)),
     tzOf: async (personId) => (await persons.get(personId))?.timeZone ?? 'UTC',
@@ -115,12 +158,17 @@ export function createLumenHub(o: LumenHubOptions): LumenHub {
     return s;
   };
   const peek = (personId: string) => (open.has(personId) || existsSync(persons.paths(personId).lumen) ? store(personId) : null);
-  const sweep = setInterval(() => {
-    for (const [id, s] of open) if (now() - s.usedAt > IDLE_MS) {
+  const reads = createGaugeReads({ store: (personId) => (closed ? null : peek(personId)), opened: (personId) => (open.has(personId) ? store(personId) : null), fusion: (personId) => fusionContext.get(personId), now, rewarmAfterMs: o.rewarmAfterMs ?? REWARM_AFTER_MS, log });
+  const sweepIdle = () => {
+    for (const [id, s] of open) {
+      const idle = now() - s.usedAt;
+      if (idle <= IDLE_MS || (idle <= KEPT_IDLE_MS && reads.holds(s.store))) continue;
+      reads.release(s.store);
       s.store.close();
       open.delete(id);
     }
-  }, 60_000);
+  };
+  const sweep = setInterval(sweepIdle, 60_000);
   sweep.unref();
 
   const method = (req: IncomingMessage, m: string) => {
@@ -253,7 +301,8 @@ export function createLumenHub(o: LumenHubOptions): LumenHub {
   return {
     store,
     peek,
-    toolsFor: (personId, timeZone) => lumenToolSet(() => peek(personId), timeZone, now, () => fusionContext.get(personId)),
+    toolsFor: (personId, timeZone) => reads.toolsFor(personId, timeZone),
+    reads,
     fusionContext,
     detection,
     pulse,
@@ -272,6 +321,7 @@ export function createLumenHub(o: LumenHubOptions): LumenHub {
         }
       }
     },
+    sweepIdle,
     owns: (path) => path.startsWith('/v1/lumen/'),
     async handle(req, res, path) {
       if (path === '/v1/lumen/pair') return pair(req, res);
@@ -285,6 +335,7 @@ export function createLumenHub(o: LumenHubOptions): LumenHub {
       closed = true;
       detection.close();
       pulse.close();
+      reads.close();
       clearInterval(sweep);
       for (const s of open.values()) s.store.close();
       open.clear();

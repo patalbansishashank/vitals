@@ -39,9 +39,10 @@ export function VitalsScoreCards({ scores, history, quiet, period = false }: { s
     {INDEX_IDS.map((id) => {
       const part = scores?.[id];
       const legacy = !period && scores?.source === 'legacy';
-      const source = legacy ? 'On-device (legacy)' : 'Vitals';
+      // `scoreInfo` tells the phone's method from Vitals' by this name; the heading says the source in one word
+      const source = legacy ? 'Phone (legacy)' : 'Vitals';
       const name = id === 'recovery' ? 'Recovery' : id === 'sleep' ? 'Sleep' : 'Activity';
-      const title = `${source} ${name}`;
+      const title = `${legacy ? C.sources.phone : 'Vitals'} ${name}`;
       const hue = INDEX_DOMAIN[id];
       const dates = history?.dates ?? [];
       const values = legacy ? [] : history?.[id] ?? [];
@@ -90,7 +91,7 @@ export function GaugeScoreCards({ data, dates, quiet, period = false }: { data: 
     const st = periodStats(list.map((e) => e.value));
     return [{ k, value: period ? st.mean : last.value!, unit: last.unit }];
   });
-  const info: InfoSpec = { title: C.gaugeScores, body: "The phone works these out with its own methods. Vitals uses different ones, so the numbers may differ: compare each with its own history. Load uses arbitrary on-device units. VO₂ max is an estimate.", source: { kind: 'phone', words: 'Worked out on the phone.' }, range: quiet ? undefined : 'Scores run from 0 to 100; HRV balance and resting load are centred on 50, your usual.' };
+  const info: InfoSpec = { title: C.gaugeScores, body: "The phone works these out with its own methods. Vitals uses different ones, so the numbers may differ: compare each with its own history. Load uses the phone's arbitrary units. VO₂ max is an estimate.", source: { kind: 'phone', words: 'Worked out on the phone.' }, range: quiet ? undefined : 'Scores run from 0 to 100; HRV balance and resting load are centred on 50, your usual.' };
   return <section className="rgs-gauge" aria-label={C.gaugeScores}>
     <h2 className="rgs-heading">{C.gaugeScores}</h2>
     {quiet ? <MonoMeta>Score history is hidden in quiet mode.</MonoMeta> : null}
@@ -116,10 +117,10 @@ export function GaugeScoreCards({ data, dates, quiet, period = false }: { data: 
         {indices.map(({ k, value, unit }) => <div key={k.key} className="rgs-indices__row">
           <dt>{k.label}</dt>
           <dd>{quiet ? <MonoMeta>Hidden in quiet mode</MonoMeta> : <MonoMeta>{formatNumber(value, k.key === 'vo2max_estimate' ? 1 : 0)} {unit === 'AU' ? '' : unit === 'score' ? '/ 100' : unit}</MonoMeta>}</dd>
-          {k.key === 'hrv_balance' || k.key === 'resting_load' ? <RangeScale label={`Phone ${k.label}`} value={value} min={0} max={100} usual={[50, 50]} endLabels={['0', '100']} quiet={quiet} twin={false} hue="recovery" /> : k.key === 'vo2max_estimate' ? <MonoMeta>Estimate</MonoMeta> : <MonoMeta>On-device units</MonoMeta>}
+          {k.key === 'hrv_balance' || k.key === 'resting_load' ? <RangeScale label={`Phone ${k.label}`} value={value} min={0} max={100} usual={[50, 50]} endLabels={['0', '100']} quiet={quiet} twin={false} hue="recovery" /> : k.key === 'vo2max_estimate' ? <MonoMeta>Estimate</MonoMeta> : <MonoMeta>Arbitrary units</MonoMeta>}
         </div>)}
       </dl>
     </GradientCard> : null}
-    {!charts.length && !indices.length ? <GradientCard as="section" domain="neutral" head={<CardHead title="On-device scores" icon={Gauge} info={info} />}><p className="rg-none">{C.noScores}</p></GradientCard> : null}
+    {!charts.length && !indices.length ? <GradientCard as="section" domain="neutral" head={<CardHead title={C.gaugeScores} icon={Gauge} info={info} />}><p className="rg-none">{C.noScores}</p></GradientCard> : null}
   </section>;
 }

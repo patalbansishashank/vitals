@@ -54,6 +54,8 @@ import { ACTIVITY_COPY as C } from '../../copy';
 import { weekOf } from '../../format';
 import { energyPaths } from '../../energy/paths';
 import { rangeOf, planState, PLAN_STATE_WORD } from '../../activity/energyFigures';
+import { stepsStateWord, useDaySteps, STEP_WORDS } from '@/features/ring/stepsHeadline';
+import { RING_COPY } from '@/features/ring/copy';
 import { FACE_WORDS, shortFacts, stepsPanelDay } from './activityCardModel';
 import { withRemoveFoot } from './RemoveFromToday';
 import type { TodayCardProps } from './types';
@@ -88,9 +90,6 @@ const inputOf = ({ ctx, size, onRemove }: TodayCardProps): ActivityCardInput => 
 
 export function EnergyCard(p: TodayCardProps) {
   return <EnergyContent {...inputOf(p)} />;
-}
-export function EnergyBurnedCard(p: TodayCardProps) {
-  return <EnergyContent {...inputOf(p)} titleOverride="Energy burned" />;
 }
 export function StepsCard(p: TodayCardProps) {
   return <StepsContent {...inputOf(p)} />;
@@ -148,7 +147,7 @@ export function cumulativeEnergy(day: Pick<EnergyDay, 'bins15'>, nowMs: number) 
   };
 }
 
-type EnergyInput = ActivityCardInput & { kinds?: boolean; titleOverride?: string };
+type EnergyInput = ActivityCardInput & { kinds?: boolean };
 const TODAY_COMPONENT_LABEL: Record<(typeof COMPONENT_ORDER)[number], string> = {
   rmr: 'Resting metabolism',
   neatBase: 'Everyday movement',
@@ -183,7 +182,6 @@ function EnergyViewContent({
   size = 'card',
   nowMs,
   kinds = false,
-  titleOverride,
   activityView: view,
   past,
 }: EnergyInput & { past?: DayEnergyView }) {
@@ -215,7 +213,7 @@ function EnergyViewContent({
       })
     : [];
   const shownParts = parts.filter((part) => part.valueText !== '0');
-  const title = titleOverride ?? (kinds ? 'Energy by kind' : C.energy);
+  const title = kinds ? 'Energy by kind' : C.energy;
   const info: InfoSpec = withRemoveFoot(
     {
       title,
@@ -426,32 +424,29 @@ function StepsViewContent({
   const [open, setOpen] = useState(false);
   const model = view?.model.steps;
   const bins = timeline ? stepsBins(timeline) : [];
-  const value = isToday
-    ? (model?.fusedSoFar ?? stepDay?.headline ?? binsTotal(bins))
-    : (stepDay?.headline ?? binsTotal(bins));
+  // one count, forecast and word with Ring's Movement (`ring/stepsHeadline`), which reads the model this card publishes
+  const steps = useDaySteps({
+    date,
+    isToday,
+    stepsDay: stepDay,
+    plan: isToday ? (model ?? null) : null,
+    counted: binsTotal(bins),
+  });
+  const value = steps.headline?.value ?? null;
   const goal =
     model?.goal ?? (stepsGoal ? { value: stepsGoal, source: 'plan' } : { value: 10_000, source: 'default' });
-  const likely = isToday && model && model.prior > 0 && value !== null ? model.total : null;
+  const likely = steps.likely;
   const hours = timeline ? stepsHours(timeline) : [];
-  const lineage = model ? lineageText(model.lineages) : stepDay ? 'Ring and phone' : null;
+  const lineage = steps.own ? RING_COPY.stepsYourEntry : model ? lineageText(model.lineages) : stepDay ? 'Ring and phone' : null;
   const title = throughDay ? 'Steps through the day' : 'Steps';
   const rows = [...review.rows, ...review.decided].filter((r) => r.date === date);
   const panelDay = timeline ? stepsPanelDay(timeline, rows, isToday, stepDay?.headline ?? null) : null;
-  const word =
-    value === null
-      ? FACE_WORDS.noStepData
-      : value >= goal.value
-        ? 'Goal met'
-        : likely !== null
-          ? likely >= goal.value
-            ? 'On course'
-            : 'Likely under'
-          : 'Building';
+  const word = stepsStateWord(value, goal.value, { isToday, likely });
   const info = withRemoveFoot(
     {
       title,
       body: 'For each stretch of the day Vitals counts one step source, ring or phone, never both added. The goal is your plan’s steps, else your ring’s goal, else a default. The forecast assumes the rest of the day as planned.',
-      source: { kind: 'ring' as const, words: lineage ?? 'No step data yet.' },
+      source: { kind: 'ring' as const, words: lineage ?? STEP_WORDS.none },
       range: quiet
         ? undefined
         : `${formatNumber(goal.value, 0)} steps · ${goal.source === 'default' ? 'default goal' : `${goal.source} goal`}`,
@@ -463,7 +458,7 @@ function StepsViewContent({
             caption: 'Counted steps and the goal.',
             head: ['Figure', 'Steps'],
             rows: [
-              ['Counted', value ?? 'Unknown'],
+              ['Counted', value ?? STEP_WORDS.none],
               ['Goal', goal.value],
               ...(likely !== null ? [['Likely by bedtime', Math.round(likely)]] : []),
             ],
@@ -498,7 +493,7 @@ function StepsViewContent({
             <HeroNumber
               value={value}
               size="num"
-              label={quiet ? word : `${value ?? 'Unknown'} counted steps`}
+              label={quiet ? word : value === null ? STEP_WORDS.none : `${value} counted steps`}
               quietWord={quiet ? word : undefined}
             />
             <StepsDayChart {...panelDay} nowMs={nowMs} quiet={quiet} showTotal={false} />
@@ -508,7 +503,7 @@ function StepsViewContent({
             <HeroNumber
               value={value}
               size="num-l"
-              label={quiet ? word : `${value ?? 'Unknown'} steps`}
+              label={quiet ? word : value === null ? STEP_WORDS.none : `${value} steps`}
               quietWord={quiet ? word : undefined}
             />
             <HighlightBars
@@ -527,7 +522,7 @@ function StepsViewContent({
             <HeroNumber
               value={value}
               size="time"
-              label={quiet ? word : `${value ?? 'Unknown'} steps`}
+              label={quiet ? word : value === null ? STEP_WORDS.none : `${value} steps`}
               quietWord={quiet ? word : undefined}
             />
             {!quiet ? <MonoMeta>of {formatNumber(goal.value, 0)}</MonoMeta> : null}
@@ -535,7 +530,7 @@ function StepsViewContent({
             label="Steps"
             value={value}
             goal={goal.value}
-            valueText={value === null ? FACE_WORDS.noStepData : `${formatNumber(value, 0)} steps`}
+            valueText={value === null ? STEP_WORDS.none : `${formatNumber(value, 0)} steps`}
             goalText={`${formatNumber(goal.value, 0)} steps`}
             quiet={quiet}
             quietWord={word}

@@ -17,7 +17,11 @@ import { addDays, DEFAULT_ITEM_WEIGHTS, localToInstant, type LogEntry, type Plan
 import type { GaugeTimeline } from '@/net/gauge';
 import type { ReviewSheetModel } from '@/living/activityCandidates';
 import { progressActualsAdapter, setLiveProgressDeps, setProgressActuals, settleProgressActuals, subscribeProgressActuals, type ProgressDayActual } from '../v3Adapter';
-import { setTimelineSource } from '../data/timelines';
+import { setGaugeApi } from '@/features/ring/api';
+import type { RingApi } from '@/features/ring/types';
+import { DAY_PAST_TTL_MS } from '../data/dayStore';
+import { setHrExactSource } from '../data/hrExact';
+import { setTimelineSource, timelinesFor } from '../data/timelines';
 import { notifyGaugeDataChanged, setGaugeIdentityClientForTests } from '@/net/gaugeIdentity';
 
 const PLAN_ID = '01JABCDEFGHJKMNPQRSTVWXY44';
@@ -41,8 +45,8 @@ const out = <T,>(r: CommandResult): T => {
   return r.output as T;
 };
 
-/** Yesterday's fused minutes: asleep to 06:30, then still and awake, a 45-min walk at 07:00 (110 steps/min, HR 130) and a 30-min ride at 18:00 (no steps, HR 150). */
-function timeline(date: string): GaugeTimeline {
+/** Yesterday's fused minutes: asleep to 06:30, then still and awake, a 45-min walk at 07:00 (110 steps/min, HR 130) and a 30-min ride at 18:00 (no steps, HR 150). `on`: the day that walk and ride are on. */
+function timeline(date: string, on: string = Y): GaugeTimeline {
   const first = ms(date, 0);
   const n = 1440;
   const selected: Array<number | null> = new Array(n).fill(0);
@@ -50,7 +54,7 @@ function timeline(date: string): GaugeTimeline {
   const bpm: Array<number | null> = new Array(n).fill(null);
   const supportedS: Array<number | null> = new Array(n).fill(null);
   const stage: GaugeTimeline['sleep']['stage'] = new Array(n).fill(null);
-  const [wake, w0, w1, r0, r1] = [ms(date, 6.5), ms(Y, 7), ms(Y, 7.75), ms(Y, 18), ms(Y, 18.5)];
+  const [wake, w0, w1, r0, r1] = [ms(date, 6.5), ms(on, 7), ms(on, 7.75), ms(on, 18), ms(on, 18.5)];
   for (let k = 0; k < n; k++) {
     const t = first + k * 60_000;
     // asleep until 06:30 with the ring reporting no steps (the night after the day before is not coverage of that day)
@@ -77,6 +81,18 @@ function timeline(date: string): GaugeTimeline {
     steps: { selected, source: new Array(n).fill('ring'), ring: selected, phone: new Array(n).fill(null), support },
     hr: { bpm, supportedS }, sleep: { stage }, sessions: [], hcExercise: [], acquisition: { ring: [], phone: [] },
   } as unknown as GaugeTimeline;
+}
+
+/** The day's timeline with its walk five minutes longer (the ring uploaded more of it, or the server corrected the day). */
+function longerWalk(date: string): GaugeTimeline {
+  const t = timeline(date, date);
+  const from = Math.round((ms(date, 7.75) - ms(date, 0)) / 60_000);
+  for (let k = from; k < from + 5; k++) {
+    t.steps.selected[k] = 110;
+    t.hr.bpm[k] = 130;
+    t.hr.supportedS[k] = 60;
+  }
+  return t;
 }
 
 const meal = (id: string, date: string, clockH: number, kcal: number | null): LogEntry =>
@@ -330,5 +346,182 @@ describe('aR11: the loaded windows follow the Gauge identity and its data', () =
     expect((await read(Y, Y))![0]!.heartPoints).toBeCloseTo(45, 5);
     // only the Gauge side moved: the history base (and its engine run) is reused
     expect(runs.length).toBe(before);
+  });
+});
+
+// r087 C3: one screen asked for the timeline about 55 times in a row (8 weeks of Heart Points), and again on every data
+// notification and when the half-hour keep times ran out; each day's exact HR followed the same way.
+describe('r087 C3: an 8-week window is not a burst of requests', () => {
+  const FROM = addDays(TODAY, -55);
+  const noon = ms(TODAY, 12);
+  let minutes: string[] = [];
+  let exact: string[] = [];
+  let running = 0;
+  let most = 0;
+  let exactAnswers = true;
+
+  beforeEach(() => {
+    minutes = [];
+    exact = [];
+    running = 0;
+    most = 0;
+    exactAnswers = true;
+    const count = async <T,>(v: T): Promise<T> => {
+      running++;
+      most = Math.max(most, running);
+      await new Promise((r) => setTimeout(r, 0));
+      running--;
+      return v;
+    };
+    // every day has a walk with supported HR, so every day asks for its exact HR
+    setTimelineSource((date) => {
+      minutes.push(date);
+      return count(timeline(date, date));
+    });
+    setHrExactSource((from, to) => {
+      exact.push(from.slice(0, 10));
+      return count(exactAnswers ? ({ from, to, intervals: [], truncated: false } as never) : null);
+    });
+  });
+  afterEach(() => {
+    setHrExactSource(null);
+    vi.setSystemTime(new Date(noon));
+  });
+
+  it('the first read: each day once, two requests at a time, today first', async () => {
+    expect(await read(FROM, TODAY)).toHaveLength(56);
+    // the 56 days and the day before the first (an app day's late minutes sit on the next date); tomorrow is not asked
+    expect(minutes).toHaveLength(57);
+    expect(minutes.slice(0, 2)).toEqual([TODAY, Y]);
+    expect(exact).toHaveLength(56);
+    expect(most).toBe(2);
+  });
+
+  it('new data asks for today and yesterday only', async () => {
+    const before = (await read(FROM, TODAY))!;
+    minutes = [];
+    exact = [];
+    await act(async () => notifyGaugeDataChanged());
+    const after = (await read(FROM, TODAY))!;
+    expect([...minutes].sort()).toEqual([Y, TODAY]);
+    // the minutes did not change, so no day's exact HR is asked again
+    expect(exact).toEqual([]);
+    expect(after.map((d) => d.heartPoints)).toEqual(before.map((d) => d.heartPoints));
+  });
+
+  it('half an hour later the older days still stand: only today and yesterday are read again', async () => {
+    const before = (await read(FROM, TODAY))!;
+    minutes = [];
+    exact = [];
+    vi.setSystemTime(new Date(noon + 31 * 60_000));
+    const after = (await read(FROM, TODAY))!;
+    expect(after).not.toBe(before);
+    expect([...minutes].sort()).toEqual([Y, TODAY]);
+    expect(exact.length).toBeLessThanOrEqual(2);
+    expect(after.slice(0, 54)).toEqual(before.slice(0, 54));
+  });
+
+  // the review's probe: the keep time of the older days ran out for all of them at once, and every day's exact HR was
+  // asked again in one go (56 requests), every six hours
+  it("six hours later no older day's exact HR is asked again: its minutes did not change", async () => {
+    const before = (await read(FROM, TODAY))!;
+    minutes = [];
+    exact = [];
+    vi.setSystemTime(new Date(noon + DAY_PAST_TTL_MS + 60_000));
+    const { invalidateProgressActuals } = await import('../v3Adapter');
+    invalidateProgressActuals({ keepBase: true });
+    const after = (await read(FROM, TODAY))!;
+    // today and yesterday, and the two older days read again in the background
+    await vi.waitFor(() => expect(minutes).toHaveLength(4));
+    expect(exact.length).toBeLessThanOrEqual(2);
+    expect(after.map((d) => d.heartPoints)).toEqual(before.map((d) => d.heartPoints));
+    expect(most).toBe(2);
+  });
+
+  it('an older day whose minutes changed is worked out again with its own exact HR, the other days are not asked', async () => {
+    const D2 = addDays(TODAY, -2);
+    let changed: string | null = null;
+    setTimelineSource((date) => {
+      minutes.push(date);
+      return Promise.resolve(date === changed ? longerWalk(date) : timeline(date, date));
+    });
+    const before = (await read(FROM, TODAY))!;
+    minutes = [];
+    exact = [];
+    changed = D2;
+    vi.setSystemTime(new Date(noon + DAY_PAST_TTL_MS + 5 * 60_000));
+    // the window answers what is held; the day read again in the background then re-reads it
+    await vi.waitFor(async () => {
+      const now = (await read(FROM, TODAY))!;
+      expect(now.find((d) => d.date === D2)!.heartPoints).not.toBe(before.find((d) => d.date === D2)!.heartPoints);
+    });
+    const after = (await read(FROM, TODAY))!;
+    expect(after.filter((d) => d.date !== D2).map((d) => d.heartPoints)).toEqual(before.filter((d) => d.date !== D2).map((d) => d.heartPoints));
+    // today's and yesterday's own keep time, and the days whose key holds the changed day's minutes
+    expect(exact.length).toBeLessThanOrEqual(6);
+    expect(minutes.length).toBeLessThanOrEqual(6);
+  });
+
+  it('a day that is replaced while a window is on its first load: the cards are told only once there is an answer', async () => {
+    // another screen read yesterday a while ago; the server has more of its walk by now
+    let more = false;
+    setTimelineSource((date) => Promise.resolve(date !== Y ? null : more ? longerWalk(date) : timeline(date)));
+    // (each test has its own document store, and the first read under a new one drops what was loaded: not this test's matter)
+    await read(START, START);
+    await timelinesFor([Y], TODAY, noon - 10 * 60_000);
+    more = true;
+    const told: Array<number | null | undefined> = [];
+    const off = subscribeProgressActuals(() => told.push(progressActualsAdapter().progressActuals(Y, Y)?.[0]?.heartPoints));
+    const day = (await read(Y, Y))![0]!;
+    off();
+    expect(told.length).toBeGreaterThan(0);
+    expect(told.every((v) => typeof v === 'number')).toBe(true);
+    expect(told.at(-1)).toBe(day.heartPoints);
+  });
+
+  it('cold start: the saved days answer first and the server then replaces one; no answer is thrown away, none is told before it exists', async () => {
+    const base = { status: () => ({ lastOkAt: null, problem: null }), subscribe: () => () => undefined, clearCache: () => undefined };
+    const api = {
+      ...base,
+      timeline: async (d: string) => {
+        await new Promise((r) => setTimeout(r, 5));
+        return d === Y ? longerWalk(d) : timeline(d, d);
+      },
+      snapshot: async (load: (a: unknown) => Promise<unknown>) => ({ data: await load({ ...base, timeline: async (d: string) => timeline(d, d) }), savedAt: noon - 3_600_000 }),
+    } as unknown as RingApi;
+    setTimelineSource(null);
+    setGaugeApi(api);
+    try {
+      await read(START, START);
+      exact = [];
+      const told: Array<number | null | undefined> = [];
+      const off = subscribeProgressActuals(() => told.push(progressActualsAdapter().progressActuals(Y, Y)?.[0]?.heartPoints));
+      // (the cards read again when told, so this waits for the server's minutes too)
+      const last = (await read(Y, Y))![0]!.heartPoints;
+      off();
+      // the saved minutes' answer was on screen while the window was read again with the server's
+      expect(told.every((v) => typeof v === 'number')).toBe(true);
+      expect(told[0]).not.toBe(last);
+      expect(told.at(-1)).toBe(last);
+      // yesterday's exact HR: once for the saved minutes, once for the server's
+      expect(exact.length).toBeLessThanOrEqual(2);
+    } finally {
+      setGaugeApi(null);
+    }
+  });
+
+  it("a day's exact HR that got no answer is not asked again every minute", async () => {
+    exactAnswers = false;
+    await read(FROM, Y);
+    expect(exact).toHaveLength(55);
+    // the first retry comes after a minute, the next one only after four more
+    for (const [after, asked] of [[61_000, 110], [3 * 60_000, 110], [6 * 60_000, 165]] as const) {
+      vi.setSystemTime(new Date(noon + after));
+      const { invalidateProgressActuals } = await import('../v3Adapter');
+      invalidateProgressActuals({ keepBase: true });
+      await read(FROM, Y);
+      expect(exact).toHaveLength(asked);
+    }
+    expect(most).toBe(2);
   });
 });

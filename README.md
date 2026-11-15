@@ -31,7 +31,7 @@ Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## Run the website locally
 
-You need Node 26.10.0 or newer and [pnpm](https://pnpm.io) 9 or newer. [`.nvmrc`](.nvmrc) pins the tested development and CI runtime, Node 26.12.1.
+You need Node 26.10.0 or newer and [pnpm](https://pnpm.io) 11 (the workflows pin 11; releases are checked with 11.17). [`.nvmrc`](.nvmrc) pins the tested development and CI runtime, Node 26.12.1.
 
 ```sh
 pnpm install

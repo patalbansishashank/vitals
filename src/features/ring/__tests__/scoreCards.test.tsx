@@ -29,7 +29,7 @@ it('period heroes average only measured days and keep a missing day empty', () =
 
 it('legacy values explicitly name Gauge and do not borrow Vitals history', () => {
   show({ scores: { ...scores(), source: 'legacy' }, history, quiet: false });
-  expect(screen.getByRole('heading', { name: 'On-device (legacy) Recovery' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Phone Recovery' })).toBeInTheDocument();
   expect(screen.queryByRole('heading', { name: 'Vitals Recovery' })).toBeNull();
   expect(document.querySelector('.lmz-line')).toBeNull();
 });

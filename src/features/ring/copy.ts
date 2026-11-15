@@ -2,7 +2,14 @@
 export const RING_COPY = {
   title: 'Ring',
   tabsLabel: 'Ring section',
-  tabs: { overview: 'Overview', sleep: 'Sleep', activity: 'Activity', scores: 'Scores' },
+  tabs: { overview: 'Overview', sleep: 'Sleep', scores: 'Scores' },
+  /** (r087 IA) The Activity hub: Train, the day's movement and Energy under one name in both modes. */
+  activityHub: { title: 'Activity', tabsLabel: 'Activity section', train: 'Train', movement: 'Movement', energy: 'Energy' },
+  /**
+   * (r087 IA) One set of source words: the ring's measured readings, the phone's on-device scores and the Vitals model's
+   * output (an estimate, never a reading).
+   */
+  sources: { ring: 'Ring', phone: 'Phone', estimate: 'Vitals estimate' },
   /** (r069 U2) The date control's calendar. */
   choose: 'Choose dates',
   /** (r069 U2) A longer period: the cards' words. */
@@ -16,6 +23,8 @@ export const RING_COPY = {
   ofGoalSleep: (goal: string) => `of ${goal} asleep`,
   periodNoNights: 'No nights recorded in these days.',
   periodNoActivities: 'No counted activities in these days.',
+  /** (r087 IA) The one-day activity list's empty line. */
+  dayNoActivities: 'No counted activities this day.',
 
   notPaired: {
     title: 'Connect to your server',
@@ -44,29 +53,28 @@ export const RING_COPY = {
   steps: 'Steps',
   distance: 'Distance',
   /** The ring's `caloriesKcal` (basis unstated): never "Active energy", never against a goal (A.2 #2, D20). */
-  ringEnergy: 'Ring energy estimate',
+  ringEnergy: 'Ring energy',
   ringEstimate: 'Ring estimate',
   /** The ring's elapsed exercise seconds ÷ 60, never an intensity (A.1.3 #31, #32). */
   activeTime: 'Active time',
   throughTheDay: 'Through the day',
   stepsHistory: 'Steps',
   noActivity: 'No steps recorded this day.',
-  workouts: 'Workouts',
-  noWorkouts: 'No workouts in the last 30 days.',
+  workouts: 'Activities',
+  noWorkouts: 'No activities in the last 30 days.',
   /** (0.6.3 S25) the activity history from the canonical collection */
   noActivities: 'No counted activities in these 30 days.',
   /** (0.6.3 INT) quiet: no count of days */
   noActivitiesQuiet: 'No counted activities in this stretch.',
   countedCount: (n: number) => (n === 1 ? '1 counted' : `${n} counted`),
   earlier: 'Earlier',
-  workoutsPages: 'More workouts',
+  workoutsPages: 'More activities',
   later: 'Later',
   latestShown: 'These are the latest',
   vitalsHistory: 'Vitals indices',
   vitalsHistoryCaption: 'Last 14 days',
   /** (r068 SC2) Gauge's own scores and indices, one card. */
-  gaugeScores: 'On-device scores',
-  gaugeScoresCaption: 'Worked out on the phone',
+  gaugeScores: 'Phone scores',
   lowConfidence: 'low confidence',
   /** (r068 G12) plain label; what it is sits behind ⓘ */
   bookedEnergy: 'Energy',
@@ -94,6 +102,8 @@ export const RING_COPY = {
   stepsRing: 'Ring',
   /** (r069 sync) Today's steps from Gauge's newer ring count, before the server has it. */
   stepsOnPhone: 'Ring, on this phone',
+  /** The person's own steps entry for today (typed, or logged by the Coach) decides the count. */
+  stepsYourEntry: 'Your entry',
   /** (Codex UI #6) nothing observed the day's steps: unknown, never "0". */
   noStepReading: 'No reading',
   stepsDisagree: 'Ring and phone disagree',
@@ -114,7 +124,6 @@ export const RING_COPY = {
   stages: 'Stages',
   asleep: 'Asleep',
   sleepIndex: 'Sleep index',
-  sleepHistory: 'Sleep · last 4 weeks',
   additionalSleep: 'Additional sleep',
 
   signals: 'Signals',
@@ -138,11 +147,11 @@ export const RING_COPY = {
   scores: 'Scores',
   dayScore: 'Day score',
   indices: 'Indices',
-  gaugeIndices: 'On-device indices',
-  loadUnits: 'The phone’s training-load scale uses arbitrary units: compare it with your other workouts, not with other apps.',
-  noScores: 'No on-device score for this period yet.',
+  gaugeIndices: 'Phone indices',
+  loadUnits: 'The phone’s training-load scale uses arbitrary units: compare it with your other activities, not with other apps.',
+  noScores: 'No phone score for this period yet.',
   method: (v: string) => `Method ${v}`,
-  legacy: 'On-device (legacy)',
+  legacy: 'Phone',
   contributors: 'What went into it',
   experimental: 'Experimental wellness indices',
 
@@ -184,8 +193,8 @@ export const RING_COPY = {
   measure: 'Measure now',
   zones: 'Heart-rate zones',
   zonesOverTime: 'Zones over time',
-  duringWorkout: 'During the workout',
-  gaugeZones: 'On-device zones',
+  duringWorkout: 'During the activity',
+  gaugeZones: 'Phone zones',
   /** (Codex #11) Which heart rate the zone time came from. */
   zonesFromSamples: 'timed from each heart-rate reading',
   zonesFromMinutes: 'timed from minute averages (the single readings were not available)',
@@ -195,6 +204,6 @@ export const RING_COPY = {
   avgHr: 'Average',
   maxHr: 'Peak reading',
   singleReading: 'one reading',
-  workoutMissing: 'This workout is no longer on your server.',
+  workoutMissing: 'This activity is no longer on your server.',
   open: 'Open',
 } as const;

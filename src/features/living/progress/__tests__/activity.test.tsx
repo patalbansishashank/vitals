@@ -277,7 +277,7 @@ describe('Progress activity cards', () => {
     renderLiving(<ProgressPage />, { path: '/progress', route: 'progress' });
     await screen.findByRole('heading', { level: 2, name: 'Adherence' });
     await act(async () => undefined);
-    for (const name of ['Heart Points', 'Energy out and intake', 'Steps', 'Overnight'])
+    for (const name of ['Heart Points', 'Energy balance', 'Steps', 'Overnight'])
       expect(screen.queryByRole('heading', { level: 2, name })).toBeNull();
   });
 
@@ -373,7 +373,7 @@ describe('Progress activity cards', () => {
 
   it('overnight has a separate heart and HRV card, personal ranges and a forming-baseline state', async () => {
     renderLiving(<ProgressPage />, { path: '/progress', route: 'progress' });
-    const hr = (await screen.findByRole('heading', { name: 'Sleeping low HR' })).closest('section')!;
+    const hr = (await screen.findByRole('heading', { name: 'Low sleeping heart rate' })).closest('section')!;
     const hrv = (await screen.findByRole('heading', { name: 'HRV' })).closest('section')!;
     expect(hr).toHaveAttribute('data-domain', 'heart');
     expect(hrv).toHaveAttribute('data-domain', 'recovery');
@@ -393,12 +393,12 @@ describe('Progress activity cards', () => {
   it('energy uses the selected unit and quiet mode hides every reading across activity cards', async () => {
     act(() => useSettingsStore.getState().set({ energyUnit: 'kJ' }));
     const { stub } = renderLiving(<ProgressPage />, { path: '/progress', route: 'progress' });
-    const card = (await screen.findByRole('heading', { name: 'Energy out and intake' })).closest('section')!;
+    const card = (await screen.findByRole('heading', { name: 'Energy balance' })).closest('section')!;
     expect(card.textContent).toMatch(/kJ\/day/);
     expect(card.textContent).not.toMatch(/kcal/);
     expect(card.textContent).toMatch(/Intake − burn · \d+ complete days/);
     await act(() => stub.actions.setQuietMode(true));
-    for (const name of ['Energy out and intake', 'Steps', 'Heart Points', 'Sleeping low HR', 'HRV']) {
+    for (const name of ['Energy balance', 'Steps', 'Heart Points', 'Low sleeping heart rate', 'HRV']) {
       const quiet = (await screen.findByRole('heading', { name })).closest('section')!;
       expect(quiet.querySelector('.lm-hero')?.textContent).not.toMatch(/\d/);
       expect(quiet.textContent).not.toMatch(/kcal|kJ|bpm|\bms\b|WHO min \d/);

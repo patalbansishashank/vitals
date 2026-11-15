@@ -7,6 +7,14 @@
  * unpairing, a revoked device (401/403) or a replaced client drops them all, and a refused read never keeps the last
  * answer. An offline read keeps the last answer and says so (`stale`), so a screen can tell "can't reach your server"
  * from "this device may no longer read it". A successful import or measurement asks every question on screen again.
+ *
+ * (r087) New data never cancels a read that is under way: the server would finish the cancelled work anyway and then do
+ * it again. The read is left to answer and asked once more when it has (`refreshGauge`). Nothing is asked while the app
+ * is hidden; coming back asks every question on screen once.
+ *
+ * The client shares one request between everyone asking the same thing (a card, the Progress data, the import), so a
+ * question asked again because something changed says since when (`since`): its answer then never comes from a request
+ * that was sent before the change.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { onFusionContextChange, type GaugeProblem } from '@/net/gauge';
@@ -31,12 +39,22 @@ export type GaugeQuery<T> = QueryDetails & (
 );
 
 type Meta = { problem: GaugeProblem | null; cached: boolean; savedAt: number | null };
+/**
+ * A read under way. `since`: its answer is known to be newer than this moment (null: as old as any request it may have
+ * joined). `again`: the data moved at this moment, after the read's answer may have been made, so it is asked once
+ * more when it answers.
+ */
+type Pending = { promise: Promise<unknown>; controller: AbortController; startedAt: number; since: number | null; again: number | null };
+/** A read that began this long before the app came back was cut off by a suspended app; its answer is not coming. */
+export const GAUGE_PENDING_MAX_AGE_MS = 30_000;
 const cache = new Map<string, unknown>();
 const meta = new Map<string, Meta>();
-const pending = new Map<string, { promise: Promise<unknown>; controller: AbortController }>();
-const active = new Map<string, number>();
+const pending = new Map<string, Pending>();
+/** The mounted readers of each question: each is a function that asks it again with the reader's current loader. */
+const mounted = new Map<string, Set<(since: number) => void>>();
 let generation = 0;
-let epoch = 0;
+/** New data arrived while the app was hidden: every question is asked again when it comes back. */
+let owed = false;
 const bumps = new Set<() => void>();
 const queryVersions = new Map<string, number>();
 const queryListeners = new Map<string, Set<() => void>>();
@@ -62,15 +80,61 @@ function dropAll(): void {
 registerEraseHook(dropAll);
 onGaugeApiChange(dropAll);
 onGaugeIdentityChange(dropAll);
-onGaugeDataChanged(() => refreshGauge());
-export function clearGaugeCache(): void { dropAll(); }
+onGaugeDataChanged((changedAt) => refreshGauge(changedAt));
+export function clearGaugeCache(): void { owed = false; dropAll(); }
 
-/** Refresh visible questions; a superseded response can never replace its successor. */
-export function refreshGauge(): void {
-  for (const key of pending.keys()) cancel(key);
-  epoch++;
-  for (const b of bumps) b();
+const hidden = (): boolean => typeof document !== 'undefined' && document.visibilityState !== 'visible';
+/** Asks a question on screen again, for an answer newer than `since`. */
+const ask = (ck: string, since: number): void => { mounted.get(ck)?.values().next().value?.(since); };
+/** The data moved at `changedAt` while this read was under way: once more when it answers, unless it is newer already. */
+const askAgain = (p: Pending, changedAt: number): void => {
+  if (p.since !== null && p.since >= changedAt) return;
+  p.again = Math.max(p.again ?? changedAt, changedAt);
+};
+
+/**
+ * New data may exist as of `changedAt` (default now): every question on screen is asked again. A read under way is not
+ * cancelled; unless it was itself asked for an answer that new, it is asked once more when it answers, so the screen
+ * ends up fresh and the server never does the same work twice at once. While the app is hidden nothing is asked;
+ * `resume` catches up.
+ */
+export function refreshGauge(changedAt: number = Date.now()): void {
+  if (hidden()) { owed = true; return; }
+  for (const ck of [...mounted.keys()]) {
+    const p = pending.get(ck);
+    if (p) askAgain(p, changedAt);
+    else ask(ck, changedAt);
+  }
 }
+
+/**
+ * The app came back to the front (or the network did): every question on screen is asked once, of the server as it is
+ * now. A request from before the pause may have been frozen with the app, so none of them is joined.
+ */
+function resume(): void {
+  if (hidden()) return;
+  const catchUp = owed;
+  owed = false;
+  const now = Date.now();
+  for (const ck of [...mounted.keys()]) {
+    const p = pending.get(ck);
+    if (p && now - p.startedAt <= GAUGE_PENDING_MAX_AGE_MS) {
+      // what arrived while hidden arrived before now
+      if (catchUp) askAgain(p, now);
+      continue;
+    }
+    // a suspended app froze this read's timer with it: waiting on it would end in a false "offline" and no retry
+    if (p) cancel(ck);
+    ask(ck, now);
+  }
+}
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', resume);
+  // the Android shell's own resume event (Capacitor fires it on the document), in case the WebView's visibility lags
+  document.addEventListener('resume', resume);
+}
+if (typeof window !== 'undefined') window.addEventListener('online', resume);
+
 // A correction changes the meaning of fused figures. Do not keep the old figures during that refresh.
 onFusionContextChange(dropAll);
 const subscribeGeneration = (fn: () => void) => { bumps.add(fn); return () => bumps.delete(fn); };
@@ -83,12 +147,12 @@ const subscribeData = (key: string, fn: () => void) => {
     if (listeners.size === 0) { queryListeners.delete(key); queryVersions.delete(key); }
   };
 };
-const snapshot = () => `${generation}:${epoch}`;
+const snapshot = () => generation;
 const scoped = (key: string): string => `${gaugeIdentity() ?? '-'}::${key}`;
 const refused = (p: GaugeProblem | null | undefined): boolean => p === 'unauthorized' || p === 'not_paired';
 function forgetRefused(problem: GaugeProblem): void {
   for (const key of pending.keys()) cancel(key);
-  for (const key of new Set([...cache.keys(), ...active.keys()])) {
+  for (const key of new Set([...cache.keys(), ...mounted.keys()])) {
     cache.set(key, null);
     meta.set(key, { problem, cached: false, savedAt: null });
   }
@@ -98,10 +162,10 @@ function trim(): void {
   // Evict inactive questions only. Mounted cards keep their current snapshot.
   for (const key of cache.keys()) {
     if (cache.size <= 192) break;
-    if (!active.has(key)) { cache.delete(key); meta.delete(key); }
+    if (!mounted.has(key)) { cache.delete(key); meta.delete(key); }
   }
 }
-function run<T>(key: string, load: (api: RingApi) => Promise<T | null>): Promise<T | null> {
+function run<T>(key: string, load: (api: RingApi) => Promise<T | null>, since: number | null = null): Promise<T | null> {
   const ck = scoped(key);
   const hit = pending.get(ck);
   if (hit) return hit.promise as Promise<T | null>;
@@ -121,7 +185,7 @@ function run<T>(key: string, load: (api: RingApi) => Promise<T | null>): Promise
       publish(ck);
     }).catch(() => undefined);
   }
-  const readApi = api.withOptions?.({ signal: controller.signal }) ?? api;
+  const readApi = api.withOptions?.({ signal: controller.signal, priority: 'screen', ...(since !== null ? { since } : {}) }) ?? api;
   let failed = false;
   const p = load(readApi).catch(() => { failed = true; return null; }).then((v) => {
     completed = true;
@@ -135,12 +199,19 @@ function run<T>(key: string, load: (api: RingApi) => Promise<T | null>): Promise
     } else if (v !== null || (!failed && problem === null) || !cache.has(ck)) cache.set(ck, v);
     const previous = meta.get(ck);
     meta.set(ck, { problem, cached: problem !== null && cache.get(ck) != null, savedAt: problem === null ? Date.now() : previous?.savedAt ?? null });
-    if (pending.get(ck)?.controller === controller) pending.delete(ck);
+    const mine = pending.get(ck);
+    if (mine?.controller === controller) pending.delete(ck);
     trim();
     publish(ck);
+    if (mine?.controller === controller && mine.again !== null) {
+      // the data moved while this read was under way: once more, now that the server is free of it
+      if (!hidden()) ask(ck, mine.again);
+      // nobody is looking: coming back asks
+      else owed = true;
+    }
     return (cache.get(ck) as T | null) ?? null;
   });
-  pending.set(ck, { promise: p, controller });
+  pending.set(ck, { promise: p, controller, startedAt: Date.now(), since, again: null });
   publish(ck);
   return p;
 }
@@ -156,17 +227,22 @@ export function useGauge<T>(key: string, load: (api: RingApi) => Promise<T | nul
   useEffect(() => { loadRef.current = load; });
   const refresh = useCallback(() => {
     cancel(scoped(key));
-    void run(key, loadRef.current);
+    // after a write: an answer made before it is not the answer
+    void run(key, loadRef.current, Date.now());
   }, [key]);
   useEffect(() => {
     recheckGaugeIdentity();
     const ck = scoped(key);
-    active.set(ck, (active.get(ck) ?? 0) + 1);
-    void run(key, loadRef.current);
+    const again = (since?: number) => void run(key, loadRef.current, since);
+    let readers = mounted.get(ck);
+    if (!readers) { readers = new Set(); mounted.set(ck, readers); }
+    readers.add(again);
+    again();
     return () => {
-      const count = (active.get(ck) ?? 1) - 1;
-      if (count > 0) active.set(ck, count);
-      else { active.delete(ck); cancel(ck); }
+      readers.delete(again);
+      if (readers.size > 0 || mounted.get(ck) !== readers) return;
+      mounted.delete(ck);
+      cancel(ck);
     };
   }, [key, gen]);
   useEffect(() => {
@@ -176,13 +252,6 @@ export function useGauge<T>(key: string, load: (api: RingApi) => Promise<T | nul
       if (refused(problem)) forgetRefused(problem!);
     });
   }, [gen]);
-  useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === 'visible') void run(key, loadRef.current); };
-    document.addEventListener('visibilitychange', onVisible);
-    document.addEventListener('resume', onVisible);
-    window.addEventListener('online', onVisible);
-    return () => { document.removeEventListener('visibilitychange', onVisible); document.removeEventListener('resume', onVisible); window.removeEventListener('online', onVisible); };
-  }, [key]);
   const m = meta.get(ck);
   const problem = m?.problem ?? null;
   const cached = m?.cached ?? false;

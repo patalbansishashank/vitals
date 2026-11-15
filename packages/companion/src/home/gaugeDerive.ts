@@ -14,8 +14,9 @@ import { createHash } from 'node:crypto';
 import { computeBaselines, type NightSummary } from './baselines.ts';
 import { declaredCadenceS, median, supportSegments, type Sample } from './hrSupport.ts';
 import { LEGACY_SUPPORT } from './lumenMigrate.ts';
-import type { HcRecordType, IntervalRow, LumenStore, MetricSample, Page, SpanCategory } from './lumenStore.ts';
+import { coverageWindow, type CoverageReport, type HcRecordType, type IntervalRow, type LumenStore, type MetricSample, type Page, type SpanCategory } from './lumenStore.ts';
 import { dayBounds, localDate, offsetMinutes, zonedMs } from './lumenTools.ts';
+import { kindOf, noteRead, readWindow, withReadDeps, type ReadDeps } from './readScope.ts';
 import { sleepMetrics, type SleepMetrics, type Stage } from './sleepMetrics.ts';
 import type { HcStream } from './timeline.ts';
 import { fusedDays, fuseSteps, type FusedDay, type FusionContext, type FusionResult, type StepRecord, type StepSupport } from './stepFusion.ts';
@@ -65,12 +66,29 @@ export class ReadBudgetError extends Error {
   }
 }
 
-let budget: { left: number } | null = null;
+/** One window of rows a call has read (`[from, to)`), kept for the rest of the call. */
+interface RowWindow<T> { from: number; to: number; rows: T[] }
+
+/**
+ * A call's budget, and the rows it has read so far (r087): a second read of the same evidence inside one call (fusion
+ * widening its window, the sleeping night read for two purposes, 28 days of heart rate for two baselines) takes the rows
+ * it already holds and reads only the part of its window that is new. Nothing is written inside a call, so the rows
+ * cannot have moved.
+ */
+interface CallScope {
+  left: number;
+  store: LumenStore | null;
+  /** By read (a span category and record type, a metric kind, the sleep packets): its windows. */
+  windows: Map<string, Array<RowWindow<{ id: string }>>>;
+}
+
+let budget: CallScope | null = null;
+let charged = 0;
 
 /** Runs `f` with a fresh row budget (`lumenToolSet` wraps each tool call in one; nested calls share the outer budget). */
 export function withReadBudget<T>(f: () => T, rows = READ_BUDGET_ROWS): T {
   if (budget) return f();
-  budget = { left: rows };
+  budget = { left: rows, store: null, windows: new Map() };
   try {
     return f();
   } finally {
@@ -78,12 +96,47 @@ export function withReadBudget<T>(f: () => T, rows = READ_BUDGET_ROWS): T {
   }
 }
 
+/** Every row charged so far in this process (the cached reads and the bench take differences of it). */
+export const rowsCharged = (): number => charged;
+
+/**
+ * `[from, to)` of one read (`key`) out of the windows the open call already holds for `store`: a window that contains
+ * it answers from memory; one that meets it grows by a read of the missing ends only; else the window is read and kept.
+ * `meets` is the read's own row predicate and `order` its order, so the rows are exactly a direct read's. Outside a
+ * call (or for a second store inside one) it is the direct read.
+ */
+function windowed<T extends { id: string }>(store: LumenStore, key: string, kind: string, from: number, to: number, read: (a: number, b: number) => T[], meets: (r: T, a: number, b: number) => boolean, order: (x: T, y: T) => number): T[] {
+  if (budget) budget.store ??= store;
+  if (!budget || budget.store !== store || !(to > from)) return read(from, to);
+  // rows the call already holds answer without a store read: the window still counts for the read scope
+  noteRead(from, to, kind);
+  let wins = budget.windows.get(key) as Array<RowWindow<T>> | undefined;
+  if (!wins) budget.windows.set(key, (wins = []) as Array<RowWindow<{ id: string }>>);
+  const w = wins.find((x) => x.from <= to && x.to >= from);
+  if (!w) {
+    const rows = read(from, to);
+    wins.push({ from, to, rows });
+    return rows.slice();
+  }
+  if (from < w.from || to > w.to) {
+    const have = new Set(w.rows.map((r) => r.id));
+    const more = [...(from < w.from ? read(from, w.from) : []), ...(to > w.to ? read(w.to, to) : [])].filter((r) => (have.has(r.id) ? false : (have.add(r.id), true)));
+    if (more.length) w.rows = [...w.rows, ...more].sort(order);
+    w.from = Math.min(w.from, from);
+    w.to = Math.max(w.to, to);
+  }
+  return w.from === from && w.to === to ? w.rows.slice() : w.rows.filter((r) => meets(r, from, to));
+}
+const byId = (x: { id: string }, y: { id: string }) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0);
+
 /**
  * (r063 FX2, final review sR13/aR17) Counts `n` rows (or expanded payload entries) a derivation read outside `readAll`
  * against the call's budget: every synchronous read of a tool call is inside it, not only the paged helpers.
  */
 export function chargeReadBudget(n: number): void {
-  if (!budget || !(n > 0)) return;
+  if (!(n > 0)) return;
+  charged += n;
+  if (!budget) return;
   budget.left -= n;
   if (budget.left < 0) throw new ReadBudgetError();
 }
@@ -102,24 +155,51 @@ export function readAll<T>(read: (cursor: string | null) => Page<T>): T[] {
   throw new Error('Too many rows to derive from; narrow the range.');
 }
 
-export const intervalsAll = (store: LumenStore, category: SpanCategory, fromMs: number, toMs: number, o: { recordType?: HcRecordType } = {}): IntervalRow[] =>
-  readAll((cursor) => store.readIntervals(category, fromMs, toMs, { cursor, limit: PAGE, ...(o.recordType ? { recordType: o.recordType } : {}) }));
+/** A span row's place in `[a, b)`, as `readIntervals` decides it (a point or an unknown duration counts by its start). */
+const spanMeets = (r: IntervalRow, a: number, b: number) => r.startMs < b && Math.max(r.endMs ?? r.startMs, r.startMs + 1) > a;
 
-export const samplesAll = (store: LumenStore, kind: string, fromMs: number, toMs: number): MetricSample[] =>
-  readAll((cursor) => store.readMetricSamples(kind, fromMs, toMs, { cursor, limit: PAGE }));
+export function intervalsAll(store: LumenStore, category: SpanCategory, fromMs: number, toMs: number, o: { recordType?: HcRecordType } = {}): IntervalRow[] {
+  const read = (a: number, b: number) => readAll((cursor) => store.readIntervals(category, a, b, { cursor, limit: PAGE, ...(o.recordType ? { recordType: o.recordType } : {}) }));
+  return windowed(store, `span|${category}|${o.recordType ?? ''}`, kindOf(category), fromMs, toMs, read, spanMeets, (x, y) => x.startMs - y.startMs || byId(x, y));
+}
+
+export function samplesAll(store: LumenStore, kind: string, fromMs: number, toMs: number): MetricSample[] {
+  const read = (a: number, b: number) => readAll((cursor) => store.readMetricSamples(kind, a, b, { cursor, limit: PAGE }));
+  return windowed(store, `metric|${kind}`, 'metric', fromMs, toMs, read, (r, a, b) => r.tMs >= a && r.tMs < b, (x, y) => x.tMs - y.tMs || byId(x, y));
+}
 
 /** A metric's readings in `[fromMs, toMs)` as samples with their declared cadence (`cadence_s`, or the workout stream's 10 s). */
 export function metricSamples(store: LumenStore, kind: string, fromMs: number, toMs: number, inputs: Inputs): Sample[] {
   const rows = samplesAll(store, kind, fromMs, toMs);
   inputs.addAll(rows);
   // (r063 FX2 sR13/aR17) the declared cadences of the CURRENT readings only (the rows just read, never their older
-  // versions), counted in the call's row budget; nothing to look up without readings
-  const cad = rows.length === 0 ? [] : store.all<{ id: string; c: number | null }>(
-    `SELECT id, json_extract(data, '$.cadence_s') AS c FROM current_events WHERE category IN (?, ?) AND observed_ms >= ? AND observed_ms < ? AND json_extract(data, '$.cadence_s') IS NOT NULL`,
-    `metrics/${kind}`, `vendor/${kind.replace(/^vendor\./, '')}`, fromMs, toMs);
-  chargeReadBudget(cad.length);
-  const declared = new Map(cad.map((r) => [r.id, r.c]));
-  return rows.filter((r) => num(r.value) !== null).map((r) => ({ tMs: r.tMs, value: r.value!, cadenceS: declaredCadenceS(r.provenance, declared.get(r.id)), id: r.id }));
+  // versions), counted in the call's row budget. (r087) They come with the reading; the kind's own category only, as
+  // the separate lookup had it.
+  const own = new Set([`metrics/${kind}`, `vendor/${kind.replace(/^vendor\./, '')}`]);
+  const declared = (r: MetricSample) => (r.cadenceS !== null && r.cadenceS !== undefined && own.has(r.category) ? r.cadenceS : undefined);
+  chargeReadBudget(rows.reduce((n, r) => n + (declared(r) === undefined ? 0 : 1), 0));
+  return rows.filter((r) => num(r.value) !== null).map((r) => ({ tMs: r.tMs, value: r.value!, cadenceS: declaredCadenceS(r.provenance, declared(r)), id: r.id }));
+}
+
+/**
+ * Parts of derivations that later calls can take from memory (`./gaugeReads.ts` keeps them, bounded, and drops each
+ * when a write touches what it read): the step-evidence rows of each UTC day (`stepRows`).
+ */
+export interface DerivedMemo {
+  get(store: LumenStore, key: string): { value: unknown; deps: ReadDeps } | undefined;
+  set(store: LumenStore, key: string, entry: { value: unknown; deps: ReadDeps }, weight: number): void;
+}
+let memo: DerivedMemo | null = null;
+
+/** Runs `f` with `m` as the memory of the derivations inside it. */
+export function withDerivedMemo<T>(m: DerivedMemo | null, f: () => T): T {
+  const outer = memo;
+  memo = m;
+  try {
+    return f();
+  } finally {
+    memo = outer;
+  }
 }
 
 /** Local clock minutes since midnight. */
@@ -244,11 +324,84 @@ export function counterScaledPhoneSteps(rows: ReadonlyArray<Pick<IntervalRow, 'i
 
 const ringSupport = (s: string | null): StepSupport => (s === 'minute' || s === 'tenMinuteFallback' || s === 'quarterHour' ? s : 'span');
 
+/** The `data` fields step evidence reads of each kind of row: a kept row carries only these (a ring minute's event is some 400 bytes, three of its fields are used). */
+const STEP_FIELDS = {
+  'activity/buckets': ['steps', 'distance_m', 'device_key'],
+  'activity/phone_steps': ['steps', 'parent_steps', 'm_start_ns', 'm_end_ns', 'timing', 'boot_id'],
+  'hc/record': ['origin_package', 'payload'],
+  'phone/acquisition': ['observed_zero', 'detector'],
+} as const;
+/** What one kept step row is counted as. */
+const STEP_ROW_BYTES = 256;
+
+/**
+ * The step-evidence rows of one category over `[fromMs, toMs)`, exactly `intervalsAll`'s rows, each with only the data
+ * fields the evidence reads. (r087) With a memory of derivations (`DerivedMemo`) they are read and kept one UTC day at a
+ * time: a month of fused steps asked again after an upload reads today's rows, not the month's, and the timelines of
+ * the same days take theirs from the same days. A kept day stands until a write touches it.
+ */
+function stepRows(store: LumenStore, category: keyof typeof STEP_FIELDS, fromMs: number, toMs: number, recordType?: HcRecordType): IntervalRow[] {
+  const keep = STEP_FIELDS[category];
+  const slim = (r: IntervalRow): IntervalRow => ({ ...r, data: Object.fromEntries(keep.filter((k) => r.data[k] !== undefined).map((k) => [k, r.data[k]])) });
+  const type = recordType ? { recordType } : {};
+  const direct = (a: number, b: number) => readAll((cursor) => store.readIntervals(category, a, b, { cursor, limit: PAGE, ...type })).map(slim);
+  const m = memo;
+  const kind = kindOf(category);
+  const keyOf = (day: number) => `steps|${category}|${recordType ?? ''}|${day}`;
+  const fromDays = (a: number, b: number) => {
+    noteRead(a, b, kind);
+    const first = Math.floor(a / DAY);
+    const last = Math.floor((b - 1) / DAY);
+    const held = new Map<number, IntervalRow[] | undefined>();
+    for (let day = first; day <= last; day++) held.set(day, m!.get(store, keyOf(day))?.value as IntervalRow[] | undefined);
+    // the rows of `[a, b)`, each charged to the call's budget once, as it arrives: a range too long to derive from is
+    // refused after as many rows as a read without the memory would have taken, not after the whole range
+    const picked = new Map<string, IntervalRow>();
+    const pick = (rows: Iterable<IntervalRow>) => {
+      let n = 0;
+      for (const r of rows) if (spanMeets(r, a, b) && !picked.has(r.id)) {
+        picked.set(r.id, r);
+        n++;
+      }
+      chargeReadBudget(n);
+    };
+    for (const rows of held.values()) if (rows) pick(rows);
+    for (let day = first; day <= last; day++) {
+      if (held.get(day)) continue;
+      // a run of days not held: one read for all of them, whole days whatever part this read wants (only that part
+      // counts in this call's budget and scope), each row kept under every day its support meets
+      let end = day;
+      while (end < last && !held.get(end + 1)) end++;
+      const rows = withReadDeps(() => {
+        const out: IntervalRow[] = [];
+        for (let cursor: string | null = null, i = 0; i < MAX_PAGES; i++) {
+          const p: Page<IntervalRow> = store.readIntervals(category, day * DAY, (end + 1) * DAY, { cursor, limit: PAGE, ...type });
+          const page = p.rows.map(slim);
+          pick(page);
+          for (const r of page) out.push(r);
+          if (!p.next) return out;
+          cursor = p.next;
+        }
+        throw new Error('Too many rows to derive from; narrow the range.');
+      }, true).value;
+      for (let d = day; d <= end; d++) held.set(d, []);
+      for (const r of rows) {
+        const to = Math.min(end, Math.floor((Math.max(r.endMs ?? r.startMs, r.startMs + 1) - 1) / DAY));
+        for (let d = Math.max(day, Math.floor(r.startMs / DAY)); d <= to; d++) held.get(d)!.push(r);
+      }
+      for (let d = day; d <= end; d++) m!.set(store, keyOf(d), { value: held.get(d), deps: { ranges: [[d * DAY, (d + 1) * DAY, kind]], all: false, detections: false } }, STEP_ROW_BYTES * (held.get(d)!.length + 1));
+      day = end;
+    }
+    return [...picked.values()].sort((x, y) => x.startMs - y.startMs || byId(x, y));
+  };
+  return windowed(store, `steps|${category}|${recordType ?? ''}`, kind, fromMs, toMs, m ? fromDays : direct, spanMeets, (x, y) => x.startMs - y.startMs || byId(x, y));
+}
+
 export function stepEvidence(store: LumenStore, fromMs: number, toMs: number, inputs: Inputs): StepEvidence {
-  const ring = intervalsAll(store, 'activity/buckets', fromMs, toMs);
-  const phone = intervalsAll(store, 'activity/phone_steps', fromMs, toMs);
-  const hc = intervalsAll(store, 'hc/record', fromMs, toMs, { recordType: 'Steps' });
-  const acq = intervalsAll(store, 'phone/acquisition', fromMs, toMs);
+  const ring = stepRows(store, 'activity/buckets', fromMs, toMs);
+  const phone = stepRows(store, 'activity/phone_steps', fromMs, toMs);
+  const hc = stepRows(store, 'hc/record', fromMs, toMs, 'Steps');
+  const acq = stepRows(store, 'phone/acquisition', fromMs, toMs);
   inputs.addAll(ring);
   inputs.addAll(phone);
   inputs.addAll(hc);
@@ -325,8 +478,8 @@ export interface RingDaily {
 
 /** The ring's daily totals by local date: the latest authoritative revision (latest observed, then received, then ingest), not the max. */
 export function ringDaily(store: LumenStore, fromMs: number, toMs: number, tz: string, inputs: Inputs): Map<string, RingDaily> {
-  const rows = store.all<{ id: string; installation_id: string; observed_ms: number; received_ms: number; seq: number; steps: number | null; distance_m: number | null; calories_kcal: number | null; active_minutes: number | null }>(
-    'SELECT id, installation_id, observed_ms, received_ms, seq, steps, distance_m, calories_kcal, active_minutes FROM daily_activity WHERE observed_ms >= ? AND observed_ms < ? ORDER BY observed_ms, received_ms, seq', fromMs, toMs);
+  const rows = readWindow(fromMs, toMs, 'activity/daily', () => store.all<{ id: string; installation_id: string; observed_ms: number; received_ms: number; seq: number; steps: number | null; distance_m: number | null; calories_kcal: number | null; active_minutes: number | null }>(
+    'SELECT id, installation_id, observed_ms, received_ms, seq, steps, distance_m, calories_kcal, active_minutes FROM daily_activity WHERE observed_ms >= ? AND observed_ms < ? ORDER BY observed_ms, received_ms, seq', fromMs, toMs));
   chargeReadBudget(rows.length);
   inputs.addAll(rows);
   const out = new Map<string, RingDaily>();
@@ -343,27 +496,31 @@ const COVERAGE_REPORT_SLACK_MS = 2 * DAY;
 /**
  * The local dates whose ring step detail GA reported complete (`state/sync` coverage of `activity_detail`).
  * (r063 FX2, final review sR13/aR17) Windowed: with `window`, only reports that can cover a date from `window.fromDate`
- * on are read (a report about a day is observed on or after it, so `observed_ms` from that day's start less a slack
- * bounds the read on its index), and the rows count in the call's row budget.
+ * on count (a report about a day is observed on or after it, so only those observed from that day's start less a
+ * slack), and (r087) with `window.toDate` only those that reach a date up to it: a report about later days is no input
+ * of these days, so their answer does not move with it. The reports come from the store's kept list
+ * (`syncCoverage`: parsed once, never one row per day of history on every read); the ones looked at count in the
+ * call's row budget.
  */
-export function ringDetailCompleteDates(store: LumenStore, inputs: Inputs, window?: { fromDate: string; fromMs: number }): Set<string> {
-  const rows = window
-    ? store.all<{ id: string; data: string }>("SELECT id, data FROM visible_events WHERE category = 'state/sync' AND observed_ms >= ? AND type = 'health.sync.coverage'", window.fromMs - COVERAGE_REPORT_SLACK_MS)
-    : store.all<{ id: string; data: string }>("SELECT id, data FROM visible_events WHERE category = 'state/sync' AND type = 'health.sync.coverage'");
-  chargeReadBudget(rows.length);
+export function ringDetailCompleteDates(store: LumenStore, inputs: Inputs, window?: { fromDate: string; fromMs: number; toDate?: string }): Set<string> {
+  const all = (): readonly CoverageReport[] => store.syncCoverage();
+  const span = window?.toDate !== undefined ? coverageWindow(window.fromDate, window.toDate) : null;
+  const reports = span ? readWindow(span[0], span[1], 'state/sync', all) : all();
+  const since = window ? window.fromMs - COVERAGE_REPORT_SLACK_MS : -Infinity;
   const out = new Set<string>();
-  for (const r of rows) {
-    let d: unknown;
-    try {
-      d = JSON.parse(r.data);
-    } catch {
-      continue;
-    }
-    if (!isObj(d) || d.stream !== 'activity_detail' || d.complete !== true || typeof d.fromDay !== 'string' || typeof d.toDay !== 'string') continue;
+  let looked = 0;
+  for (const r of reports) {
+    if (r.observedMs < since) continue;
+    looked++;
+    const d = r.data;
+    if (!d || d.stream !== 'activity_detail' || d.complete !== true || typeof d.fromDay !== 'string' || typeof d.toDay !== 'string') continue;
     if (window && d.toDay < window.fromDate) continue;
+    if (window?.toDate !== undefined && d.fromDay > window.toDate) continue;
     inputs.add(r.id);
-    for (const date of datesBetween(window && d.fromDay < window.fromDate ? window.fromDate : d.fromDay, d.toDay)) out.add(date);
+    const to = window?.toDate !== undefined && d.toDay > window.toDate ? window.toDate : d.toDay;
+    for (const date of datesBetween(window && d.fromDay < window.fromDate ? window.fromDate : d.fromDay, to)) out.add(date);
   }
+  chargeReadBudget(looked);
   return out;
 }
 
@@ -373,25 +530,23 @@ export function ringDetailCompleteDates(store: LumenStore, inputs: Inputs, windo
  * still means the day's steps are current as of then ("Updated" must not freeze at the last minute with steps).
  */
 export function ringDetailReadAt(store: LumenStore, inputs: Inputs, fromMs: number, toMs: number, tz: string): Map<string, number> {
-  const rows = store.all<{ id: string; observed_ms: number; data: string }>("SELECT id, observed_ms, data FROM visible_events WHERE category = 'state/sync' AND type = 'health.sync.coverage' AND observed_ms >= ? AND observed_ms <= ?", fromMs, toMs);
-  chargeReadBudget(rows.length);
+  const reports = readWindow(fromMs, toMs, 'state/sync', () => store.syncCoverage());
   const out = new Map<string, number>();
-  for (const r of rows) {
-    let d: unknown;
-    try {
-      d = JSON.parse(r.data);
-    } catch {
-      continue;
-    }
-    if (!isObj(d) || d.stream !== 'activity_detail' || d.complete !== true || typeof d.to !== 'string') continue;
+  let looked = 0;
+  for (const r of reports) {
+    if (r.observedMs < fromMs || r.observedMs > toMs) continue;
+    looked++;
+    const d = r.data;
+    if (!d || d.stream !== 'activity_detail' || d.complete !== true || typeof d.to !== 'string') continue;
     const reached = Date.parse(d.to);
     if (!Number.isFinite(reached)) continue;
-    const at = Math.min(r.observed_ms, reached);
+    const at = Math.min(r.observedMs, reached);
     if (at < fromMs) continue;
     inputs.add(r.id);
     const date = localDate(at, tz);
     out.set(date, Math.max(out.get(date) ?? 0, at));
   }
+  chargeReadBudget(looked);
   return out;
 }
 
@@ -430,6 +585,8 @@ const FUSE_MAX_PASSES = 8;
  * `FUSE_CONTEXT_MS`, then on until no record crosses the read edge (every component whole, up to `FUSE_MAX_WIDEN_MS`).
  * Each unit still belongs to the day of its last instant; only the asked days are reported, and the evidence's ring
  * buckets and acquisition windows are the asked range's.
+ *
+ * (r087) Each widening pass reads only the ends its window grew by (the call keeps the rows it holds).
  */
 export function fuseRange(store: LumenStore, tz: string, fromDate: string, toDate: string, inputs: Inputs, ctx: Omit<FusionContext, 'zeroWindows' | 'breaks'> = {}): FusedRange {
   const dates = datesBetween(fromDate, toDate);
@@ -467,7 +624,7 @@ export function fuseRange(store: LumenStore, tz: string, fromDate: string, toDat
     phoneAcquisition: wide.phoneAcquisition.filter((a) => a.startMs < toMs && a.endMs > fromMs),
   };
   const daily = ringDaily(store, fromMs, toMs, tz, inputs);
-  const complete = ringDetailCompleteDates(store, inputs, { fromDate, fromMs });
+  const complete = ringDetailCompleteDates(store, inputs, { fromDate, fromMs, toDate });
   const days = fusedDays(fusion, dates.map((date, i) => ({ date, startMs: bounds[i]![0], endMs: bounds[i]![1], ringDailyTotal: daily.get(date)?.steps ?? null, ringDetailComplete: complete.has(date) })));
   return { fusion, days, evidence, daily, complete, fromMs, toMs };
 }
@@ -675,15 +832,26 @@ export interface SleepRead {
   minutes: Map<number, string>;
 }
 
+interface SleepPacket { id: string; installation_id: string; observed_ms: number; received_ms: number; ingested_ms: number; seq: number; stages: string | null; interval_minutes: number | null; native_epoch_s: number | null; firmware: string | null }
+
+/** The ring's sleep packets observed in `[loMs, hiMs)`, oldest version first (a call that asks again holds them). */
+function sleepPackets(store: LumenStore, loMs: number, hiMs: number): SleepPacket[] {
+  const read = (a: number, b: number) => {
+    const rows = readWindow(a, b, 'sleep/timeline', () => store.all<SleepPacket>(
+      'SELECT id, installation_id, observed_ms, received_ms, ingested_ms, seq, stages, interval_minutes, native_epoch_s, firmware FROM sleep_timeline WHERE observed_ms >= ? AND observed_ms < ? ORDER BY received_ms, ingested_ms, seq', a, b));
+    chargeReadBudget(rows.length);
+    return rows;
+  };
+  return windowed(store, 'sleep', 'sleep/timeline', loMs, hiMs, read, (r, a, b) => r.observed_ms >= a && r.observed_ms < b, (x, y) => x.received_ms - y.received_ms || x.ingested_ms - y.ingested_ms || x.seq - y.seq);
+}
+
 /**
  * The ring's sleep minutes from packets observed in `[loMs, hiMs)`, cut into bouts at gaps of an hour or more, except
  * that the parts of one night (a wake break of up to 3 h inside the night window) stay one bout (`nightRuns`).
  */
 export function sleepRead(store: LumenStore, tz: string, loMs: number, hiMs: number, inputs: Inputs): SleepRead {
   // Gauge's `time` is its `observed_at`: the order of versions is when Gauge received them, then ingest order
-  const rows = store.all<{ id: string; installation_id: string; observed_ms: number; stages: string | null; interval_minutes: number | null; native_epoch_s: number | null; firmware: string | null }>(
-    'SELECT id, installation_id, observed_ms, stages, interval_minutes, native_epoch_s, firmware FROM sleep_timeline WHERE observed_ms >= ? AND observed_ms < ? ORDER BY received_ms, ingested_ms, seq', loMs, hiMs);
-  chargeReadBudget(rows.length);
+  const rows = sleepPackets(store, loMs, hiMs);
   const minutes = new Map<number, string>();
   const meta = new Map<number, { install: string; epoch: number | null; firmware: string | null }>();
   for (const r of rows) {

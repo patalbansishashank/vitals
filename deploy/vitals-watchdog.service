@@ -1,5 +1,5 @@
 [Unit]
-Description=Vitals Server watchdog: restart vitals-server after 3 failed /health checks in a row
+Description=Vitals Server watchdog: restart vitals-server when /health stops answering and its main thread stands still
 After=vitals-server.service
 
 [Service]

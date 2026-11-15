@@ -585,7 +585,7 @@ export function legacyZoneText(w: GaugeWorkout): string | null {
   const total = order.reduce((a, k) => a + (w.zones![k] ?? 0), 0);
   if (!total) return null;
   const hard = (w.zones.peak ?? 0) + (w.zones.max ?? 0);
-  return `On-device (legacy, 220 − age): ${minutesText(total / 60)} in zones, ${minutesText(hard / 60)} at 80 % and over`;
+  return `Phone (legacy, 220 − age): ${minutesText(total / 60)} in zones, ${minutesText(hard / 60)} at 80 % and over`;
 }
 
 // ---------------------------------------------------------------------------------------------------------------

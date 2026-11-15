@@ -76,10 +76,18 @@ object HubSync {
      * this process ([kicker]) [DEBOUNCE_MS] later; the WorkManager job behind it ([FALLBACK_MS]) only matters when the
      * process dies first, and then finds the queue empty or sends what was left.
      */
-    fun requestUpload(context: Context? = appContext) {
+    fun requestUpload(context: Context? = appContext) = requestUpload(context, DEBOUNCE_MS)
+
+    /**
+     * A ring pass just finished: everything it read is stored, so there is no burst left to wait out. The debounce
+     * stays for the batches that land in the middle of a pass.
+     */
+    fun requestUploadAfterPass(context: Context? = appContext) = requestUpload(context, 0)
+
+    private fun requestUpload(context: Context?, delayMs: Long) {
         val ctx = context?.applicationContext ?: return
         if (store?.pairing?.value == null) return
-        kicker(ctx).request(DEBOUNCE_MS)
+        kicker(ctx).request(delayMs)
         enqueueUpload(ctx, UNIQUE_NOW, ExistingWorkPolicy.KEEP, FALLBACK_MS)
     }
 

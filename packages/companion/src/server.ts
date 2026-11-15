@@ -96,6 +96,8 @@ export interface CompanionOptions {
   environment?: () => Promise<CompanionEnvironment>;
   /** The `home` role (SUITE_SPEC §14.1): persons, device tokens, person workers. */
   home?: Omit<HomeOptions, 'log' | 'version'>;
+  /** How long `close()` lets requests already running finish before it cuts them and closes the stores (ms). */
+  drainMs?: number;
 }
 
 export interface CompanionEnvironment {
@@ -123,6 +125,20 @@ export function loopbackMcpUrl(host: string, port: number): string | null {
 
 const GiB = 1024 ** 3;
 const MiB = 1024 ** 2;
+/** Longer than the slowest read in the logs (about 7 s), well inside systemd's 90 s stop timeout. */
+const DRAIN_MS = 10_000;
+/** The counts in `/health` are file reads on libuv's shared thread pool; past this the last known ones stand in. */
+const HEALTH_COUNTS_MS = 250;
+/** After the drain deadline cuts what is left, how long its handlers get to unwind before the stores close (ms). */
+const CUT_GRACE_MS = 1000;
+
+/**
+ * A response that only waits, so shutdown need not: a hold-open poll (`?wait=N`, the pulse and the commands channels)
+ * or an MCP client's standalone event stream (`GET /mcp`, open for as long as an agent is connected).
+ */
+function onlyWaits(req: IncomingMessage, path: string, query: string): boolean {
+  return req.method === 'GET' && (path === '/mcp' || /[?&]wait=[1-9]/.test(query));
+}
 
 function rejectUpgrade(socket: Duplex, status: number, text: string) {
   if (!socket.destroyed) socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
@@ -150,6 +166,7 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
     maxBlobBytes = 1 * MiB,
     relay: relayOn = true,
     agent: agentOn = false,
+    drainMs = DRAIN_MS,
   } = options;
   const log = createRedactingLogger(options.log);
   const print = options.print ?? options.log ?? (() => undefined);
@@ -328,6 +345,25 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
     throw new HttpError(404, 'not_found', 'Not found');
   };
 
+  // /health is how the watchdog tells a live server from a hung one (r087 S5), so it never waits long on anything
+  // else: the counts get a short turn and the last known ones answer when the thread pool is busy.
+  const counts = async () => ({
+    ownerCount: relay ? Math.max(relay.host.ownerCount(), await relay.blobs.ownerCount()) : 0,
+    ...(home ? await home.health() : { persons: 0 }),
+  });
+  let lastCounts: Record<string, number | null> = { ownerCount: null, persons: null };
+  const healthCounts = async (): Promise<Record<string, number | null>> => {
+    let timer: NodeJS.Timeout | undefined;
+    const fresh = counts().then(
+      (c) => (lastCounts = c),
+      () => null,
+    );
+    const late = new Promise<null>((r) => (timer = setTimeout(r, HEALTH_COUNTS_MS, null)));
+    const c = await Promise.race([fresh, late]);
+    clearTimeout(timer);
+    return c ?? lastCounts;
+  };
+
   const handle = async (req: IncomingMessage, res: ServerResponse) => {
     const rawUrl = req.url ?? '/';
     const q = rawUrl.indexOf('?');
@@ -344,9 +380,8 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
 
     if (rawPath === '/health') {
       if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'method' });
-      const ownerCount = relay ? Math.max(relay.host.ownerCount(), await relay.blobs.ownerCount()) : 0;
       // eventLoop (r063): the loop's recent delay, so a stalling read shows before the watchdog restarts the server
-      return sendJson(res, 200, { version: VERSION, role: home ? 'home' : 'relay', roles, ownerCount, ...(home ? await home.health() : { persons: 0 }), eventLoop: loopLag() });
+      return sendJson(res, 200, { version: VERSION, role: home ? 'home' : 'relay', roles, ...(await healthCounts()), eventLoop: loopLag() });
     }
     if (home) {
       try {
@@ -389,16 +424,53 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
     return sendJson(res, 404, { error: 'not found' });
   };
 
-  const server = createServer((req, res) => {
-    handle(req, res).catch((e: unknown) => {
-      log(`request failed: ${e instanceof Error ? e.message : String(e)}`);
-      if (!res.headersSent) sendJson(res, 500, { error: 'internal' });
-      else res.destroy();
+  // Requests still running, so close() can let them finish before the stores they read close under them (r087 S5:
+  // stores closed first, and a request that resumed after an await met "The database connection is not open").
+  // A request counts until its handler has returned and its response has closed: a handler whose client went away is
+  // still running (and may write when it resumes), and a streamed response outlives its handler.
+  let stopping = false;
+  const running = new Map<ServerResponse, { waits: boolean; left: number }>();
+  let idle: (() => void) | null = null;
+  const finished = (res: ServerResponse) => {
+    const r = running.get(res);
+    if (!r || --r.left > 0) return;
+    running.delete(res);
+    if (running.size === 0) idle?.();
+  };
+  const waitIdle = (ms: number) =>
+    new Promise<void>((r) => {
+      if (running.size === 0) return r();
+      const timer = setTimeout(() => {
+        idle = null;
+        r();
+      }, ms);
+      idle = () => {
+        clearTimeout(timer);
+        idle = null;
+        r();
+      };
     });
+
+  const server = createServer((req, res) => {
+    if (stopping) {
+      return sendJson(res, 503, { error: 'shutting_down' }, { 'Retry-After': '5', Connection: 'close' });
+    }
+    const url = req.url ?? '';
+    const q = url.indexOf('?');
+    running.set(res, { waits: onlyWaits(req, q === -1 ? url : url.slice(0, q), q === -1 ? '' : url.slice(q)), left: 2 });
+    res.once('close', () => finished(res));
+    handle(req, res)
+      .catch((e: unknown) => {
+        log(`request failed: ${e instanceof Error ? e.message : String(e)}`);
+        if (!res.headersSent) sendJson(res, 500, { error: 'internal' });
+        else res.destroy();
+      })
+      .finally(() => finished(res));
   });
 
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     socket.on('error', () => undefined);
+    if (stopping) return rejectUpgrade(socket, 503, 'Service Unavailable');
     const url = req.url ?? '';
     const path = url.split('?')[0];
     if (!(home ?? policy).hostAllowed(req)) return rejectUpgrade(socket, 403, 'Forbidden');
@@ -454,6 +526,18 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
     home,
     close() {
       closing ??= (async () => {
+        // 1. take no new work: stop listening, refuse new requests on open connections, drop idle ones
+        stopping = true;
+        const stopped = new Promise<void>((r) => server.close(() => r()));
+        server.closeIdleConnections();
+        // 2. responses that only wait end now; the handlers they release resume while their stores are still open
+        for (const [res, r] of running) if (r.waits) res.destroy();
+        // 3. let every request finish (the released ones included), up to drainMs
+        await waitIdle(drainMs);
+        // past the deadline cut what is left, and give its handlers a moment to unwind before their stores go
+        server.closeAllConnections();
+        await waitIdle(CUT_GRACE_MS);
+        // 4. only now close what requests read
         if (agent) {
           agent.siwc.close();
           await agent.mcp.close();
@@ -462,10 +546,7 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
         await ai?.close();
         await home?.close();
         await relay?.host.close();
-        await new Promise<void>((r) => {
-          server.close(() => r());
-          server.closeAllConnections();
-        });
+        await stopped;
         stopLoopMonitor();
       })();
       return closing;

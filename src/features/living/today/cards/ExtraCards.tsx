@@ -52,6 +52,10 @@ import {
   toDisplay,
 } from '@/features/ring/model';
 import { entryValue, personal } from '@/features/ring/monitor/values';
+import { ringPaths, sleepPath } from '@/features/ring/paths';
+import { RING_COPY } from '@/features/ring/copy';
+import { SLEEP_COPY } from '../../sleep/copy';
+import { periodOf, periodSearch } from '../../period';
 import { useLiving } from '../../data/source';
 import { fmtClock, weekOf } from '../../format';
 import { livingPaths } from '../../paths';
@@ -59,6 +63,8 @@ import { useGroceryList } from '../../food/groceries';
 import { energyBalance, energyRows } from '../../progress/activityModel';
 import { useProgressActuals } from '../../progress/sections/HeartPointsSection';
 import { goalDateLine } from '../model';
+import { ACTIVITY_COPY as PROGRESS_ACTIVITY_COPY } from '../../progress/copy';
+import { groupOfDomain, type TodayCardGroup } from './groups';
 import { withRemoveFoot } from './RemoveFromToday';
 import type { TodayCardCtx, TodayCardProps } from './types';
 import './extra-cards.css';
@@ -68,7 +74,7 @@ export interface ExtraTodayCardDef {
   title: string;
   icon: IconComponent;
   domain: Domain;
-  group: string;
+  group: TodayCardGroup;
   description: string;
   sizes: CardSize[];
   defaultSize: CardSize;
@@ -82,6 +88,10 @@ const needsRing = (c: TodayCardCtx) =>
   c.ring === 'ready' ? yes : { ok: false as const, reason: 'Needs ring data' };
 const energyAvailable = (c: TodayCardCtx) =>
   c.quiet ? { ok: false as const, reason: 'Hidden in quiet mode' } : needsPlan(c);
+/** One name per card across Today, Ring and Progress (r087 IA). */
+const SOURCE_WORDS = RING_COPY.sources;
+const SLEEP_HISTORY = SLEEP_COPY.history;
+const ENERGY_BALANCE = PROGRESS_ACTIVITY_COPY.faces.energy;
 const qWord = (word: string | undefined, fallback: string) => (word && !/\d/.test(word) ? word : fallback);
 function Shell({
   size,
@@ -330,7 +340,7 @@ function EnergyBalanceCard(p: TodayCardProps) {
   return (
     <Shell
       {...p}
-      title="Energy balance, 12 days"
+      title={ENERGY_BALANCE}
       icon={Flame}
       domain="energy"
       href={livingPaths.progress()}
@@ -376,6 +386,11 @@ function EnergyBalanceCard(p: TodayCardProps) {
     </Shell>
   );
 }
+/** The qualifier a signal's one name leaves out, as a fact under the number (r087 IA: never in the title). */
+const signalFact: Partial<Record<'hr' | 'hrv' | 'stress' | 'temp', readonly string[]>> = {
+  hrv: ['Overnight'],
+  temp: ['Overnight', 'vs usual'],
+};
 const signalInfo: Record<'hr' | 'hrv' | 'stress' | 'temp', string> = {
   hr: 'The ring’s latest heart-rate reading for this day. Readings can change with movement, posture and fit. This is not your waking resting heart rate and is not a diagnosis.',
   hrv: 'Heart-rate variability from the main sleep session, compared with your own overnight baseline once enough nights are available. A daytime reading is never used as a stand-in for an overnight value.',
@@ -427,7 +442,7 @@ function SignalCard(
       title={title}
       icon={icon}
       domain={domain}
-      href={`/ring/signals/${kind}?date=${c.date}`}
+      href={ringPaths.signal(kind, c.isToday ? undefined : c.date)}
       info={{
         body: signalInfo[kind],
         source: { kind: 'ring' },
@@ -455,6 +470,7 @@ function SignalCard(
         }
         {...(c.quiet ? { quietWord: qWord(status?.word, raw === null ? 'No reading' : 'Recorded') } : {})}
       />
+      {signalFact[kind] ? <MonoMeta items={signalFact[kind]} /> : null}
       <RangeScale
         label={title}
         value={display}
@@ -532,7 +548,7 @@ function StressCard(p: TodayCardProps) {
       title="Stress today"
       icon={Activity}
       domain="recovery"
-      href={`/ring/signals/stress?date=${c.date}`}
+      href={ringPaths.signal('stress', c.isToday ? undefined : c.date)}
       info={{
         body: 'Estimated time in the Elevated or High bands of the ring’s own unvalidated stress index. Estimated coverage follows each sample until the next reading, capped at one and a half times the day’s typical sample gap. Unsupported time stays unknown; the index is not a clinical measurement or a percentage.',
         source: { kind: 'ring' },
@@ -566,14 +582,14 @@ function DayScoreCard(p: TodayCardProps) {
   const c = p.ctx;
   const d = useRingDay(c.date);
   const score = d.scores?.day.value ?? null;
-  const source = d.scores?.source === 'legacy' ? 'On-device scores' : 'Vitals experimental';
+  const source = d.scores?.source === 'legacy' ? SOURCE_WORDS.phone : SOURCE_WORDS.estimate;
   return (
     <Shell
       {...p}
       title="Day score"
       icon={Gauge}
       domain="recovery"
-      href={`/ring/scores?date=${c.date}`}
+      href={ringPaths.tab('scores', c.isToday ? undefined : c.date)}
       info={{
         body: 'An experimental wellness index combining the available sleep, recovery and activity parts. Missing parts remain missing. The score is not a diagnosis, fitness test or measure of your worth.',
         source: { kind: 'engine', words: source },
@@ -593,7 +609,7 @@ function DayScoreCard(p: TodayCardProps) {
         label="Day score"
         value={score}
         goal={100}
-        valueText={score === null ? 'Unknown' : String(Math.round(score))}
+        valueText={score === null ? 'No reading' : String(Math.round(score))}
         quiet={c.quiet}
         quietWord="Day recorded"
         twin={false}
@@ -613,7 +629,7 @@ function SleepTimingCard(p: TodayCardProps) {
       title="Last night's timing"
       icon={Moon}
       domain="sleep"
-      href={`/sleep?date=${c.date}`}
+      href={sleepPath(c.isToday ? undefined : c.date)}
       info={{
         body: 'The main sleep session ending on this day. Fell asleep and woke are the ring’s observed sleep window, not the time you got into or out of bed. Missing endpoints stay unknown.',
         source: { kind: 'ring' },
@@ -661,7 +677,7 @@ function SleepHrCard(p: TodayCardProps) {
       title="Sleep heart rate"
       icon={HeartPulse}
       domain="heart"
-      href={`/sleep?date=${c.date}`}
+      href={sleepPath(c.isToday ? undefined : c.date)}
       info={{
         body: 'Heart rate during the main sleep session. The low is a sleeping value, never a waking resting-heart-rate measurement. Gaps remain gaps and sparse recordings do not produce a low.',
         source: { kind: 'ring' },
@@ -676,8 +692,8 @@ function SleepHrCard(p: TodayCardProps) {
           c.quiet
             ? 'Overnight heart rate'
             : low === null
-              ? 'No sleeping low heart rate'
-              : `Sleeping low heart rate ${Math.round(low)} beats per minute`
+              ? 'No low sleeping heart rate'
+              : `Low sleeping heart rate ${Math.round(low)} beats per minute`
         }
         {...(c.quiet ? { quietWord: 'Overnight' } : {})}
       />
@@ -728,7 +744,7 @@ function SleepHistoryCard(p: TodayCardProps) {
   const dates = Array.from({ length: 28 }, (_, i) => addDays(from, i));
   const history = sleepHistoryData(dates, q.data?.sessions ?? []);
   const avg = history.average;
-  const title = c.quiet ? 'Recent sleep' : 'Sleep, 4 weeks';
+  const title = SLEEP_HISTORY;
   const range =
     avg !== null && history.averageUpper !== null && history.averageUpper > avg
       ? `Recorded ${minutesText(avg)}–${minutesText(history.averageUpper)}`
@@ -739,7 +755,7 @@ function SleepHistoryCard(p: TodayCardProps) {
       title={title}
       icon={Moon}
       domain="sleep"
-      href={`/sleep?period=month&date=${c.date}`}
+      href={`${ringPaths.tab('sleep')}${periodSearch(periodOf('month', c.date), c.today)}`}
       info={{
         body: 'The main sleep session on each recorded night in the last four weeks. Missing nights stay as gaps. The average includes recorded nights only; an incomplete night retains its observed bounds.',
         source: { kind: 'ring' },
@@ -862,7 +878,7 @@ function def(
     title,
     icon,
     domain,
-    group: domain === 'steps' ? 'Move' : domain[0]!.toUpperCase() + domain.slice(1),
+    group: groupOfDomain(domain),
     description,
     sizes: size === 'slim' ? [size] : size === 'tile' ? ['tile', 'card', 'wide'] : ['card', 'wide'],
     defaultSize: size,
@@ -910,7 +926,7 @@ export const extraTodayCards: ExtraTodayCardDef[] = [
   ),
   def(
     'energy-balance',
-    'Energy balance, 12 days',
+    ENERGY_BALANCE,
     Flame,
     'energy',
     'Intake against estimated energy burned',
@@ -930,12 +946,12 @@ export const extraTodayCards: ExtraTodayCardDef[] = [
   ),
   def(
     'hrv',
-    'HRV vs usual',
+    'HRV',
     Waves,
     'recovery',
     'Overnight variability against your usual',
     'tile',
-    (p) => <SignalCard {...p} kind="hrv" title="HRV vs usual" icon={Waves} domain="recovery" />,
+    (p) => <SignalCard {...p} kind="hrv" title="HRV" icon={Waves} domain="recovery" />,
     needsRing,
   ),
   def(
@@ -955,7 +971,7 @@ export const extraTodayCards: ExtraTodayCardDef[] = [
     'recovery',
     'Overnight skin temperature against your usual',
     'tile',
-    (p) => <SignalCard {...p} kind="temp" title="Skin temp" icon={Thermometer} domain="recovery" />,
+    (p) => <SignalCard {...p} kind="temp" title="Skin temperature" icon={Thermometer} domain="recovery" />,
     needsRing,
   ),
   def(
@@ -990,7 +1006,7 @@ export const extraTodayCards: ExtraTodayCardDef[] = [
   ),
   def(
     'sleep-4w',
-    'Sleep, 4 weeks',
+    SLEEP_HISTORY,
     Moon,
     'sleep',
     'Recorded nights over four weeks',

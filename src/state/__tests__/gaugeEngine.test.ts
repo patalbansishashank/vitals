@@ -7,7 +7,8 @@ import { renderHook, act } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { fakeEngine, baseState } from '@/features/ring/engine/__tests__/fakeEngine';
 import { lastSentOf, useGaugeLive, waitingOf } from '@/features/ring/localFill';
-import { clearGaugeEngineServer, engine, engineActive, engineLocalSnapshot, engineSnapshot, pairedCredentials, resetGaugeEngineStoreForTests, startGaugeEngine, type EngineDeps } from '../gaugeEngine';
+import type { EngineState } from '@/platform/gaugeEngine';
+import { clearGaugeEngineServer, engine, engineActive, engineLocalSnapshot, engineSnapshot, pairedCredentials, resetGaugeEngineStoreForTests, startGaugeEngine, type EngineDeps, type EngineReadings } from '../gaugeEngine';
 import { SERVER_KEY } from '@/net/server';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -252,12 +253,14 @@ describe('engine store', () => {
     expect(f.plugin.getState.mock.calls.length).toBe(reads + 1);
   });
 
-  it('once active it is the local snapshot: "sent" and "waiting" come from the engine, with no ring steps', async () => {
+  it('once active it is the local snapshot: "sent" and "waiting" come from the engine', async () => {
     const { f } = start();
     await tick();
     const snap = engineLocalSnapshot();
     expect(snap?.upload).toMatchObject({ paired: true, pending: 3, lastSentAt: '2026-10-30T09:31:00.000Z' });
+    // the older native app sends no readings: the server's steps and heart rate stand
     expect(snap?.today).toBeNull();
+    expect(snap?.latestHr).toBeNull();
     const { result } = renderHook(() => useGaugeLive());
     expect(lastSentOf('2026-10-30T09:00:00.000Z', result.current)).toBe('2026-10-30T09:31:00.000Z');
     expect(waitingOf(result.current, Date.now() + 3_600_000)).toBe(3);
@@ -268,6 +271,46 @@ describe('engine store', () => {
     act(() => f.set(baseState({ mode: 'passive' })));
     expect(engineLocalSnapshot()).toBeNull();
     expect(result.current.local).toBeNull();
+  });
+
+  it('today\'s ring steps and the newest heart rate arrive with the state event and are the local snapshot at once', async () => {
+    const { f } = start();
+    await tick();
+    const { result } = renderHook(() => useGaugeLive());
+    expect(result.current.local).toMatchObject({ today: null, latestHr: null });
+    const readings: EngineReadings = {
+      today: { date: '2026-10-30', ringSteps: 4321, ringStepsAt: '2026-10-30T09:58:00Z' },
+      latestHr: { bpm: 73, at: '2026-10-30T09:57:00Z' },
+    };
+    act(() => f.set({ ...baseState(), ...readings }));
+    expect(result.current.local?.today).toEqual({ date: '2026-10-30', ringSteps: 4321, ringStepsAt: '2026-10-30T09:58:00Z' });
+    expect(result.current.local?.latestHr).toEqual({ bpm: 73, at: '2026-10-30T09:57:00Z' });
+    // the next event replaces them, and a count without a time still counts
+    act(() => f.set({ ...baseState(), today: { date: '2026-10-30', ringSteps: 4400 } } as EngineState));
+    expect(result.current.local).toMatchObject({ today: { date: '2026-10-30', ringSteps: 4400, ringStepsAt: null }, latestHr: null });
+    // a passive engine holds no ring: nothing of its own to show
+    act(() => f.set({ ...baseState({ mode: 'passive' }), ...readings }));
+    expect(result.current.local).toBeNull();
+  });
+
+  it('a reading that is not one is left out, never shown', async () => {
+    const { f } = start();
+    await tick();
+    const odd = (over: Record<string, unknown>) => {
+      f.set({ ...baseState(), ...over } as EngineState);
+      const s = engineLocalSnapshot();
+      return { today: s?.today, latestHr: s?.latestHr };
+    };
+    expect(odd({ today: { date: 'today', ringSteps: 10 } }).today).toBeNull();
+    expect(odd({ today: { date: '2026-10-30', ringSteps: -4 } }).today).toBeNull();
+    expect(odd({ today: { date: '2026-10-30', ringSteps: 10.5 } }).today).toBeNull();
+    expect(odd({ today: { date: '2026-10-30' } }).today).toBeNull();
+    expect(odd({ today: null, latestHr: null })).toEqual({ today: null, latestHr: null });
+    expect(odd({ today: { date: '2026-10-30', ringSteps: 10, ringStepsAt: 'noon' } }).today).toEqual({ date: '2026-10-30', ringSteps: 10, ringStepsAt: null });
+    expect(odd({ latestHr: { bpm: 0, at: '2026-10-30T09:57:00Z' } }).latestHr).toBeNull();
+    expect(odd({ latestHr: { bpm: '73', at: '2026-10-30T09:57:00Z' } }).latestHr).toBeNull();
+    expect(odd({ latestHr: { bpm: 73, at: 'just now' } }).latestHr).toBeNull();
+    expect(odd({ latestHr: { bpm: 73 } }).latestHr).toBeNull();
   });
 
   it('starting twice is the same loop', () => {

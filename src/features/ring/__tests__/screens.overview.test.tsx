@@ -47,7 +47,7 @@ describe('Ring screens: overview', () => {
       within(tabs)
         .getAllByRole('link')
         .map((a) => a.textContent),
-    ).toEqual(['Overview', 'Sleep', 'Activity', 'Scores']);
+    ).toEqual(['Overview', 'Sleep', 'Scores']);
     // (r069 sync) when Gauge last sent, on the clock
     expect(within(header()).getByText(/^Phone sent \d{2}:\d{2}$/)).toBeInTheDocument();
     expect(
@@ -68,6 +68,8 @@ describe('Ring screens: overview', () => {
     const steps = await within(card('Activity')).findByRole('meter', { name: 'Steps' });
     expect(steps.getAttribute('aria-valuetext')).toMatch(/^Steps:/);
     expect(within(card('Activity')).getByText(/Ring goal 9,000/)).toBeInTheDocument();
+    // (r087) steps and activities are a topic of their own: the card opens Activity › Movement
+    expect(within(card('Activity')).getByRole('link', { name: 'Activity' })).toHaveAttribute('href', `/activity?date=${today}`);
   });
 
   it('keeps ring energy visibly estimated with no energy goal, no "Worn", no breathing rate', async () => {
@@ -79,7 +81,7 @@ describe('Ring screens: overview', () => {
     expect(within(activity).queryByText(/^Ring ~/)).toBeNull();
     fireEvent.click(within(activity).getByRole('button', { name: 'About Activity' }));
     const info = await screen.findByRole('dialog', { name: 'Steps, distance and energy' });
-    expect(within(info).getByText('Ring energy estimate')).toBeInTheDocument();
+    expect(within(info).getByText('Ring energy')).toBeInTheDocument();
     expect(within(info).getByText(/^~[\d\s.,]+ (?:kcal|kJ)$/)).toBeInTheDocument();
     fireEvent.click(within(info).getByRole('button', { name: 'Close' }));
     // (r068 O04) the label says it is the ring's estimate; no second "Ring estimate" tag
@@ -150,21 +152,21 @@ describe('Ring screens: overview', () => {
     // the rows, each with its word and where the reading sits (the picture is aria-hidden: the row says it)
     const rows = within(signals).getAllByRole('link');
     expect(rows.map((a) => a.querySelector('.rgo-row__label')!.textContent)).toEqual([
-      'Sleeping low HR',
-      'HRV overnight',
+      'Low sleeping heart rate',
+      'HRV',
       'Blood oxygen',
       'Stress',
-      'Skin temperature overnight',
+      'Skin temperature',
     ]);
     expect(within(signals).getByRole('link', { name: /^Stress/ })).toHaveAttribute(
       'href',
       `/ring/signals/stress?date=${today}`,
     );
     expect(within(signals).getByRole('link', { name: /^Stress/ }).textContent).toMatch(/ring index/);
-    expect(within(signals).getByRole('link', { name: /^HRV overnight/ }).textContent).toMatch(
+    expect(within(signals).getByRole('link', { name: /^HRV/ }).textContent).toMatch(
       /70.*Near usual|Near usual.*70/,
     );
-    expect(within(signals).getByRole('link', { name: /^Sleeping low HR/ }).textContent).toMatch(/53/);
+    expect(within(signals).getByRole('link', { name: /^Low sleeping heart rate/ }).textContent).toMatch(/53/);
     expect(
       within(signals)
         .getByRole('link', { name: /^Blood oxygen/ })

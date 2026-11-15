@@ -28,6 +28,16 @@ class FakeHubOutboxDao : HubOutboxDao {
         .sortedWith(compareBy<HubOutboxEntity> { it.createdAt }.thenBy { it.eventId })
         .take(limit)
 
+    override suspend fun pendingFresh(stuckAttempts: Int, limit: Int): List<HubOutboxEntity> = rows.values
+        .filter { it.uploadedAt == null && it.attemptCount < stuckAttempts }
+        .sortedWith(compareBy<HubOutboxEntity> { it.createdAt }.thenBy { it.eventId })
+        .take(limit)
+
+    override suspend fun pendingStuck(stuckAttempts: Int, limit: Int): List<HubOutboxEntity> = rows.values
+        .filter { it.uploadedAt == null && it.attemptCount >= stuckAttempts }
+        .sortedWith(compareBy<HubOutboxEntity> { it.attemptCount }.thenBy { it.createdAt }.thenBy { it.eventId })
+        .take(limit)
+
     override suspend fun pendingCount(): Int = rows.values.count { it.uploadedAt == null }
     override fun pendingCountFlow(): Flow<Int> = pendingFlow
 

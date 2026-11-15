@@ -1,7 +1,7 @@
-/** Ring › Activity: the day, its 30 days, and the activities that count. */
+/** Activity › Movement on one day: the day's steps, the 30 days up to it, and the day's activities that count. */
 import { useState } from 'react';
 import { Link } from 'react-router';
-import { Activity, Bike, ChevronLeft, ChevronRight, Dumbbell, Flame, Footprints, Waves } from 'lucide-react';
+import { Activity, Bike, ChevronLeft, ChevronRight, Dumbbell, Footprints, Waves } from 'lucide-react';
 import {
   CardFoot,
   CardHead,
@@ -18,8 +18,9 @@ import {
   formatNumber,
 } from '@/components';
 import { activityName } from '@/features/living/activity/model';
-import { fmtDay } from '@/features/living/format';
+import { fmtDateRange, fmtDay } from '@/features/living/format';
 import type { LocalDate } from '@/living';
+import { daysBetween } from '@/living/dates';
 import { useEnergyUnit, useQuietMode } from '@/state/settingsStore';
 import { wallIso, type RingActivity } from '../activities';
 import { useRingActivities } from '../useActivities';
@@ -27,7 +28,7 @@ import { RING_COPY as C } from '../copy';
 import { useActivity } from '../data';
 import { useRingDay } from '../day';
 import { clockOf, shiftDate } from '../model';
-import { energyPath, ringPaths } from '../paths';
+import { ringPaths } from '../paths';
 import { partOfDay } from '../quiet';
 import { ActivityLane, ActivityLegend } from '@/features/living/activity/ActivityLane';
 import { STEPS_DAY_WORDS } from '@/features/living/activity/StepsDayChart';
@@ -38,8 +39,6 @@ import { StepsHistoryCard, kSteps } from './StepsHistoryCard';
 import { movementFacts, movementInfo, workoutsInfo } from './activityInfo';
 import './activity.css';
 import { MovementBody, stepsUpdatedCaption } from './Movement';
-
-// ---------------------------------------------------------------------------------------------------------------
 
 export function ActivityView({ date, today }: { date: string; today: string }) {
   const dayQ = useActivity(date, date);
@@ -119,41 +118,16 @@ export function ActivityView({ date, today }: { date: string; today: string }) {
         </div>
       </GradientCard>
       <StepsHistoryCard from={shiftDate(date, -29)} end={date} />
-      <EnergyBurnedLink date={date} />
-      <ActivitiesCard key={date} date={date} />
+      <ActivitiesCard key={date} from={date} end={date} />
     </Stack>
   );
 }
 
-export function EnergyBurnedLink({ date, query }: { date: string; query?: string }) {
-  return (
-    <GradientCard
-      as="section"
-      domain="energy"
-      size="slim"
-      head={
-        <CardHead
-          as="h2"
-          icon={Flame}
-          title="Energy burned"
-          info={{
-            title: 'Energy burned',
-            body: 'The Energy page shows your estimated total burned and the components the model uses, with daily history and a date selector. Its total can differ from the ring’s own energy estimate.',
-            source: { kind: 'estimate', words: 'Vitals energy model' },
-          }}
-        />
-      }
-      foot={
-        <CardFoot
-          link={{ to: query ? `${energyPath()}?${query}` : energyPath(date), label: 'View energy' }}
-        />
-      }
-    />
-  );
-}
-
-/** Days per page of the activity history. */
+/** Days per page of the activity list, once a selection is too long for one page. */
 export const ACTIVITY_PAGE_DAYS = 30;
+
+/** The longest selection the list shows whole: a calendar month, so no month leaves its first day on a page of its own. */
+export const ACTIVITY_WHOLE_DAYS = 31;
 
 /** (r068 A04) Rows shown before "Show all". */
 export const ACTIVITY_ROWS_SHOWN = 6;
@@ -164,64 +138,69 @@ function shortName(exerciseId: string): string {
 }
 
 /**
- * (0.6.3 S25/A14) The activities that count, from the canonical collection (approved and edited device bouts, Health
- * Connect sessions, the person's own logs), a page of 30 days at a time with Earlier / Later; the Gauge session behind
- * one opens its detail. (r068 A04) The first rows, then "Show all".
+ * (0.6.3 S25/A14) The activities that count from `from` to `end`, out of the canonical collection (approved and edited
+ * device bouts, Health Connect sessions, the person's own logs); the Gauge session behind one opens its detail. The
+ * list covers what the date control selects: a day lists that day, a week or a month lists all of it. Anything longer
+ * is read a page of 30 days at a time, newest first, with Earlier / Later inside it, so a year is never asked for at
+ * once. (r068 A04) The first rows, then "Show all". Key the card by its span: a new selection starts on its newest page.
  */
-export function ActivitiesCard({ date }: { date: string }) {
-  // the page starts at the selected day (the card is keyed by it)
-  const [until, setUntil] = useState(date);
+export function ActivitiesCard({ from, end }: { from: string; end: string }) {
+  const [until, setUntil] = useState(end);
   const [all, setAll] = useState(false);
-  const from = shiftDate(until, -(ACTIVITY_PAGE_DAYS - 1));
-  const acts = useRingActivities(from, until);
+  const whole = daysBetween(from as LocalDate, end as LocalDate) + 1 <= ACTIVITY_WHOLE_DAYS;
+  const firstOfPage = shiftDate(until, -(ACTIVITY_PAGE_DAYS - 1));
+  const pageFrom = !whole && firstOfPage > from ? firstOfPage : from;
+  const acts = useRingActivities(pageFrom, until);
   const quiet = useQuietMode().on;
   const n = acts.approved.length;
-  const latest = until >= date;
+  const oneDay = from === end;
+  const earlier = pageFrom > from;
+  const later = until < end;
   const page = (to: string) => {
     setUntil(to);
     setAll(false);
   };
-  const span = `${fmtDay(from as LocalDate)} to ${fmtDay(until as LocalDate)}`;
   const shown = all ? acts.approved : acts.approved.slice(0, ACTIVITY_ROWS_SHOWN);
-  // (r068 A04) one bank of keys at the list's foot, all the same outlined key: the earlier 30 days, the rest of these
-  // (while some are folded away) and the later 30 days (only when there are later days to show)
+  const showAll = n > shown.length ? { label: C.showAll(n), onClick: () => setAll(true) } : undefined;
+  const none = quiet ? C.noActivitiesQuiet : oneDay ? C.dayNoActivities : pageFrom === firstOfPage ? C.noActivities : C.periodNoActivities;
   return (
     <GradientCard
       as="section"
       domain="steps"
       head={<CardHead as="h2" icon={Dumbbell} title={C.workouts} info={workoutsInfo} />}
       foot={
-        <CardFoot state={quiet ? undefined : { word: C.countedCount(n) }} right={span}>
-          {' '}
-          <div className="rga-pages" role="group" aria-label={C.workoutsPages}>
-            <Key
-              variant="text"
-              size="sm"
-              icon={ChevronLeft}
-              onClick={() => page(shiftDate(until, -ACTIVITY_PAGE_DAYS))}
-            >
-              {C.earlier}
-            </Key>
-            {n > shown.length ? (
-              <Key variant="text" size="sm" onClick={() => setAll(true)}>
-                {C.showAll(n)}
-              </Key>
-            ) : null}
-            {latest ? null : (
-              <Key
-                variant="text"
-                size="sm"
-                trailingIcon={ChevronRight}
-                onClick={() =>
-                  page(
-                    shiftDate(until, ACTIVITY_PAGE_DAYS) > date ? date : shiftDate(until, ACTIVITY_PAGE_DAYS),
-                  )
-                }
-              >
-                {C.later}
-              </Key>
-            )}
-          </div>
+        // the date control above names a single day: the foot repeats only a span; an empty list says so in its one line
+        <CardFoot
+          state={quiet || n === 0 ? undefined : { word: C.countedCount(n) }}
+          right={oneDay ? undefined : fmtDateRange(pageFrom as LocalDate, until as LocalDate)}
+          link={earlier || later ? undefined : showAll}
+        >
+          {earlier || later ? (
+            // (r068 A04) one bank of keys at the list's foot, all the same key: the earlier 30 days, the rest of
+            // these (while some are folded away) and the later 30 days
+            <div className="rga-pages" role="group" aria-label={C.workoutsPages}>
+              {earlier ? (
+                <Key variant="text" size="sm" icon={ChevronLeft} onClick={() => page(shiftDate(pageFrom, -1))}>
+                  {C.earlier}
+                </Key>
+              ) : null}
+              {showAll ? (
+                <Key variant="text" size="sm" onClick={showAll.onClick}>
+                  {showAll.label}
+                </Key>
+              ) : null}
+              {later ? (
+                <Key
+                  variant="text"
+                  size="sm"
+                  trailingIcon={ChevronRight}
+                  onClick={() => page(shiftDate(until, ACTIVITY_PAGE_DAYS) > end ? end : shiftDate(until, ACTIVITY_PAGE_DAYS))}
+                >
+                  {C.later}
+                </Key>
+              ) : null}
+            </div>
+          ) : null}
         </CardFoot>
       }
     >
@@ -233,7 +212,7 @@ export function ActivitiesCard({ date }: { date: string }) {
             ))}
           </ul>
         ) : (
-          <p className="rg-none">{quiet ? C.noActivitiesQuiet : C.noActivities}</p>
+          <p className="rg-none">{none}</p>
         )}
       </div>
     </GradientCard>

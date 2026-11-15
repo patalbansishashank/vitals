@@ -4,55 +4,100 @@ All notable changes to Vitals. Dates are release dates (IST).
 
 ## Unreleased
 
+## [0.8.7] - 2026-11-16
+
+### Changed
+- Ring data loads much sooner. The home server keeps the answers it has already worked out and reuses them until new
+  readings for those days arrive, so an unchanged day costs it nothing to answer again; first answers are cheaper
+  too. Slow reads no longer hold up quick ones, uploads or the server's health check.
+- The app asks for less, and for what is on screen first. It sends at most three ring reads at a time, keeps past days
+  instead of asking for them again every few minutes, and no longer imports or refreshes while it is hidden.
+- New ring data no longer restarts every read on screen. Pages that used to stay on "loading" (a signal such as HRV,
+  for example) now finish and then update.
+- Opening the app shows the saved readings at once and keeps them while fresh ones arrive.
+- One Activity section holds Train, Movement (steps and activities, formerly Ring › Activity) and Energy. Ring keeps
+  Overview, Sleep and Scores. Old links still open the right page.
+- One name for each thing across Today, Ring and Progress: Activities, Signals, HRV, Skin temperature, Energy balance;
+  "Ring", "Phone" and "Vitals estimate" say where a figure comes from. The Today card library has one group per topic,
+  and Progress lists the plan first and measured data under one heading.
+- Android (needs the 0.8.7 app): coming back to the app reads the ring and sends waiting readings at once; today's
+  ring steps and the latest heart rate show straight from the phone until the server has them; while the ring stays
+  connected in the background it is read about every 5 minutes.
+
+### Fixed
+- Today moves on to the new day by itself after the day changes; it used to keep showing the day before until the app
+  was restarted.
+- The server's watchdog no longer restarts a server that is busy but healthy, and a restart lets requests in progress
+  finish.
+- Android (needs the 0.8.7 app): a ring that stops answering during its handshake is asked again and, if it stays
+  silent, reconnected; before, it could stay stuck for as long as the connection held. The background ring job no
+  longer fails on Android 12 and later when it may not start a foreground service. One reading the server refuses no
+  longer blocks the readings behind it.
+- Today's sleep cards open the night and the period they show, not today.
+- Today had two cards for the same energy figure; there is one now, and a saved layout keeps its place.
+- An installed website checks for a new version while it stays open. A coach answer that fails midway says so instead
+  of waiting. Starting a job twice no longer loses the first one.
+
+### For developers
+- `docs/RELEASING.md` describes the whole release path, including the step that publishes to the home server's update
+  feed (`pnpm release:ota`); the 0.8.5 and 0.8.6 releases never reached that feed. The changelog has its 0.8.0 to 0.8.5
+  sections again.
+
 ## [0.8.6] - 2026-11-07
+
+### Fixed
+- Release checks now verify the current optimizer checkpoint format and regenerated command documentation.
+
+## [0.8.5] - 2026-11-07
+
+There was no 0.8.3 or 0.8.4.
 
 ### Added
 - Experimental tracking for explicitly chosen Simulator plans. Preset deficit, energy-availability, loss-rate and cut-duration warnings remain recorded in a collapsed Plan Details disclosure. Current medical restrictions still apply; tracking does not issue a verified-plan certificate or guarantee individual outcomes.
 - Owner-delegated agent control across registered app commands, including current-routine comparisons with matched calorie, macro and training controls.
 
 ### Fixed
-- Release checks now verify the current optimizer checkpoint format and regenerated command documentation.
 - A user can turn off the general adult 25% deficit preset without discarding clinician, marker, imported or condition-specific restrictions. The screening's generated duplicate follows the same choice.
 - Simulator plans preserve the person's selected practical limits and muscle-retention budget when started. Protein targets and optional higher-protein preferences stay distinct from actual food logs.
 - Documented habitual sleep reaches the model, and reported bike sessions linked to recreation are counted once.
 
+## [0.8.2] - 2026-11-02
 
-### Added
-- Server (home role): the coach can run on the server (`/v1/coach/*`, docs/SERVER.md "Coach"). The server drives
-  Claude Code on the host, one process per turn, isolated from the owner's own Claude setup (no user settings or
-  hooks, only the server's `/mcp` tools) and in its own memory-capped systemd scope; answers stream as server-sent
-  events with tool progress and `proposal` events for staged plan changes. Vitals devices and the Gauge app may use
-  it. Sessions are temporary: kept in memory, deleted with their transcript and short-lived token 24 hours after the
-  last message (`keep` extends it) and on every restart. Codex is an opt-in fallback (`coach.fallback: "codex"`).
-  Off until `server.json` has a `coach` block.
-- Server (home role): the Gauge app (the ring app, formerly Lumen Health; Vitals plans, Gauge measures) pairs with
-  the person's one-time code (`vitals-server pair-code`) and uploads its ring data over HTTPS (`/v1/lumen/pair`,
-  `/v1/lumen/events`, `/v1/lumen/status`, `/v1/lumen/unpair`) into a separate `persons/<id>/lumen.db`; agents on `/mcp`
-  read it through seven read-only `gauge_*` tools (`gauge_data_availability`, `gauge_metric_series`,
-  `gauge_daily_summary`, `gauge_sleep`, `gauge_activity`, `gauge_scores`, `gauge_device_state`). The routes, the
-  `lumen` token kind and the file keep the old name so paired phones keep working. Vitals itself stays manual-only and
-  never syncs that data. (Step 1 below changes this for steps and sleep.)
-- Ring steps and sleep come into Vitals by themselves (reverses 0.6.0's manual-only rule for these two only). While
-  paired with the home server, every Vitals device (web, desktop, Android) reads the ring's daily steps and each
-  morning's main sleep from Gauge's data on the server (`/v1/gauge/activity`, `/v1/gauge/sleep`) at start and every
-  5 minutes, filling the last 30 days the first time, and logs them as ring entries ("8214 steps · ring"). The plan,
-  check-ins and the planner count them like logged steps and sleep; a ring night counts the minutes the ring scored as
-  asleep. Your own entry for a day always wins, and the import never writes over it; a ring entry you remove stays
-  removed. Re-runs and other devices add no duplicates (each reading gets the same id everywhere). Settings › Sync ›
-  Ring data from Gauge shows the last import and turns it off on all devices. Heart rate, HRV, SpO2 and temperature
-  are not used by the plan.
-- `src/net/gauge.ts`: `gaugeApi`, the client for `/v1/gauge/*` (typed `gauge_*` tool JSON, null when unpaired or
-  offline, last good answer kept, conditional polling with ETag).
-- Android home-screen widgets, restyled and extended (r071): the Today widget is three rings (steps, energy, sleep, each
-  its own tap), Ring is Heart rate with the day's line, and Energy, Sleep and Steps are widgets of their own (2x2 as a ring
-  with the figure inside, 4x2 with the day's running burn and its dotted forecast, the night's hypnogram, or steps by
-  hour); Weight is a widget too, off until Settings › Widgets turns "Show weight on the home screen" on. Each card has
-  its domain hue as one glow over the warm face, Geist for every figure and mono caps for its facts, and wears the
-  launcher's own corner on Android 12 and later. Every instance is drawn at its own size. In quiet mode a widget says
-  words and parts of the day, never a digit, and Energy says only that quiet mode is on. The figures now reach the home
-  screen from the app's stores and models, not from the Today cards (a card removed from Today no longer freezes its
-  widget), and are read only for widgets that are placed. The widgets' design is generated from `design/tokens.css`
-  (`pnpm android:design`).
+### Changed
+- Plan calculations repeat less work, so the planner and the Simulator answer sooner. Their results are exactly the
+  same as before.
+- About and the model report say that the model's evidence is dated, and keep the targets the model meets apart from
+  the software checks. Passing software checks does not mean the model predicts well.
+- Release timing checks run on one fixed, documented reference machine, with the same limits as before.
+
+### Fixed
+- A model validation note gave visceral fat in kilograms; it is a percentage.
+
+## [0.8.1] - 2026-11-02
+
+### Changed
+- Cards refresh as soon as the server has new ring data, and when you come back to the Android app. A refresh that
+  fails keeps the last good reading on screen.
+- Recent ring activity is imported before older history.
+- Stress shows each reading and its band instead of a smoothed daily line, with how much of the day the readings
+  cover, marked as an estimate.
+
+### Fixed
+- The saved ring reconnects when Bluetooth is turned back on, even without the background service (needs the 0.8.1
+  Android app).
+- Activity detection keeps a batch that failed and tries it again instead of dropping it, and reads enough minutes
+  around a session to see how it started and how you recovered. Its thresholds are unchanged.
+
+## [0.8.0] - 2026-11-01
+
+### Changed
+- Scrolling and cards are smoother on phones: card glows fade instead of being redrawn, a card updates only when its
+  own facts change, and arriving ring data updates only the cards that show it. Animations and Edit cards are
+  unchanged.
+- Signals scales and their labels stay inside their card on phones, also with larger text.
+- Update checks stay quiet until there is an update. An update then downloads by itself, also on mobile data, and the
+  banner shows the download and then Install. Installing still takes your tap and Android's confirmation. From the
+  0.8.0 Android app on, the banner shows real download progress.
 
 ## [0.7.9] - 2026-11-01
 
@@ -190,7 +235,16 @@ All notable changes to Vitals. Dates are release dates (IST).
 - Energy burned: any day, week, month, year or custom range, with daily bars, the average, and what made up the burn
   (resting metabolism from your weight, everyday movement, walking, exercise, food digestion) with ranges.
 - Ring, Sleep, Food, Train, Plan, Coach, Progress, Body, Settings, Evidence and the planning tools restyled.
-- Home-screen widgets redrawn, with new Energy, Sleep, Steps and (opt-in) Weight widgets; quiet mode shows no digits.
+- Android home-screen widgets, restyled and extended (r071): the Today widget is three rings (steps, energy, sleep, each
+  its own tap), Ring is Heart rate with the day's line, and Energy, Sleep and Steps are widgets of their own (2x2 as a ring
+  with the figure inside, 4x2 with the day's running burn and its dotted forecast, the night's hypnogram, or steps by
+  hour); Weight is a widget too, off until Settings › Widgets turns "Show weight on the home screen" on. Each card has
+  its domain hue as one glow over the warm face, Geist for every figure and mono caps for its facts, and wears the
+  launcher's own corner on Android 12 and later. Every instance is drawn at its own size. In quiet mode a widget says
+  words and parts of the day, never a digit, and Energy says only that quiet mode is on. The figures now reach the home
+  screen from the app's stores and models, not from the Today cards (a card removed from Today no longer freezes its
+  widget), and are read only for widgets that are placed. The widgets' design is generated from `design/tokens.css`
+  (`pnpm android:design`).
 - The short-video island is one size inside the status bar; its count turns from white to red toward your limit.
 
 ### Fixed
@@ -291,6 +345,8 @@ All notable changes to Vitals. Dates are release dates (IST).
   readings. Raw values stay in the table and CSV.
 - The Activities hub's keys (Log · Record · Make a plan) sit on one aligned row.
 
+## [0.6.3] - 2026-10-28
+
 Today as home, a sync server that stays up, and every open item from 0.6.2 (two Codex gpt-6.1-sol + gpt-6-astra
 audits, each cross-checking the other).
 
@@ -350,6 +406,17 @@ Energy, activity and the ring screens (energy SPEC, packages S1–S2, V1–V4, C
   Check for updates. Vitals asks Gauge through the home server, and Record starts a workout on the phone.
 - Server: `gauge_steps`, `gauge_timeline`, `gauge_baselines` and `gauge_hc` (and their `/v1/gauge/*` routes),
   `POST /v1/gauge/steps/fuse`, a `tz` on every read, and the command channel from Vitals to Gauge.
+- Ring steps and sleep come into Vitals by themselves (reverses 0.6.0's manual-only rule for these two only). While
+  paired with the home server, every Vitals device (web, desktop, Android) reads the ring's daily steps and each
+  morning's main sleep from Gauge's data on the server (`/v1/gauge/activity`, `/v1/gauge/sleep`) at start and every
+  5 minutes, filling the last 30 days the first time, and logs them as ring entries ("8214 steps · ring"). The plan,
+  check-ins and the planner count them like logged steps and sleep; a ring night counts the minutes the ring scored as
+  asleep. Your own entry for a day always wins, and the import never writes over it; a ring entry you remove stays
+  removed. Re-runs and other devices add no duplicates (each reading gets the same id everywhere). Settings › Sync ›
+  Ring data from Gauge shows the last import and turns it off on all devices. Heart rate, HRV, SpO2 and temperature
+  are not used by the plan.
+- `src/net/gauge.ts`: `gaugeApi`, the client for `/v1/gauge/*` (typed `gauge_*` tool JSON, null when unpaired or
+  offline, last good answer kept, conditional polling with ETag).
 
 ### Changed
 - Charts follow one visual system (tick strips, dot fills, share bars, level bars, arc rulers), each with a table for
@@ -371,6 +438,19 @@ Energy, activity and the ring screens (energy SPEC, packages S1–S2, V1–V4, C
     installs on its own. On a metered network, an APK over 30 MB waits until you tap Download.
   - Settings › About shows one line on Android: the app version, the web bundle version, and "Up to date" or "Update
     ready".
+- Server (home role): the coach can run on the server (`/v1/coach/*`, docs/SERVER.md "Coach"). The server drives
+  Claude Code on the host, one process per turn, isolated from the owner's own Claude setup (no user settings or
+  hooks, only the server's `/mcp` tools) and in its own memory-capped systemd scope; answers stream as server-sent
+  events with tool progress and `proposal` events for staged plan changes. Vitals devices and the Gauge app may use
+  it. Sessions are temporary: kept in memory, deleted with their transcript and short-lived token 24 hours after the
+  last message (`keep` extends it) and on every restart. Codex is an opt-in fallback (`coach.fallback: "codex"`).
+  Off until `server.json` has a `coach` block.
+- Server (home role): the Gauge app (the ring app, formerly Lumen Health; Vitals plans, Gauge measures) pairs with
+  the person's one-time code (`vitals-server pair-code`) and uploads its ring data over HTTPS (`/v1/lumen/pair`,
+  `/v1/lumen/events`, `/v1/lumen/status`, `/v1/lumen/unpair`) into a separate `persons/<id>/lumen.db`; agents on `/mcp`
+  read it through seven read-only `gauge_*` tools (`gauge_data_availability`, `gauge_metric_series`,
+  `gauge_daily_summary`, `gauge_sleep`, `gauge_activity`, `gauge_scores`, `gauge_device_state`). The routes, the
+  `lumen` token kind and the file keep the old name so paired phones keep working.
 - Release: `scripts/release/web-bundle.mjs` zips `dist/` with `bundle.json` and signs it with the web-bundle key, which
   stays on the build machine.
 

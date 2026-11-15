@@ -24,7 +24,8 @@ apps/android/android/.gradle/
 *.jks
 release-signing/
 
-# impeccable review captures (evidence for design reviews, not source)
+# impeccable review captures and surface snapshots (evidence for design reviews, not source)
 .impeccable/review/
+.impeccable/surfaces/
 # Kotlin incremental/compiler caches are native build output, not validation source.
 **/.kotlin/

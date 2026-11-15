@@ -128,6 +128,8 @@ export interface CardLibraryProps {
   dockAtXl?: boolean;
   /** Where the panel opens: the shown list (default) or its Add section (the page's slim "Add a card" row). */
   startAt?: 'shown' | 'add';
+  /** The Add list's groups in a fixed order (a page's taxonomy); groups it does not name follow, as they first appear. */
+  groupOrder?: readonly string[];
   /**
    * `monitor`: the markup and class names `MonitorSheet` always had (`lmv-mon*`), so the Ring's overrides and the
    * viz.css rules keep working until it migrates; the capacity sits at the top and Reset in the body. Used by the
@@ -192,15 +194,19 @@ export function sameSelection(a: readonly LibrarySelection[], b: readonly Librar
   return a.length === b.length && a.every((x, i) => x.id === b[i]!.id && sizeOf(byId.get(x.id), x.size) === sizeOf(byId.get(x.id), b[i]!.size));
 }
 
-/** The Add list in groups, in the order each group first appears. Pure. */
-export function groupItems<T extends { group: string }>(items: readonly T[]): Array<{ group: string; items: T[] }> {
+/** The Add list in groups: in `order` when given, else (and after it) in the order each group first appears. Pure. */
+export function groupItems<T extends { group: string }>(items: readonly T[], order: readonly string[] = []): Array<{ group: string; items: T[] }> {
   const out: Array<{ group: string; items: T[] }> = [];
   for (const it of items) {
     const g = out.find((x) => x.group === it.group);
     if (g) g.items.push(it);
     else out.push({ group: it.group, items: [it] });
   }
-  return out;
+  const rank = (group: string) => {
+    const i = order.indexOf(group);
+    return i < 0 ? order.length : i;
+  };
+  return out.map((g, i) => ({ g, i })).sort((a, b) => rank(a.g.group) - rank(b.g.group) || a.i - b.i).map((x) => x.g);
 }
 
 /** The items whose label, description or group contains every word of `query` (case-insensitive). Pure. */
@@ -254,6 +260,7 @@ export function CardLibrary({
   renderRowAction,
   dockAtXl,
   startAt = 'shown',
+  groupOrder,
   variant = 'default',
   className,
 }: CardLibraryProps) {
@@ -490,7 +497,7 @@ export function CardLibrary({
   const addable = items.filter((i) => !i.locked && !ids.includes(i.id));
   const searchable = !monitor && addable.length > SEARCH_ABOVE;
   const visible = searchable ? filterItems(addable, query) : addable;
-  const groups = groupItems(visible);
+  const groups = groupItems(visible, groupOrder);
   const showGroups = !monitor && groups.length > 1;
 
   const addRow = (item: LibraryItem) => {

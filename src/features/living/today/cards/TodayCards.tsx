@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { CardGrid, CardLibrary, Key, type CardGridItem } from '@/components';
+import { TODAY_CARD_GROUPS } from './groups';
 import { todayCardRegistry, wholeDayCard } from './registry';
 import type { useTodayCards } from './useTodayCards';
 import type { TodayCardCtx } from './types';
@@ -72,6 +73,7 @@ export function TodayCards({
         onReset={cards.reset}
         quiet={ctx.quiet}
         startAt={cards.library ?? 'shown'}
+        groupOrder={TODAY_CARD_GROUPS}
         copy={{ shown: 'On Today', empty: 'Your day stays here. Add a card below.' }}
       /> : null}
     </div>

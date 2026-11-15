@@ -40,11 +40,11 @@ export const SLEEP_COPY = {
   fromYourTimes: 'From your times',
 
   sleepHr: 'Sleep heart rate',
-  lowHr: 'Sleeping low HR',
+  lowHr: 'Low sleeping heart rate',
   lowHrInfo: 'The 10th percentile of your heart rate while asleep. It is not a waking resting heart rate. The trace below marks the lowest five-minute stretch, so it can sit a little under this.',
   avgHr: 'Average sleep HR',
   sampledHr: 'Sampled sleep HR',
-  /** (Claude UI P3-11) the lowest five-minute stretch, as the trace marks it: not the sleeping low HR above it. */
+  /** (Claude UI P3-11) the lowest five-minute stretch, as the trace marks it: not the low sleeping heart rate above it. */
   timeToLow: 'Time to lowest',
   afterOnset: 'After falling asleep',
   tooFew: 'Too few readings overnight',
@@ -57,8 +57,8 @@ export const SLEEP_COPY = {
   overnight: 'Overnight',
   hrv: 'HRV',
   temp: 'Skin temperature',
-  /** (r068) short enough for a 360 px phone's fact slot */
-  tempVsUsual: 'Skin temp vs usual',
+  /** (r087 IA) the difference from your usual night keeps the signal's one name; the (i) panel says it is a difference */
+  tempVsUsual: 'Skin temperature',
   spo2: 'Blood oxygen',
   lowest: (v: string) => `Lowest ${v} %`,
 
@@ -66,8 +66,9 @@ export const SLEEP_COPY = {
   sleepIndex: 'Sleep index',
   recoveryIndex: 'Recovery index',
   experimental: 'Experimental wellness index',
-  legacy: 'On-device (legacy)',
+  legacy: 'Phone',
 
+  /** One title for the four-week history on Ring › Sleep and Today (no digit, so quiet mode keeps it). */
   history: 'Sleep · last four weeks',
   /** (r071) The history's hero, foot and empty line. */
   noNights: 'No nights recorded in these days.',
@@ -76,7 +77,7 @@ export const SLEEP_COPY = {
   usualWord: (text: string) => `Usual ${text}`,
   avgNights: (n: number, of: number) => (n === of ? `Avg · ${of} nights` : `Avg · ${n} of ${of} nights`),
   /** (r071) The night card's link to the Sleep index (it lives on Scores) and the Overnight rows' labels. */
-  sleepIndexLink: (value: number | null, band: string, legacy: boolean) => `Sleep index${value === null ? '' : ` ${value}`} · ${band}${legacy ? ' · On-device (legacy)' : ''}`,
+  sleepIndexLink: (value: number | null, band: string, legacy: boolean) => `Sleep index${value === null ? '' : ` ${value}`} · ${band}${legacy ? ' · Phone' : ''}`,
   /** Shown only when nights are missing (r068 S07). */
   nights: (n: number, of: number) => `${n} of ${of} nights`,
 } as const;

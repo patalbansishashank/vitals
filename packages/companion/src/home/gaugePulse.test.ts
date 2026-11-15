@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startCompanion, type Companion } from '../server.ts';
-import { createGaugePulse, readingsOf } from './gaugePulse.ts';
+import { createGaugePulse, readingsOf, type PulseRecord, type PulseStorage } from './gaugePulse.ts';
 import { battery, hr, INSTALL } from './lumenFixtures.ts';
 import type { PersonRequest, PersonResponse } from './personRpc.ts';
 import type { WorkerFactory } from './workers.ts';
@@ -23,8 +23,9 @@ afterEach(async () => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- answers are read field by field
 type Json = Record<string, any>;
 
-async function boot() {
-  const dataDir = mkdtempSync(join(TMP, 'gauge-pulse-'));
+/** A server on a new data directory with one person, their device and their Gauge; or again on `again`'s directory. */
+async function boot(again?: { dataDir: string; device: string; gauge: string }) {
+  const dataDir = again?.dataDir ?? mkdtempSync(join(TMP, 'gauge-pulse-'));
   const factory: WorkerFactory = async () => ({
     async call(req: PersonRequest): Promise<PersonResponse> {
       if (req.op === 'agentManifest') return { ok: true, value: { format: 'vitals.tools/1', hash: '0', tools: [] } };
@@ -36,7 +37,13 @@ async function boot() {
     port: 0, dataDir: join(dataDir, 'relay'), allowedOrigins: [], relay: false,
     home: { dataDir, allowedOrigins: [SITE], publicOrigin: 'https://host.tail0.ts.net:8443', rateLimit: { capacity: 1000, perMinute: 60_000 }, workerFactory: factory },
   });
-  cleanup.push(() => rmSync(dataDir, { recursive: true, force: true }), () => c.close());
+  if (!again) cleanup.push(() => rmSync(dataDir, { recursive: true, force: true }));
+  let open = true;
+  const close = async () => {
+    if (open) await c.close();
+    open = false;
+  };
+  cleanup.push(close);
   const home = c.home!;
   const call = async (path: string, init: { method?: string; token?: string; origin?: string; body?: unknown } = {}) => {
     const headers: Record<string, string> = {};
@@ -47,11 +54,15 @@ async function boot() {
     const text = await r.text();
     return { status: r.status, body: (text ? JSON.parse(text) : null) as Json, headers: r.headers };
   };
-  const p = await home.persons.add({ label: 'Ana', timeZone: 'Asia/Kolkata', secret: new Uint8Array(32).fill(3), relayUrl: null });
-  const device = (await call('/v1/pair/device', { method: 'POST', origin: SITE, body: { code: (await home.devices.issueCode(p.id)).code, label: 'Phone' } })).body.token as string;
-  const gauge = (await call('/v1/lumen/pair', { method: 'POST', body: { code: (await home.devices.issueCode(p.id)).code, installationId: INSTALL, deviceName: 'OnePlus CPH2661', appVersion: '2.8.7' } })).body.token as string;
+  let device = again?.device ?? '';
+  let gauge = again?.gauge ?? '';
+  if (!again) {
+    const p = await home.persons.add({ label: 'Ana', timeZone: 'Asia/Kolkata', secret: new Uint8Array(32).fill(3), relayUrl: null });
+    device = (await call('/v1/pair/device', { method: 'POST', origin: SITE, body: { code: (await home.devices.issueCode(p.id)).code, label: 'Phone' } })).body.token as string;
+    gauge = (await call('/v1/lumen/pair', { method: 'POST', body: { code: (await home.devices.issueCode(p.id)).code, installationId: INSTALL, deviceName: 'OnePlus CPH2661', appVersion: '2.8.7' } })).body.token as string;
+  }
   const upload = async (events: unknown[]) => (await call('/v1/lumen/events', { method: 'POST', token: gauge, body: { installationId: INSTALL, events } })).body;
-  return { call, device, gauge, upload };
+  return { call, device, gauge, upload, dataDir, close };
 }
 
 describe('GET /v1/gauge/pulse (r069 sync)', () => {
@@ -117,5 +128,44 @@ describe('the pulse itself', () => {
     p.noteDerived('a');
     expect(p.state('a')).toMatchObject({ uploads: 1, data: 1, lastUploadAt: '2026-10-29T12:00:00.000Z', dataAt: '2026-10-29T12:00:00.000Z' });
     expect(p.state('b')).toMatchObject({ uploads: 0, data: 0 });
+  });
+
+  it('(r087) kept between runs: a new process answers the token a device holds; a record it cannot use starts a new boot', () => {
+    const kept = new Map<string, PulseRecord>();
+    const storage: PulseStorage = { load: (id) => kept.get(id) ?? null, save: (id, r) => void kept.set(id, r) };
+    const first = createGaugePulse({ now: () => Date.parse('2026-10-29T12:00:00Z'), storage });
+    first.noteUpload('a', 3);
+    first.noteDerived('a');
+    const second = createGaugePulse({ now: () => Date.parse('2026-10-29T12:05:00Z'), storage });
+    expect(second.state('a')).toEqual(first.state('a'));
+    second.noteUpload('a', 0);
+    expect(second.state('a')).toMatchObject({ boot: first.state('a').boot, uploads: 2, data: 2, lastUploadAt: '2026-10-29T12:05:00.000Z', dataAt: '2026-10-29T12:00:00.000Z' });
+    // a person nothing was kept for: this run's own boot
+    expect(second.state('b').boot).not.toBe(first.state('b').boot);
+    expect(second.state('b')).toMatchObject({ uploads: 0, data: 0, lastUploadAt: null });
+    kept.set('c', { boot: 'not a boot!', uploads: 4, data: 4, lastUploadMs: null, dataMs: null });
+    kept.set('d', { boot: 'abc', uploads: -1, data: 4, lastUploadMs: null, dataMs: null });
+    const third = createGaugePulse({ storage });
+    expect(third.state('c')).toMatchObject({ uploads: 0, data: 0 });
+    expect(third.state('d')).toMatchObject({ uploads: 0, data: 0 });
+    expect(third.state('c').token).toMatch(/^[A-Za-z0-9_-]{1,16}\.\d{1,12}\.\d{1,12}$/);
+  });
+
+  it('(r087) a restart of the same server keeps the pulse: a device holding the token is held, not sent to read everything again', async () => {
+    const t = await boot();
+    await t.upload([hr('2026-10-29T01:00:00Z', 61)]);
+    const before = (await t.call('/v1/gauge/pulse', { token: t.device })).body;
+    expect(before).toMatchObject({ uploads: 1, data: 1 });
+    await t.close();
+    const again = await boot(t);
+    const after = (await again.call('/v1/gauge/pulse', { token: t.device })).body;
+    expect(after).toMatchObject({ token: before.token, boot: before.boot, uploads: 1, data: 1, lastUploadAt: before.lastUploadAt });
+    // the token it holds is current: the poll is held for its wait
+    const started = Date.now();
+    expect((await again.call(`/v1/gauge/pulse?since=${before.token}&wait=1`, { token: t.device })).body.token).toBe(before.token);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(900);
+    // and the next upload moves it on from where it was
+    await again.upload([hr('2026-10-29T01:05:00Z', 62)]);
+    expect((await again.call('/v1/gauge/pulse', { token: t.device })).body).toMatchObject({ boot: before.boot, uploads: 2, data: 2 });
   });
 });

@@ -207,7 +207,7 @@ describe('Ring model', () => {
     const s = (asleep: number) => ({ wakingDate: '2026-10-27', asleepMinutes: asleep }) as GaugeSleepSession;
     expect(mainSession([s(40), s(410)], '2026-10-27')!.asleepMinutes).toBe(410);
     expect([85, 70, 55, 54].map(sleepBand)).toEqual(['Excellent', 'Good', 'Fair', 'Needs work']);
-    expect(legacyZoneText({ zones: { rest: 0, fat_burn: 300, cardio: 1500, peak: 720, max: 60 } } as unknown as GaugeWorkout)).toBe('On-device (legacy, 220 − age): 43 min in zones, 13 min at 80 % and over');
+    expect(legacyZoneText({ zones: { rest: 0, fat_burn: 300, cardio: 1500, peak: 720, max: 60 } } as unknown as GaugeWorkout)).toBe('Phone (legacy, 220 − age): 43 min in zones, 13 min at 80 % and over');
     expect(legacyZoneText({ zones: null } as unknown as GaugeWorkout)).toBeNull();
   });
 

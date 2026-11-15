@@ -27,10 +27,10 @@ const SHOTS = [
   ['sleep', '/ring/sleep'],
   ['sleep-contributors', '/ring/sleep', async (p) => p.getByRole('button', { name: 'What went into it' }).first().click()],
   ['sleep-page', '/sleep'],
-  ['activity', '/ring/activity'],
+  ['activity', '/activity'],
   ['scores', '/ring/scores'],
   ['scores-target', '/ring/scores', async (p) => p.getByRole('button', { name: 'Edit target' }).click()],
-  ['activity-steps-sources', '/ring/activity', async (p) => p.locator('.rg-move__lineage').first().click()],
+  ['activity-steps-sources', '/activity', async (p) => p.locator('.rg-move__lineage').first().click()],
   ['sleep-lights-out', '/ring/sleep', async (p) => p.getByRole('button', { name: 'Add lights-out time' }).click()],
   ['signal-hr', '/ring/signals/hr', async (p) => p.getByRole('button', { name: 'Measure now' }).first().click()],
   ['signal-hr-day', '/ring/signals/hr'],
@@ -112,11 +112,15 @@ try {
       let to = path;
       if (path === 'RUN') {
         if (!runPath) {
-          await page.goto(`${BASE}/ring/activity`, { waitUntil: 'networkidle' });
+          // a month, since the one-day list is often empty in the demo data; its newest row may be a walk
+          await page.goto(`${BASE}/activity?period=month`, { waitUntil: 'networkidle' });
           await settle(page);
-          runPath = await page.evaluate(() => [...document.querySelectorAll('a[href^="/ring/workouts/run-"]')][0]?.getAttribute('href') ?? null);
+          runPath = await page.evaluate(() => document.querySelector('a[href^="/ring/workouts/run-"], a[href^="/ring/workouts/walk-"]')?.getAttribute('href') ?? null);
         }
-        if (!runPath) continue;
+        if (!runPath) {
+          console.error(`${name}-${s.name}: no activity found on /activity?period=month`);
+          continue;
+        }
         to = runPath;
       }
       await page.setViewportSize({ width: s.width, height: s.height });

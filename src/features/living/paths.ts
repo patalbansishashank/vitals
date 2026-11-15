@@ -1,8 +1,13 @@
+/** Activity › Movement's own path; Train (`/train`) and Energy (`/energy`) are the same place's other two tabs. */
+export const MOVEMENT_PATH = '/activity';
+
 /** Living-mode routes (design/INFORMATION_ARCHITECTURE.md §2.1; docs/SUITE_SPEC.md §6.2). Link with these helpers. */
 export const livingPaths = {
   today: (date?: string) => (date ? `/today/${date}` : '/today'),
   food: (date?: string, hash?: 'meals' | 'groceries' | 'supplements') => `${date ? `/food/${date}` : '/food'}${hash ? `#${hash}` : ''}`,
   train: (date?: string, hash?: 'session') => `${date ? `/train/${date}` : '/train'}${hash ? `#${hash}` : ''}`,
+  /** Activity › Movement (steps, their history, the activities): a day; a week or longer goes in the date control's address form. */
+  movement: (date?: string) => (date ? `${MOVEMENT_PATH}?date=${date}` : MOVEMENT_PATH),
   coach: (conversationId?: string) => (conversationId ? `/coach/${encodeURIComponent(conversationId)}` : '/coach'),
   progress: (hash?: 'trend' | 'goals' | 'adherence' | 'body' | 'markers' | 'log' | 'checkins' | 'plan') => `/progress${hash ? `#${hash}` : ''}`,
   planActive: '/plan/active',

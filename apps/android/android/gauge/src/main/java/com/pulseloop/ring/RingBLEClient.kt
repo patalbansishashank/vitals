@@ -249,6 +249,30 @@ class RingBLEClient(private val context: Context, waitForRuntimeInitialization: 
     // after ~1000ms if rejected, and never overlaps discovery with another GATT op.
     private val serviceDiscoveryStarted = java.util.concurrent.atomic.AtomicBoolean(false)
 
+    // MARK: Pass reply watch
+    //
+    // The watchdog above trusts the phone's view of the link for every family without a keepalive, and a write the
+    // phone cannot deliver resets the link by itself (pumpOps). A ring that acknowledges writes and never notifies
+    // slips past both; [PassReplyWatch] catches it the first time a pass goes unanswered.
+    private val passReply = PassReplyWatch(scope) {
+        if (_state.value.connectionState == RingConnectionState.CONNECTED) {
+            Log.w("RingBLEClient", "Pass drew no packet — forcing reconnect")
+            recordDiagnostic("pass unanswered; reconnecting")
+            forceReconnect()
+        }
+    }
+
+    /**
+     * A pass is about to be asked of a ring that answers every pass ([RingSyncEngine.answersEveryPass]): if nothing
+     * at all arrives, the link is replaced. Reconnection keeps its usual guards (user Disconnect, Forget, backoff).
+     */
+    fun expectPassReply() {
+        if (_state.value.connectionState == RingConnectionState.CONNECTED) passReply.passRequested()
+    }
+
+    /** The engine declined the pass [expectPassReply] was called for. */
+    fun passNotStarted() = passReply.passNotStarted()
+
     init { startConnectionWatchdog() }
 
     // MARK: Public API
@@ -536,6 +560,16 @@ class RingBLEClient(private val context: Context, waitForRuntimeInitialization: 
             else -> {}
         }
         connectLastKnown()
+    }
+
+    /**
+     * [reconnectIfNeeded] for the cadence that repeats while the app stays in front. Being looked at is a fresh
+     * retry budget, but no reason to keep dialling into a Bluetooth stack that reported itself out of resources:
+     * that wait ends when Bluetooth restarts, or when the person comes back to the app or acts.
+     */
+    fun reconnectWhileInFront() {
+        if (reconnectBackoff.waitingForBluetooth) return
+        reconnectIfNeeded()
     }
 
     /**
@@ -1151,6 +1185,8 @@ class RingBLEClient(private val context: Context, waitForRuntimeInitialization: 
             inFlightOp = null
             opQueue.clear()
         }
+        // Every way a link ends or is replaced comes through here; a pass asked on it is no longer owed an answer.
+        passReply.linkEnded()
     }
 
     /** A log label that survives R8 minification (release logs showed only the obfuscated "J").
@@ -1709,6 +1745,7 @@ class RingBLEClient(private val context: Context, waitForRuntimeInitialization: 
         ) {
             if (gatt !== bluetoothGatt) return  // late callback from a superseded connection
             lastActivityAt = System.currentTimeMillis()  // inbound notify — link is alive
+            passReply.packetReceived()
             val value = characteristic.value ?: return
             val uuid = characteristic.uuid.toString()
             val callbackForgetGeneration = forgetGeneration

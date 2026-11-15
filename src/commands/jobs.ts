@@ -6,6 +6,7 @@
 import { ulid, type Id } from '@/store';
 import { assertCurrentWrite } from '@/state/writeBarrier';
 import { createScope, runInScope } from '@/state/scope';
+import { fail } from './registry';
 import type { CommandError, JobHandle, JobRef, JobRunner, JobStatus } from './types';
 
 interface Entry {
@@ -36,6 +37,9 @@ export function createJobRunner(onStatus?: Listener): JobRunner {
   const runner: JobRunner = {
     start(kind, run, options = {}) {
       const jobId = options.id ?? ulid();
+      // replacing a live entry would orphan it: its cancel and wait would reach the new job, and nothing could stop it
+      const live = jobs.get(jobId);
+      if (live && (live.status.state === 'running' || live.status.state === 'queued')) fail('busy', 'That job is still running.', { retryable: true });
       const ref: JobRef = { jobId, kind, startedAt: new Date().toISOString() };
       const controller = new AbortController();
       const status: JobStatus = { jobId, state: 'running', progress: 0 };
@@ -78,7 +82,9 @@ export function createJobRunner(onStatus?: Listener): JobRunner {
           },
         )
         .finally(() => {
-          publish(entry);
+          // a cancelled job's work can outlive it, and by now its id may name a new job: its final status would read
+          // as the new one's (the cancel already published this one's)
+          if (jobs.get(jobId) === entry) publish(entry);
           resolveSettled({ ...entry.status });
         });
       return ref;

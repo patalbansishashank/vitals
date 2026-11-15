@@ -83,4 +83,12 @@ class RingSleepReadHoldTest {
         engine.querySleep()
         assertEquals(1, sleep())
     }
+
+    @Test fun `a request is known to the pass it asked for, and lapses`() {
+        val asked = at(29, 2, 0).toEpochMilli()
+        assertFalse(RingSleepReadHold.requested(asked))
+        RingSleepReadHold.request(asked)
+        assertTrue(RingSleepReadHold.requested(asked + 60_000))
+        assertFalse(RingSleepReadHold.requested(asked + RingSleepReadHold.REQUEST_MS))
+    }
 }

@@ -16,8 +16,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import com.pulseloop.ring.RingBLEClient
@@ -58,31 +56,51 @@ object PulseLoopRuntime {
     private val ringScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var legacyDisconnectJob: Job? = null
     private var foregroundRefreshJob: Job? = null
+    private val sleepFollowUp = SleepFollowUp()
 
+    /**
+     * The app came to the front. Also reached from a permission answer on a background thread; the jobs below and
+     * the Bluetooth client belong to the main thread, so the work is moved there (it runs inline when already on it).
+     */
     fun onForeground(context: Context) {
+        val app = context.applicationContext
+        ringScope.launch { enterForeground(app) }
+    }
+
+    private fun enterForeground(context: Context) {
         legacyDisconnectJob?.cancel(); legacyDisconnectJob = null
         val runtime = ensureRing(context)
         runtime.bleClient.reconnectIfNeeded()
         RingConnectionService.requestStart(context)
-        if (foregroundRefreshJob?.isActive != true) {
-            foregroundRefreshJob = ringScope.launch {
-                while (isActive) {
-                    // Count from the prior pass's completion, not its start. A slow GATT transfer
-                    // cannot pile up another request while the single-operation queue is busy.
-                    delay(FOREGROUND_REFRESH_MS)
-                    if (!GaugeEngine.isActive(context) ||
-                        !ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) break
-                    val userStopped = context.getSharedPreferences("ring_ble", Context.MODE_PRIVATE)
-                        .getBoolean(RingBLEClient.USER_DISCONNECTED_KEY, false)
-                    if (userStopped || !runtime.bleClient.hasPermissions()) continue
-                    if (!runtime.coordinator.refreshForeground()) continue
-                    withTimeoutOrNull(FOREGROUND_PASS_TIMEOUT_MS) {
-                        while (isActive && runtime.bleClient.syncEngine?.isHistorySyncRunning == true) delay(500)
-                    }
-                }
-            }
+        if (foregroundRefreshJob?.isActive == true) return
+        foregroundRefreshJob = ringScope.launch {
+            foregroundLoop(context, runtime.bleClient, runtime.coordinator).run()
         }
     }
+
+    /** The foreground cadence on the real client and coordinator ([ForegroundRingLoop] says what it does). */
+    internal fun foregroundLoop(
+        context: Context,
+        client: RingBLEClient,
+        coordinator: RingSyncCoordinator,
+        appInFront: () -> Boolean = {
+            ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        },
+    ) = ForegroundRingLoop(
+        wanted = { GaugeEngine.isActive(context) && appInFront() },
+        mayUseRing = {
+            !context.getSharedPreferences("ring_ble", Context.MODE_PRIVATE)
+                .getBoolean(RingBLEClient.USER_DISCONNECTED_KEY, false) && client.hasPermissions()
+        },
+        connected = { client.state.value.connectionState == com.pulseloop.ring.RingConnectionState.CONNECTED },
+        connecting = {
+            client.state.value.connectionState in setOf(
+                com.pulseloop.ring.RingConnectionState.CONNECTING, com.pulseloop.ring.RingConnectionState.SCANNING)
+        },
+        reconnect = client::reconnectWhileInFront,
+        startPass = coordinator::refreshForeground,
+        passRunning = { client.syncEngine?.isHistorySyncRunning == true },
+    )
 
     fun onBackground(context: Context) {
         foregroundRefreshJob?.cancel(); foregroundRefreshJob = null
@@ -101,9 +119,6 @@ object PulseLoopRuntime {
             }
         }
     }
-
-    private const val FOREGROUND_REFRESH_MS = 60_000L
-    private const val FOREGROUND_PASS_TIMEOUT_MS = 120_000L
 
     fun ensureRing(context: Context): RingRuntime = ring.ensure {
             val app = context.applicationContext
@@ -136,6 +151,7 @@ object PulseLoopRuntime {
             ringScope.launch {
                 client.state.map { it.connectionState == com.pulseloop.ring.RingConnectionState.CONNECTED }
                     .distinctUntilChanged().collect { connected ->
+                        if (connected) sleepFollowUp.connected()
                         BroadcastOutboxDispatcher.setRingConnected(app, connected)
                     }
             }
@@ -168,7 +184,14 @@ object PulseLoopRuntime {
                     // Preserve the existing supplemental sleep fetch across UI destruction.
                     // Connect never deletes any history; this refresh is idempotent.
                     if (wasSyncing && !syncing) {
-                        coordinator.syncSleepNow()
+                        val now = System.currentTimeMillis()
+                        sleepFollowUp.afterPass(now, com.pulseloop.ring.RingSleepReadHold.requested(now),
+                            send = coordinator::syncSleepNow,
+                            // Inside the sleep window with the phone unused the engine holds the read back.
+                            held = {
+                                !com.pulseloop.ring.RingSleepReadHold.mayRead(
+                                    java.time.Instant.ofEpochMilli(now), java.time.ZoneId.systemDefault())
+                            })
                         learnSleepWindow()
                     }
                     wasSyncing = syncing

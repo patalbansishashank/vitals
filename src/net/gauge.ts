@@ -16,11 +16,20 @@
  * Screens call `snapshot(load)` alongside a normal read: disk never becomes a fresh import, device/control state is
  * excluded, and saved figures are labelled until conditional validation finishes.
  *
+ * Requests leave through one queue (`./gaugeQueue`): three with the server at a time, the questions of mounted screens
+ * first (`priority`). Identical reads share one request, except that a caller who needs an answer newer than some
+ * moment (`since`) never joins a request sent before it. A request's 20 seconds start when it leaves the queue; when
+ * they run out, that read failed (`server_error` for that read) but the client is not marked offline. It is only when
+ * the requests sent after a full round of those also hear nothing, or when a request cannot be sent at all.
+ *
  * Gauge readings are device estimates, not medical measurements. Nothing here writes.
  */
 import { ServerError, getServerClient, type ServerClient } from './server';
 import { registerEraseHook } from '@/state/persistence';
 import { gaugeCacheStore, gaugeSnapshotShape, persistGaugeQuery, type GaugeCacheStore, type GaugeCacheEntry } from './gaugeCache';
+import { GAUGE_MAX_IN_FLIGHT, createGaugeQueue, type GaugeLane, type GaugePriority } from './gaugeQueue';
+
+export type { GaugePriority } from './gaugeQueue';
 
 /* ---- the tools' JSON ------------------------------------------------------------------------------------------- */
 
@@ -885,6 +894,16 @@ export interface GaugeV2Api {
 
 export interface GaugeCallOptions {
   signal?: AbortSignal;
+  /**
+   * Where the request waits when the server is busy (`./gaugeQueue`): `screen` for a question a mounted screen is
+   * showing, `background` (the default) for everything else.
+   */
+  priority?: GaugePriority;
+  /**
+   * The answer must come from a request sent after this moment (epoch ms): the data changed then (new readings, a
+   * write, the app came back from a pause). An identical read already with the server from before it is not joined.
+   */
+  since?: number;
   /** false: offline answers null instead of the last good answer (default true). */
   cached?: boolean;
   /** (contract F10) The IANA zone the server dates days in; default the client's zone (the device zone of app days). */
@@ -918,12 +937,14 @@ export interface GaugeApi {
   clearCache(): void;
   /** Screen-only snapshot read: never a network request or an import source. */
   snapshot?<T>(load: (api: GaugeApi & GaugeV2Api) => Promise<T | null>): Promise<{ data: T | null; savedAt: number | null }>;
-  /** Same client with per-consumer cancellation; useful for composed screen queries. */
+  /** Same client with per-consumer cancellation and queue priority; useful for composed screen queries. */
   withOptions?(options: GaugeCallOptions): GaugeApi & GaugeV2Api;
 }
 
-/** A request may not take longer than this. */
+/** Once a request has left the queue for the server, it may not take longer than this. */
 export const GAUGE_REQUEST_TIMEOUT_MS = 20_000;
+/** A saved snapshot whose body a 304 confirmed gets its new date on disk at most this often. */
+const SNAPSHOT_REDATE_MS = 10 * 60_000;
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -1151,7 +1172,15 @@ function deviceZone(): string {
   }
 }
 
-type InternalCallOptions = GaugeCallOptions & { cacheOnly?: boolean; onSnapshot?: (at: number) => void; onProblem?: (problem: GaugeProblem) => void; onValidated?: (at: string) => void };
+type InternalCallOptions = GaugeCallOptions & { cacheOnly?: boolean; lane?: GaugeLane; onSent?: (at: number) => void; onSnapshot?: (at: number) => void; onProblem?: (problem: GaugeProblem) => void; onValidated?: (at: string) => void };
+type Reader = Pick<InternalCallOptions, 'onProblem' | 'onValidated'>;
+/**
+ * One identical GET with the server, and everyone waiting for its answer. `sentAt`: when it left the queue for the
+ * server (null while it waits there). `problem`: why it got no fresh answer.
+ */
+type Flight = { controller: AbortController; lane: GaugeLane; readers: Set<Reader>; promise: Promise<unknown>; sentAt: number | null; problem: GaugeProblem | null };
+
+const abortError = (signal: AbortSignal): unknown => signal.reason ?? new DOMException('This read was cancelled.', 'AbortError');
 
 export function createGaugeApi(opts: { server?: Server | (() => Server); now?: () => number; tz?: () => string; store?: GaugeCacheStore } = {}): GaugeApi & GaugeV2Api {
   const serverOf = (): Server => (typeof opts.server === 'function' ? opts.server() : (opts.server ?? getServerClient()));
@@ -1161,8 +1190,17 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
   type Entry = Pick<GaugeCacheEntry, 'data' | 'etag' | 'lastModified' | 'savedAt' | 'context'>;
   const cache = new Map<string, Entry>();
   const reads = new Map<string, Promise<Entry | null>>();
-  const inflight = new Map<string, Promise<unknown>>();
+  const inflight = new Map<string, Flight>();
   const controllers = new Set<AbortController>();
+  const queue = createGaugeQueue();
+  /** Answers the server gave or confirmed (304) in this session; a snapshot read from disk is not one until then. */
+  const confirmed = new WeakSet<Entry>();
+  /** Counts every HTTP answer, whatever its status: proof the server can be reached. */
+  let answered = 0;
+  /** Requests in a row that ran out of time with no answer to any request in between. */
+  let silent = 0;
+  /** What the disk holds of each snapshot: when it was last written there, and under which context. */
+  const written = new Map<string, Pick<Entry, 'savedAt' | 'context'>>();
   let contextRevision: string | null = null;
   let refused = false;
   const listeners = new Set<() => void>();
@@ -1180,20 +1218,30 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
     listeners.forEach((l) => l());
   };
   const fail = (problem: GaugeProblem) => set({ ...status, problem });
+  /**
+   * Drops every answer in memory and every request under way. `retire` also empties the saved snapshots: right when
+   * the pairing ends or is refused, wrong for a new fusion context, whose snapshots are told apart by their `context`.
+   */
   const forget = (retire = true) => {
     generation++;
     controllers.forEach((c) => c.abort());
     controllers.clear();
     cache.clear();
+    written.clear();
     reads.clear();
     inflight.clear();
     if (retire && pairingKey && pairingKey !== 'paired') void store.clear(pairingKey).catch(() => undefined);
     tzRefused = false;
+    silent = 0;
   };
   const remember = (key: string, entry: Entry) => {
     cache.delete(key);
     cache.set(key, entry);
-    while (cache.size > 192) cache.delete(cache.keys().next().value!);
+    while (cache.size > 192) {
+      const oldest = cache.keys().next().value!;
+      cache.delete(oldest);
+      written.delete(oldest);
+    }
   };
   const restore = async (key: string, requestKey: string): Promise<Entry | null> => {
     if (refused) return null;
@@ -1209,14 +1257,52 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
       reads.delete(key);
       if (!entry || !gaugeSnapshotShape(requestKey, entry.data) || (contextRevision !== null && entry.context !== contextRevision)) return null;
       remember(key, entry);
+      written.set(key, { savedAt: entry.savedAt, context: entry.context });
       return entry;
     });
     reads.set(key, p);
     return p;
   };
-  const save = (key: string, requestKey: string, entry: Entry) => {
+  const durable = (requestKey: string, entry: Entry) => !!pairingKey && pairingKey !== 'paired' && persistGaugeQuery(requestKey, now()) && !entry.data.next && !entry.data.nextCursor;
+  const write = (scope: string, key: string, entry: Entry) => {
+    written.set(key, { savedAt: entry.savedAt, context: entry.context });
+    return store.put(scope, key, entry).catch(() => undefined);
+  };
+  /** `body` 'same': a 304 confirmed the body the disk already holds, and only its date moved. */
+  const save = (key: string, requestKey: string, entry: Entry, body: 'new' | 'same' = 'new') => {
+    confirmed.add(entry);
     remember(key, entry);
-    if (pairingKey && pairingKey !== 'paired' && persistGaugeQuery(requestKey, now()) && !entry.data.next && !entry.data.nextCursor) void store.put(pairingKey, key, entry).catch(() => undefined);
+    if (!durable(requestKey, entry)) return;
+    // Writing a snapshot again sizes and copies all of it. For a new date alone that is done every few minutes, not on every poll.
+    const disk = body === 'same' ? written.get(key) : undefined;
+    if (disk && disk.context === entry.context && entry.savedAt - disk.savedAt < SNAPSHOT_REDATE_MS) return;
+    void write(pairingKey!, key, entry);
+  };
+  /**
+   * The session's first word on the fusion context, and it has not changed. Every answer the server gave or confirmed
+   * before now was made under this revision, so it is marked with it (on disk too: the next start then reads it back as
+   * current). A snapshot from disk under another revision, or none, is let go; the read that is validating it keeps its
+   * own copy for a 304.
+   */
+  const adoptContext = (revision: string) => {
+    const gen = generation;
+    const scope = pairingKey;
+    const marked: Array<[string, Entry]> = [];
+    for (const [key, entry] of [...cache]) {
+      if (entry.context === revision) continue;
+      if (!confirmed.has(entry)) { cache.delete(key); continue; }
+      const next = { ...entry, context: revision };
+      confirmed.add(next);
+      cache.set(key, next);
+      if (durable(key, next)) marked.push([key, next]);
+    }
+    // one write at a time, each after the last has finished: sizing a snapshot is work on the main thread
+    void (async () => {
+      for (const [key, entry] of marked) {
+        if (gen !== generation || scope !== pairingKey || cache.get(key) !== entry) continue;
+        await write(scope!, key, entry);
+      }
+    })();
   };
 
   /** The cache and its HTTP validators belong to one pairing, including direct replacement without an unpair. */
@@ -1228,7 +1314,7 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
     pairingKey = key;
     contextRevision = null;
     refused = false;
-    if (key && key !== 'paired') void store.retain(key).catch(() => undefined);
+    if (key && key !== 'paired') void store.retain(key, now()).catch(() => undefined);
   };
   const watchPairing = (s: Server) => {
     if (watched === s) {
@@ -1257,10 +1343,11 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
     semantic.searchParams.set('tz', zoneOf(o));
     semantic.searchParams.sort();
     const cacheKey = `${semantic.pathname}?${semantic.searchParams.toString()}`;
-    const offline = (problem: GaugeProblem): Answer => {
+    /** No fresh answer: the last good one where the caller takes it. `everywhere` false keeps the client's own status. */
+    const offline = (problem: GaugeProblem, everywhere = true): Answer => {
       if (stale()) return { kind: 'null' };
       o.onProblem?.(problem);
-      fail(problem);
+      if (everywhere) fail(problem);
       const hit = method === 'GET' && o.cached !== false ? cache.get(cacheKey)?.data : undefined;
       return hit ? { kind: 'data', data: hit } : { kind: 'null' };
     };
@@ -1287,57 +1374,87 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
       if (hit) o.onSnapshot?.(hit.savedAt);
       return hit ? { kind: 'data', data: hit.data } : { kind: 'null' };
     }
-    let base: string;
-    let doFetch: typeof fetch;
-    try {
-      const w = server.chatModelOptions();
-      base = w.serverUrl.replace(/\/+$/, '');
-      doFetch = w.deps.fetch;
-    } catch (e) {
-      if (e instanceof ServerError && e.code === 'not_paired') {
-        forget();
-        o.onProblem?.('not_paired');
-        fail('not_paired');
-        return { kind: 'null' };
-      }
-      return offline('server_error');
-    }
     const ctl = new AbortController();
     controllers.add(ctl);
     const onAbort = () => ctl.abort();
     if (o.signal?.aborted) ctl.abort();
     else o.signal?.addEventListener('abort', onAbort, { once: true });
-    const timer = setTimeout(() => ctl.abort(), GAUGE_REQUEST_TIMEOUT_MS);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let release: (() => void) | null = null;
     let res: Response;
+    // The body a 304 confirms. A fusion context that arrives meanwhile may let an unconfirmed snapshot go from memory.
+    let asked: Entry | undefined;
     try {
+      release = await queue.enter(o.lane ?? { priority: o.priority ?? 'background' }, ctl.signal);
+      if (!release) {
+        if (o.signal?.aborted) throw abortError(o.signal);
+        return { kind: 'null' };
+      }
+      if (stale()) return { kind: 'null' };
+      let base: string;
+      let doFetch: typeof fetch;
+      try {
+        const w = serverOf().chatModelOptions();
+        base = w.serverUrl.replace(/\/+$/, '');
+        doFetch = w.deps.fetch;
+      } catch (e) {
+        if (e instanceof ServerError && e.code === 'not_paired') {
+          forget();
+          o.onProblem?.('not_paired');
+          fail('not_paired');
+          return { kind: 'null' };
+        }
+        return offline('server_error');
+      }
       const headers: Record<string, string> = { accept: 'application/json' };
       if (method === 'GET') {
         // a conditional poll: the server answers 304 while nothing changed, and the cached body stays
-        const hit = cache.get(cacheKey);
-        if (hit?.etag) headers['if-none-match'] = hit.etag;
-        else if (hit?.lastModified) headers['if-modified-since'] = hit.lastModified;
+        asked = cache.get(cacheKey);
+        if (asked?.etag) headers['if-none-match'] = asked.etag;
+        else if (asked?.lastModified) headers['if-modified-since'] = asked.lastModified;
       } else headers['content-type'] = 'application/json';
-      res = await doFetch(`${base}${key}`, { method, headers, signal: ctl.signal, cache: 'no-store', ...(method === 'POST' ? { body: JSON.stringify(body) } : {}) });
-    } catch (e) {
-      if (o.signal?.aborted) throw e;
-      if (stale()) return { kind: 'null' };
-      if (e instanceof ServerError && e.code === 'not_paired') {
-        forget();
-        o.onProblem?.('not_paired');
-        fail('not_paired');
-        return { kind: 'null' };
+      // The clock starts as the request leaves for the server: time spent waiting for a slot is not the server's.
+      const sentAt = now();
+      o.onSent?.(sentAt);
+      const seen = answered;
+      let timedOut = false;
+      timer = setTimeout(() => { timedOut = true; ctl.abort(); }, GAUGE_REQUEST_TIMEOUT_MS);
+      try {
+        res = await doFetch(`${base}${key}`, { method, headers, signal: ctl.signal, cache: 'no-store', ...(method === 'POST' ? { body: JSON.stringify(body) } : {}) });
+        answered++;
+        silent = 0;
+      } catch (e) {
+        if (o.signal?.aborted) throw e;
+        if (stale()) return { kind: 'null' };
+        if (e instanceof ServerError && e.code === 'not_paired') {
+          forget();
+          o.onProblem?.('not_paired');
+          fail('not_paired');
+          return { kind: 'null' };
+        }
+        if (timedOut) {
+          // The server answered others while this one ran out of time: it is slow, not out of reach.
+          if (answered !== seen) return offline('server_error', false);
+          // A timer that fires long after it was due means the app was suspended; that says nothing about the network.
+          if (now() - sentAt > GAUGE_REQUEST_TIMEOUT_MS * 2) return offline('offline', false);
+          // A busy server can keep everything it was sent at once waiting too long. Only when the requests sent after
+          // those hear nothing either is it out of reach; until then each slow read is its own failure.
+          if (++silent <= GAUGE_MAX_IN_FLIGHT) return offline('server_error', false);
+        }
+        return offline('offline');
       }
-      return offline('offline');
     } finally {
       controllers.delete(ctl);
       clearTimeout(timer);
       o.signal?.removeEventListener('abort', onAbort);
+      release?.();
     }
     if (stale()) return { kind: 'null' };
     if (res.status === 304 && method === 'GET') {
-      const hit = cache.get(cacheKey);
+      const hit = cache.get(cacheKey) ?? asked;
       if (hit) {
-        save(cacheKey, key, { ...hit, savedAt: now() });
+        // confirmed now, so it stands under the context known now (its old mark is kept until the first is heard)
+        save(cacheKey, key, { ...hit, savedAt: now(), context: contextRevision ?? hit.context }, 'same');
         o.onValidated?.(new Date(now()).toISOString());
         set({ lastOkAt: new Date(now()).toISOString(), problem: null });
         return { kind: 'data', data: hit.data };
@@ -1389,16 +1506,67 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
     return b.kind === 'data' ? (b.data as T) : null;
   }
 
+  /**
+   * Identical reads share one request, whoever asks and with whatever signal: a card, a composed screen question and
+   * the importer wanting the same day send it once. A caller that cancels leaves the others their answer; the request
+   * itself is cancelled only when nobody waits for it any more. Each caller still gets its own kind of answer when the
+   * server gave none: the last good one, or null for a caller that asked for fresh data only (`cached: false`).
+   *
+   * A caller that names `since` needs an answer made after that moment. A request sent before it may carry what the
+   * server knew then, so it is not joined: a new one goes out, and later callers join that one. A request still waiting
+   * in the queue has not been asked of the server yet, and is joined.
+   */
   function get<T>(path: string, query: Record<string, string | undefined>, o: InternalCallOptions = {}): Promise<T | null> {
     watchPairing(serverOf());
-    // Explicitly cancellable reads belong to their consumer; other identical reads share one validation.
-    if (o.signal || o.cacheOnly || o.onProblem) return getUnshared<T>(path, query, o);
-    const key = JSON.stringify([generation, path, query, zoneOf(o), o.cached !== false]);
-    const hit = inflight.get(key);
-    if (hit) return hit as Promise<T | null>;
-    const p = getUnshared<T>(path, query, o).finally(() => { if (inflight.get(key) === p) inflight.delete(key); });
-    inflight.set(key, p);
-    return p;
+    // a snapshot read asks the disk, never the server
+    if (o.cacheOnly) return getUnshared<T>(path, query, o);
+    const signal = o.signal;
+    if (signal?.aborted) return Promise.resolve(null);
+    const key = JSON.stringify([generation, path, query, zoneOf(o)]);
+    const reader: Reader = { onProblem: o.onProblem, onValidated: o.onValidated };
+    let flight = inflight.get(key);
+    // the same moment counts as before: the request left first
+    if (flight && o.since !== undefined && flight.sentAt !== null && flight.sentAt <= o.since) flight = undefined;
+    if (flight) {
+      flight.readers.add(reader);
+      // a screen now waits for it too: it moves ahead of the background reads still queued
+      if (o.priority === 'screen') flight.lane.priority = 'screen';
+      // it has failed already and is about to answer so: this caller hears why as the others did
+      if (flight.problem) reader.onProblem?.(flight.problem);
+    } else {
+      const controller = new AbortController();
+      const lane: GaugeLane = { priority: o.priority ?? 'background' };
+      const readers = new Set<Reader>([reader]);
+      const created: Flight = { controller, lane, readers, promise: Promise.resolve(null), sentAt: null, problem: null };
+      // an older request for the same read keeps its own callers; whoever asks from now on joins this one
+      inflight.set(key, created);
+      created.promise = getUnshared<T>(path, query, {
+        tz: zoneOf(o), signal: controller.signal, lane,
+        // the first time it leaves: an older server that refuses `tz` is asked a second time, no earlier than this
+        onSent: (at) => { created.sentAt ??= at; },
+        // every problem ends the read with the last good answer or none: never with a fresh one
+        onProblem: (problem) => { created.problem = problem; readers.forEach((r) => r.onProblem?.(problem)); },
+        onValidated: (at) => readers.forEach((r) => r.onValidated?.(at)),
+      }).finally(() => { if (inflight.get(key) === created) inflight.delete(key); });
+      flight = created;
+    }
+    const joined = flight;
+    const answer = (o.cached === false ? joined.promise.then((v) => (joined.problem ? null : v)) : joined.promise) as Promise<T | null>;
+    if (!signal) return answer;
+    return new Promise<T | null>((resolve, reject) => {
+      const onAbort = () => {
+        joined.readers.delete(reader);
+        if (joined.readers.size > 0) return reject(abortError(signal));
+        // nobody waits any more: cancel the request, and let no later caller join it
+        if (inflight.get(key) === joined) inflight.delete(key);
+        joined.controller.abort();
+      };
+      signal.addEventListener('abort', onAbort, { once: true });
+      answer.then(
+        (v) => { signal.removeEventListener('abort', onAbort); resolve(v); },
+        (e: unknown) => { signal.removeEventListener('abort', onAbort); reject(e); },
+      );
+    });
   }
 
   /**
@@ -1598,18 +1766,29 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
     return { episodes: list.slice(-GAUGE_DETECTIONS_MAX), withdrawn: [...withdrawn].sort().slice(0, GAUGE_DETECTIONS_MAX), cursor, processedThrough, detector, truncated };
   }
 
-  /** (r063 S6) Stores the person's fusion context on the server; a new revision drops every cached fused answer. */
+  /**
+   * (r063 S6) Stores the person's fusion context on the server; a new revision drops every cached fused answer.
+   *
+   * A session does not know the revision until its first post. When that post changes nothing, the answers already
+   * read stand (`adoptContext`): starting the app is not a correction, and must not empty the screens.
+   */
   async function fusionContext(body: GaugeFusionContextRequest, o: GaugeCallOptions = {}): Promise<GaugeFusionContextResult | null> {
     const tz = body.tz || zoneOf(o);
-    const a = await send('POST', '/v1/gauge/fusion-context', '/v1/gauge/fusion-context', { ...body, tz }, o, (st) => st === 404 || st === 405 || st === 400);
+    // What this post decides can undo every fused read made before it, so it does not wait behind them.
+    const first: InternalCallOptions = { ...o, lane: { priority: 'screen' } };
+    const a = await send('POST', '/v1/gauge/fusion-context', '/v1/gauge/fusion-context', { ...body, tz }, first, (st) => st === 404 || st === 405 || st === 400);
     if (a.kind !== 'data' || typeof a.data.revision !== 'string') return null;
     const r = { revision: a.data.revision, changed: a.data.changed === true };
     // this post changed it, or another device did since this one last posted
-    if (r.changed || (contextRevision !== null && contextRevision !== r.revision) || [...cache.values()].some((e) => e.context !== r.revision)) {
-      forget();
+    if (r.changed || (contextRevision !== null && contextRevision !== r.revision)) {
+      // saved snapshots stay on disk: they carry the old revision and are not read back under the new one
+      forget(false);
+      contextRevision = r.revision;
       contextListeners.forEach((l) => l(r.revision));
+    } else if (contextRevision === null) {
+      contextRevision = r.revision;
+      adoptContext(r.revision);
     }
-    contextRevision = r.revision;
     return r;
   }
 

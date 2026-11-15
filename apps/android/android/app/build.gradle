@@ -5,9 +5,14 @@ import groovy.json.JsonSlurper
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 // versionName is the Vitals version (root package.json); versionCode = major*10000 + minor*100 + patch, so it rises
-// with every release and the phone accepts the update (.jobs contract with the release workflow).
+// with every release and the phone accepts the update (.jobs contract with the release workflow). A minor or patch of
+// 100 would collide with the next minor or major, so the build refuses it (scripts/release/web-bundle.mjs versionCodeOf
+// applies the same rule to the update feed).
 def vitalsVersion = new JsonSlurper().parse(file('../../../../package.json')).version as String
-def vitalsVersionCode = vitalsVersion.tokenize('.-')[0..2].collect { it as int }.with { it[0] * 10000 + it[1] * 100 + it[2] }
+def vitalsVersionCode = vitalsVersion.tokenize('.-')[0..2].collect { it as int }.with {
+    if (it[1] > 99 || it[2] > 99) throw new GradleException("Vitals version ${vitalsVersion}: minor and patch must be 0..99 for the Android versionCode")
+    it[0] * 10000 + it[1] * 100 + it[2]
+}
 
 android {
     namespace = "desi.creative.vitals"

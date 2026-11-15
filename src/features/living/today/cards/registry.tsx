@@ -17,7 +17,6 @@ import { RingSleepToday, RingGlance, RingShortVideos } from '@/features/ring';
 import { SoFarFace, WeightFace, PlanlessWeightFace } from '../components/Faces';
 import {
   EnergyCard,
-  EnergyBurnedCard,
   StepsCard,
   HeartPointsCard,
   ActivitiesCard,
@@ -25,6 +24,7 @@ import {
   StepsDayCard,
 } from './ActivityCards';
 import { extraTodayCards } from './ExtraCards';
+import type { TodayCardGroup } from './groups';
 import { RemoveFromToday, withRemoveFoot } from './RemoveFromToday';
 import type { TodayCardCtx } from './types';
 
@@ -33,7 +33,7 @@ export interface TodayCardDef {
   title: string;
   icon: IconComponent;
   domain: Domain;
-  group: string;
+  group: TodayCardGroup;
   description: string;
   sizes: CardSize[];
   defaultSize: CardSize;
@@ -124,7 +124,7 @@ export const todayCardRegistry: TodayCardDef[] = [
     title: 'Steps',
     icon: Footprints,
     domain: 'steps',
-    group: 'Movement',
+    group: 'Move',
     description: 'Steps against your daily goal',
     sizes: ['tile', 'card', 'wide'],
     defaultSize: 'tile',
@@ -165,19 +165,6 @@ export const todayCardRegistry: TodayCardDef[] = [
       ),
   },
   {
-    id: 'energy-burned',
-    title: 'Energy burned',
-    icon: Flame,
-    domain: 'energy',
-    group: 'Energy',
-    description: 'Daily totals and the model breakdown',
-    sizes: ['tile', 'card', 'wide'],
-    defaultSize: 'card',
-    presence: 'library',
-    available: energy,
-    render: (ctx, size, onRemove) => <EnergyBurnedCard ctx={ctx} size={size} onRemove={onRemove} />,
-  },
-  {
     id: 'energy-kinds',
     title: 'Energy by kind',
     icon: ChartNoAxesColumn,
@@ -195,7 +182,7 @@ export const todayCardRegistry: TodayCardDef[] = [
     title: 'Heart Points',
     icon: HeartPulse,
     domain: 'heart',
-    group: 'Heart',
+    group: 'Move',
     description: 'Your movement through the week',
     sizes: ['tile', 'card', 'wide'],
     defaultSize: 'tile',
@@ -208,7 +195,7 @@ export const todayCardRegistry: TodayCardDef[] = [
     title: "Today's activities",
     icon: Activity,
     domain: 'steps',
-    group: 'Movement',
+    group: 'Move',
     description: 'Your counted and recorded activities',
     sizes: ['card', 'wide'],
     defaultSize: 'card',
@@ -221,7 +208,7 @@ export const todayCardRegistry: TodayCardDef[] = [
     title: 'Steps through the day',
     icon: Footprints,
     domain: 'steps',
-    group: 'Movement',
+    group: 'Move',
     description: 'When your steps were counted',
     sizes: ['card', 'wide'],
     defaultSize: 'card',
@@ -231,7 +218,7 @@ export const todayCardRegistry: TodayCardDef[] = [
   },
   {
     id: 'ring',
-    title: 'Ring signals',
+    title: 'Signals',
     icon: Radio,
     domain: 'heart',
     group: 'Heart',
@@ -242,7 +229,7 @@ export const todayCardRegistry: TodayCardDef[] = [
     available: ring,
     render: (ctx, _size, onRemove) => (
       <RingGlance date={ctx.date} today={ctx.today}
-        infoFooter={onRemove ? <RemoveFromToday onRemove={onRemove} title="Ring signals" /> : undefined} />
+        infoFooter={onRemove ? <RemoveFromToday onRemove={onRemove} title="Signals" /> : undefined} />
     ),
   },
   {

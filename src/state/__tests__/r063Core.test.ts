@@ -201,7 +201,7 @@ describe('S15: bounded batches and the watermark', () => {
     }, { gaugeSessions: [], hcSessions, minutes: [{ first: 0, steps: [1] }], deletedRefs: ['hc:x'] });
     expect(SESSIONS_BATCH).toBe(500);
     expect(sizes).toEqual([[500, 1, 1], [500, 1, 0], [201, 1, 0]]);
-    expect(r).toEqual({ created: 3, updated: 0 });
+    expect(r).toEqual({ created: 3, updated: 0, wrote: true });
     // one failed batch fails the whole import
     expect(await importActivities(async (i) => (i.hcSessions.length === 500 ? null : { created: [], updated: [] }), { gaugeSessions: [], hcSessions, minutes: [] })).toBeNull();
   });

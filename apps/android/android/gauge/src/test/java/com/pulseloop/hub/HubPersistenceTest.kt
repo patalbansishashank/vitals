@@ -89,6 +89,37 @@ class HubPersistenceTest {
         } finally { subscriber.stop(); db.close() }
     }
 
+    @Test fun `the end of a pass asks for the upload at once, a batch in the middle of one waits out the debounce`() = runBlocking {
+        val db = memoryDb()
+        var debounced = 0
+        var atOnce = 0
+        val subscriber = EventPersistenceSubscriber(
+            context, db,
+            enabledOverride = { false },
+            hubInstallationIdOverride = { "install123" },
+            hubFlushOverride = { debounced++ },
+            hubFlushNowOverride = { atOnce++ },
+        )
+        fun sample(value: Int) = PulseEvent.HeartRateSample(value, Instant.ofEpochMilli(value * 1_000L))
+        try {
+            subscriber.persistBatch(listOf(sample(60), PulseEvent.SyncProgress("Syncing heart rate...")))
+            assertEquals(1, debounced)
+            assertEquals(0, atOnce)
+
+            // The last batch may hold no reading; the rows before it are what must not wait.
+            val queuedBefore = db.hubOutboxDao().pendingCount()
+            subscriber.persistBatch(listOf(PulseEvent.SyncProgress("done")))
+            assertEquals(1, debounced)
+            assertEquals(1, atOnce)
+            // The end of a pass is itself a row for the server, so the job behind this request never runs for nothing.
+            assertEquals(queuedBefore + 1, db.hubOutboxDao().pendingCount())
+
+            subscriber.persistBatch(listOf(sample(61), PulseEvent.SyncProgress("done")))
+            assertEquals("one request per batch, the immediate one", 1, debounced)
+            assertEquals(2, atOnce)
+        } finally { subscriber.stop(); db.close() }
+    }
+
     @Test fun `deleting a reading queues a deletion event only while paired`() = runBlocking {
         val db = memoryDb()
         try {

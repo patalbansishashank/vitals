@@ -7,6 +7,7 @@
  * unavailable, and the screens say which is missing (never estimated).
  */
 import { useMemo } from 'react';
+import { timelineDays } from '@/features/living/progress/data/timelines';
 import { priorDayTrimpBalance, trainingLoad, type HrSegment, type LoadBout, type LoadProfile, type TrainingLoad } from '@/living/sensors';
 import type { GaugeTimeline } from '@/net/gauge';
 import { useProfileStore } from '@/state/profileStore';
@@ -15,7 +16,8 @@ import { datesOverlapping, type RingActivity } from './activities';
 import { useActivity } from './data';
 import { calendarDate, shiftDate } from './model';
 import { useRingActivities } from './useActivities';
-import { useGauge, useNow } from './useGauge';
+import { useDayAnswers } from './useDayAnswers';
+import { useNow } from './useGauge';
 import { activitySegments } from './zones';
 import { useCurrentHrProfile } from './zoneSource';
 
@@ -71,23 +73,15 @@ export function ringLoad(i: { date: string; acts: readonly RingActivity[]; timel
 }
 
 /**
- * The timelines of `dates` through the Ring's client (one cached question for the set; each date's own answer is the
- * server's `timeline?date`), re-asked after an import and dropped on a pairing change like every Ring answer. Null while
- * it loads; a date the server cannot answer is null (no coverage, never zeros).
+ * The timelines of `dates` from the days every screen shares (r087 C3: one kept answer per date, two requests at a time,
+ * an older day kept for hours instead of asked again with every import; each date's own answer is the server's
+ * `timeline?date`). Null while any of them loads: a load worked out from part of its minutes would be a wrong figure.
+ * A date the server cannot answer is null (no coverage, never zeros).
  */
 export function useTimelines(dates: readonly string[], today: string): ReadonlyMap<string, GaugeTimeline | null> | null {
-  const asked = dates.filter((d) => d <= today);
-  const q = useGauge(`timelines:${asked.join(',')}`, (a) =>
-    a.timeline ? Promise.all(asked.map((d) => a.timeline!(d).catch(() => null))).then((xs) => xs as Array<GaugeTimeline | null>) : Promise.resolve(null),
-  );
-  return useMemo(() => {
-    if (q.status === 'loading') return null;
-    const m = new Map<string, GaugeTimeline | null>();
-    asked.forEach((d, k) => m.set(d, q.data?.[k] ?? null));
-    return m;
-    // `asked` is keyed by the question
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
+  const held = useDayAnswers(timelineDays, dates, today);
+  const asked = new Set(dates.filter((d) => d <= today)).size;
+  return held.size === asked ? held : null;
 }
 
 /** The person's load profile: the HR maximum now, the WAKING resting HR they entered, and their sex. */

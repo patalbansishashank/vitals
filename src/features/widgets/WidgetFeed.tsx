@@ -15,6 +15,7 @@ import { useEffect, useMemo } from 'react';
 import { useQuietMode } from '@/state/settingsStore';
 import { useToday } from '@/features/living/clock';
 import { useDaily } from '@/features/ring/data';
+import { useLocalHeartRate, withLocalHeartRate } from '@/features/ring/localFill';
 import { useRingTodayState } from '@/features/ring/RingToday';
 import { useUnitPrefs } from '@/features/ring/components/parts';
 import { valueText } from '@/features/ring/model';
@@ -94,12 +95,14 @@ function RingFeed({ placement }: { placement: Placement }) {
   const today = useToday();
   const state = useRingTodayState();
   const daily = useDaily(today);
+  // The phone's newer heart-rate reading until the server's day has it
+  const localHr = useLocalHeartRate(today);
   const ring = useRingState();
   const prefs = useUnitPrefs();
   const [day, onDay] = useHolder<HrDayFigures>();
   const [sync, onSync] = useHolder<SyncFigures>();
 
-  const metric = daily.data?.metrics?.hr;
+  const metric = withLocalHeartRate(daily.data ?? null, { date: today, latestHr: localHr })?.metrics?.hr;
   const latest = metric && 'latest' in metric && metric.latest && 'value' in metric.latest && typeof metric.latest.value === 'number' ? metric.latest : null;
   const hrText = latest ? valueText('hr', latest.value as number, prefs) : null;
   const part =

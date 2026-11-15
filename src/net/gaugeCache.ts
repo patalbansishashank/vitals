@@ -23,8 +23,17 @@ export interface GaugeCacheStore {
   get(scope: string, key: string, now: number): Promise<GaugeCacheEntry | null>;
   put(scope: string, key: string, value: Omit<GaugeCacheEntry, 'id' | 'scope' | 'schema' | 'bytes'>): Promise<void>;
   clear(scope: string): Promise<void>;
-  retain(scope: string): Promise<void>;
+  /** Keeps this scope only. With `now`, also drops its saved queries whose window has passed (`persistGaugeQuery`). */
+  retain(scope: string, now?: number): Promise<void>;
 }
+
+const DAY_MS = 86_400_000;
+/**
+ * The history windows Today and Ring ask for on every open (two weeks to two months of day summaries, ending today).
+ * Only these four routes: their answers are a few lines per day. An answer over `MAX_ENTRY_BYTES` is still not kept.
+ */
+const HISTORY_ROUTES = /\/(activity|steps|sleep|scores)$/;
+export const GAUGE_CACHE_HISTORY_DAYS = 62;
 
 /** Recent query windows only; retain the full server answer without slicing or recomputing numbers. */
 export function persistGaugeQuery(key: string, now: number): boolean {
@@ -37,7 +46,10 @@ export function persistGaugeQuery(key: string, now: number): boolean {
   if (!start || !end) return false;
   const from = Date.parse(start), to = Date.parse(end);
   // One day of margin accommodates device zones and sleep windows that cross midnight.
-  return Number.isFinite(from) && Number.isFinite(to) && from <= to && from >= now - 8 * 86_400_000 && to <= now + 2 * 86_400_000 && to - from <= 8 * 86_400_000;
+  if (!Number.isFinite(from) || !Number.isFinite(to) || from > to || to > now + 2 * DAY_MS) return false;
+  if (from >= now - 8 * DAY_MS && to - from <= 8 * DAY_MS) return true;
+  // A history window is kept only while it still ends today (or yesterday, for zones and late nights).
+  return HISTORY_ROUTES.test(u.pathname) && to >= now - 2 * DAY_MS && to - from <= GAUGE_CACHE_HISTORY_DAYS * DAY_MS;
 }
 
 
@@ -57,6 +69,16 @@ export function gaugeSnapshotShape(key: string, data: Record<string, unknown>): 
     case 'series': return Array.isArray(data.points);
     case 'hr-intervals': return Array.isArray(data.intervals);
     default: return false;
+  }
+}
+
+/** A saved Gauge query that would no longer be read back: its window moved on, so it only takes room from the others. */
+function passed(id: string, now: number): boolean {
+  try {
+    const key = (JSON.parse(id) as unknown[])[1];
+    return typeof key === 'string' && key.startsWith('/v1/gauge/') && !persistGaugeQuery(key, now);
+  } catch {
+    return false;
   }
 }
 
@@ -150,7 +172,9 @@ export function createGaugeCacheStore(): GaugeCacheStore {
       });
     },
     clear: (scope) => mutate((store, index, entries) => { for (const e of entries) if (e.scope === scope) { store.delete(e.id); index.delete(e.id); } }),
-    retain: (scope) => mutate((store, index, entries) => { for (const e of entries) if (e.scope !== scope) { store.delete(e.id); index.delete(e.id); } }),
+    retain: (scope, now) => mutate((store, index, entries) => {
+      for (const e of entries) if (e.scope !== scope || (now !== undefined && passed(e.id, now))) { store.delete(e.id); index.delete(e.id); }
+    }),
   };
 }
 

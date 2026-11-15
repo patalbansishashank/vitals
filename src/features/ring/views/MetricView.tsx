@@ -44,6 +44,7 @@ import { metricScale } from '../scales';
 import { bandRange, bandRows } from '../signalWords';
 import type { GaugeBucketPoint, GaugeRawPoint } from '../types';
 import { useNow } from '../useGauge';
+import { useLocalHeartRate, withLocalHeartPoint } from '../localFill';
 import { StressHistory } from '../components/StressHistory';
 import { MeasureKey } from '../components/MeasureKey';
 import { Loading, footState, useUnitPrefs } from '../components/parts';
@@ -87,10 +88,13 @@ export function MetricView({ kind, date }: { kind: RingMetric; date: string }) {
   const base = personal(b.data ?? null);
   const meta = METRICS[kind];
   const hue = metricDomain(kind);
-  const rawAll =
+  const localHr = useLocalHeartRate(date);
+  const serverRaw =
     period === 'day'
       ? [...((q.data?.points ?? []) as GaugeRawPoint[])].sort((a, z) => Date.parse(a.at) - Date.parse(z.at))
       : [];
+  // The phone's newer heart-rate reading leads the headline and the line until the server's series has it
+  const rawAll = kind === 'hr' && period === 'day' ? withLocalHeartPoint(serverRaw, localHr) : serverRaw;
   const raw = rawAll.filter((p) => p.value !== null && Number.isFinite(p.value));
   const last = raw.at(-1);
   const dates = Array.from({ length: days }, (_, i) => shiftDate(from, i));
@@ -118,7 +122,10 @@ export function MetricView({ kind, date }: { kind: RingMetric; date: string }) {
   const values = rawDays.map((v) => (Number.isFinite(v) ? display(v) : null));
   const status = reading !== null ? statusOf(kind, reading, base) : null;
   const fmt = (v: number) => formatNumber(v, decimalsOf(kind));
-  const finiteSeries = series.filter((p): p is { t: number; v: number } => p.v !== null);
+  // Low, high and the average stay the server's own readings
+  const finiteSeries = serverRaw
+    .map((p) => ({ t: Date.parse(p.at), v: p.value == null || !Number.isFinite(p.value) ? null : display(p.value) }))
+    .filter((p): p is { t: number; v: number } => p.v !== null);
   const low = finiteSeries.reduce<{ t: number; v: number } | null>((a, p) => (!a || p.v < a.v ? p : a), null);
   const high = finiteSeries.reduce<{ t: number; v: number } | null>(
     (a, p) => (!a || p.v > a.v ? p : a),

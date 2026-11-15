@@ -54,6 +54,28 @@ describe('Today optional-card adapters', () => {
       reason: 'Hidden in quiet mode',
     });
   });
+  it('opens Ring › Sleep on the card’s own night, and the history on its month', () => {
+    const ctx = { date: '2026-10-20', today: '2026-10-30', isToday: false, quiet: false, nowMs: Date.parse('2026-10-30T12:00:00Z') } as unknown as TodayCardCtx;
+    const hrefs = ['sleep-timing', 'sleep-hr', 'sleep-4w'].map((id) => {
+      const d = extraTodayCards.find((c) => c.id === id)!;
+      const { container, unmount } = render(<MemoryRouter>{d.render(ctx, d.defaultSize)}</MemoryRouter>);
+      const href = container.querySelector('a')?.getAttribute('href');
+      unmount();
+      return href;
+    });
+    expect(hrefs).toEqual(['/sleep/2026-10-20', '/sleep/2026-10-20', '/ring/sleep?period=month&date=2026-10-01']);
+  });
+  it('names each signal once and keeps its qualifier as a fact under the number', () => {
+    const ctx = { date: '2026-10-30', today: '2026-10-30', isToday: true, quiet: false, nowMs: Date.parse('2026-10-30T12:00:00Z') } as unknown as TodayCardCtx;
+    for (const [id, title, fact] of [['hrv', 'HRV', 'Overnight'], ['skin-temp', 'Skin temperature', 'Overnight · vs usual']] as const) {
+      const d = extraTodayCards.find((c) => c.id === id)!;
+      const { unmount, container } = render(<MemoryRouter>{d.render(ctx, d.defaultSize)}</MemoryRouter>);
+      expect(container.querySelector('h2')).toHaveTextContent(new RegExp(`^${title}$`));
+      expect(screen.getByText(fact)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: `Open ${title}` })).toHaveAttribute('href', `/ring/signals/${id === 'hrv' ? 'hrv' : 'temp'}`);
+      unmount();
+    }
+  });
   it('uses the model’s percentage directly for the plan score', () => {
     const ctx = { quiet: false, view: { adherence: { a7: 85 } } } as unknown as TodayCardCtx;
     const d = extraTodayCards.find((c) => c.id === 'plan-score')!;

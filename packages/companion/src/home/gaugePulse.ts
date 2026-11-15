@@ -6,12 +6,16 @@
  *
  * The server holds the request up to `wait` seconds while `since` is still the person's current token (the commands
  * channel's long-poll, `./commands.ts`), then answers the state now. Without `since`, or with a token of an earlier
- * server run, it answers at once. Two counters, both only in memory (a restart starts a new `boot`, which a client
- * treats as "everything may have moved"):
+ * server run, it answers at once. Two counters; a client treats a new `boot` as "everything may have moved":
  *
  * - `uploads`: every upload Gauge made that the store took (accepted or re-sent): "Gauge last sent" moves with it.
  * - `data`: uploads that brought new readings (anything but Gauge's own `state/*` reports, which change every minute
  *   while the ring reconnects), and detection runs that wrote episodes. Only this one asks a client to read again.
+ *
+ * (r087) With a `storage` the person's boot and counters outlive the process: a restart of the same server version
+ * (the watchdog's, a reboot) then answers the token a client already holds, instead of a new `boot` that sent every
+ * device to read everything again, right when the server was at its slowest. A new server version still starts a new
+ * boot (its answers may differ), and so does a person without a stored record.
  *
  * Nothing about the data is in the answer: counts and times only.
  */
@@ -27,7 +31,7 @@ export interface PulseState {
   boot: string;
   uploads: number;
   data: number;
-  /** When Gauge's last upload reached this server run (ISO), null before the first one. */
+  /** When Gauge's last upload reached this server (ISO), null before the first one this boot saw. */
   lastUploadAt: string | null;
   /** When the last new readings (or detections) did (ISO). */
   dataAt: string | null;
@@ -44,25 +48,54 @@ export interface GaugePulse {
   close(): void;
 }
 
-export function createGaugePulse(o: { now?: () => number } = {}): GaugePulse {
+/** One person's pulse as it is kept between server runs. */
+export interface PulseRecord {
+  boot: string;
+  uploads: number;
+  data: number;
+  lastUploadMs: number | null;
+  dataMs: number | null;
+}
+
+/** Where the pulse outlives the process (`./lumen.ts`: a small file per person). `load` answers null for none. */
+export interface PulseStorage {
+  load(personId: string): PulseRecord | null;
+  save(personId: string, r: PulseRecord): void;
+}
+
+const count = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0 && (v as number) < 1e12;
+const instant = (v: unknown): v is number | null => v === null || (Number.isSafeInteger(v) && (v as number) >= 0);
+/** A stored record this code can answer from (its token must read back as one, `GAUGE_PULSE_ROUTE`). */
+export function validPulseRecord(v: unknown): v is PulseRecord {
+  if (typeof v !== 'object' || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return typeof r.boot === 'string' && /^[A-Za-z0-9_-]{1,16}$/.test(r.boot) && count(r.uploads) && count(r.data) && instant(r.lastUploadMs) && instant(r.dataMs);
+}
+
+export function createGaugePulse(o: { now?: () => number; storage?: PulseStorage } = {}): GaugePulse {
   const now = o.now ?? Date.now;
   const boot = randomBytes(6).toString('base64url');
-  const people = new Map<string, { uploads: number; data: number; lastUploadMs: number | null; dataMs: number | null }>();
+  const people = new Map<string, PulseRecord>();
   const waiters = new Map<string, Set<() => void>>();
   const holders = new Set<() => void>();
 
   const entry = (personId: string) => {
     let e = people.get(personId);
-    if (!e) people.set(personId, (e = { uploads: 0, data: 0, lastUploadMs: null, dataMs: null }));
+    if (!e) {
+      const stored = o.storage?.load(personId) ?? null;
+      people.set(personId, (e = stored && validPulseRecord(stored) ? { ...stored } : { boot, uploads: 0, data: 0, lastUploadMs: null, dataMs: null }));
+    }
     return e;
   };
   const wake = (personId: string) => waiters.get(personId)?.forEach((f) => f());
   const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString());
   const state = (personId: string): PulseState => {
-    const e = people.get(personId);
-    const uploads = e?.uploads ?? 0;
-    const data = e?.data ?? 0;
-    return { token: `${boot}.${uploads}.${data}`, boot, uploads, data, lastUploadAt: iso(e?.lastUploadMs ?? null), dataAt: iso(e?.dataMs ?? null) };
+    const e = entry(personId);
+    return { token: `${e.boot}.${e.uploads}.${e.data}`, boot: e.boot, uploads: e.uploads, data: e.data, lastUploadAt: iso(e.lastUploadMs), dataAt: iso(e.dataMs) };
+  };
+  const moved = (personId: string, e: PulseRecord) => {
+    o.storage?.save(personId, { ...e });
+    wake(personId);
   };
 
   return {
@@ -75,13 +108,13 @@ export function createGaugePulse(o: { now?: () => number } = {}): GaugePulse {
         e.data++;
         e.dataMs = at;
       }
-      wake(personId);
+      moved(personId, e);
     },
     noteDerived(personId) {
       const e = entry(personId);
       e.data++;
       e.dataMs = now();
-      wake(personId);
+      moved(personId, e);
     },
     state,
     wait(personId, since, waitMs, res) {

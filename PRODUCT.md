@@ -3,8 +3,9 @@
 <!-- impeccable:product-schema 1 -->
 
 > Product truth for design work. Carried over from `design/PRODUCT.md` (2026-09-30) and updated with the owner's
-> answers of 2026-10-17 (manual-only since 0.6.0, ring steps and sleep imported from Gauge since 2026-10-27; the unslop
-> redesign brief) and of 2026-10-30 (the r071 UI overhaul: the references and decisions in the brand section below).
+> answers of 2026-10-17 (the unslop redesign brief) and of 2026-10-30 (the r071 UI overhaul: the references and
+> decisions in the brand section below). Since 0.7.0 the ring engine lives inside the Vitals Android app: the ring's
+> steps, sleep and heart data come in by themselves, next to what the person logs by hand.
 
 ## Platform
 

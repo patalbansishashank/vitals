@@ -13,13 +13,16 @@ import {
 } from '@/components';
 import { useQuietMode } from '@/state/settingsStore';
 import { RING_COPY as C } from '../copy';
-import { useSteps, useTimeline } from '../data';
+import { useActivity, useSteps, useTimeline } from '../data';
 import { StepsSourcePanel } from '@/features/living/activity/StepsSourceChart';
 import { stepsHours } from '@/features/living/activity/model';
 import type { RingDay } from '../day';
 import { calendarDate, clockOf } from '../model';
 import { useNow } from '../useGauge';
 import { useStepsDay } from '../stepsDay';
+import { stepsStateWord, useDaySteps } from '../stepsHeadline';
+import { useToday } from '@/features/living/clock';
+import { binsTotal, stepsBins } from '@/features/living/activity/stepsTime';
 import { quietUpdated } from '../quiet';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -38,7 +41,8 @@ export function stepsLineageText(lineages: readonly string[]): string | null {
 /**
  * Steps against the goal (a ring or a linear track), the lineage chip with its disagreement dot opening Steps by source (A.1.3, §V4.1:
  * the same panel as Today), and the measurement update. Secondary distance, active time and estimated energy are in the card's information panel. A day
- * nothing observed reads "No reading", never 0 (Codex UI #6, #25).
+ * nothing observed reads "No reading", never 0 (Codex UI #6, #25). The count, forecast and word are Today's Steps card's
+ * (`../stepsHeadline`): the same inputs, the plan's steps model as Today last worked it out, and the app day's today.
  */
 export function MovementBody({
   date,
@@ -64,12 +68,25 @@ export function MovementBody({
     .map((i) => i.lineage);
   const hours = useMemo(() => (tq.status === 'ready' && tq.data ? stepsHours(tq.data) : []), [tq]);
   const inTime = useStepsDay(date);
+  const act = useActivity(date, date);
+  const isToday = date === useToday();
+  const counted = useMemo(() => (tq.status === 'ready' && tq.data ? binsTotal(stepsBins(tq.data)) : null), [tq]);
+  const { headline, own, likely } = useDaySteps({
+    date,
+    isToday,
+    stepsDay,
+    fused: act.data?.days.find((d) => d.date === date)?.fusedHeadline ?? null,
+    counted,
+    nowMs: now,
+  });
   const goal = day.goals.steps;
-  const steps = day.steps?.value ?? null;
-  const lineage = day.steps
-    ? day.steps.provisional
+  const steps = headline?.value ?? null;
+  const lineage = headline
+    ? own
+      ? C.stepsYourEntry
+      : headline.provisional
       ? C.stepsOnPhone
-      : (stepsLineageText(lineages) ?? (day.steps.lineage === 'fused' ? 'Ring and phone' : C.stepsRing))
+      : (stepsLineageText(lineages) ?? (headline.lineage === 'fused' ? 'Ring and phone' : C.stepsRing))
     : null;
   const disagree =
     hours.some((h) => h.disagree) || (sq.data?.intervals ?? []).some((i) => i.disagreement === true);
@@ -77,16 +94,7 @@ export function MovementBody({
   // The goal source stays visible: plan, then ring, then the default.
   const goalWord =
     goal.source === 'plan' ? C.planGoalWord : goal.source === 'ring' ? C.ringGoalWord : 'Default goal';
-  const status =
-    steps === null
-      ? C.noStepReading
-      : steps === goal.value
-        ? 'Goal met'
-        : steps > goal.value
-          ? `+${formatNumber(steps - goal.value, 0)} over`
-          : `${formatNumber(goal.value - steps, 0)} to go`;
-  const word =
-    steps === null ? C.noStepReading : steps >= goal.value ? 'At or past the goal' : 'Short of the goal';
+  const word = stepsStateWord(steps, goal.value, { isToday, likely });
   const hero = (
     <div className="rga-move__number">
       <HeroNumber
@@ -108,7 +116,7 @@ export function MovementBody({
             goal={goal.value}
             size={compact ? 160 : 180}
             hue="steps"
-            state={steps === null ? 'none' : day.steps?.provisional ? 'provisional' : 'normal'}
+            state={steps === null ? 'none' : headline?.provisional ? 'provisional' : 'normal'}
             quiet={quiet}
             quietFill="ratio"
             quietWord={word}
@@ -124,14 +132,14 @@ export function MovementBody({
               valueText={steps === null ? C.noStepReading : formatNumber(steps, 0)}
               quiet={quiet}
               quietWord={word}
-              state={steps === null ? 'unknown' : day.steps?.provisional ? 'provisional' : 'normal'}
+              state={steps === null ? 'unknown' : headline?.provisional ? 'provisional' : 'normal'}
               hue="steps"
             />
           </div>
         )}
       </div>
       <CardFoot
-        state={{ word: quiet ? word : status }}
+        state={{ word }}
         right={quiet ? undefined : `${goalWord} ${formatNumber(goal.value, 0)}`}
       >
         {updated ? <MonoMeta>{updated}</MonoMeta> : null}

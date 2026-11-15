@@ -522,10 +522,10 @@ describe('Claude P2-4 a recording key waiting on Gauge says so', () => {
 });
 
 describe('Claude P2-14 and P2-16 steps on Today', () => {
-  it('unknown steps read "No step data yet", never "No steps"', async () => {
+  it('unknown steps read "No reading" (the Ring\'s word), never "No steps"', async () => {
     today('nodevice');
     const steps = await screen.findByRole('region', { name: 'Steps' });
-    expect(steps).toHaveTextContent('No step data yet');
+    expect(steps).toHaveTextContent('No reading');
     expect(steps.textContent).not.toMatch(/No steps yet/);
   });
 });

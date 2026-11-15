@@ -1,7 +1,7 @@
 /**
  * Ring: Gauge's screens inside Vitals (step 1). The section itself is the lazy `RingPage` (`/ring…`, mounted by
- * `src/app/routes.tsx`); Today shows `RingTodayFaces`, or the cards one by one (r071: `RingSleepToday`, `RingGlance`,
- * `ShortVideoCard`, `RingStepsToday`, `RingTodayNote`, `DayScoreCard`).
+ * `src/app/routes.tsx`); Today shows its cards one by one (r071: `RingSleepToday`, `RingGlance`, `RingShortVideos`,
+ * `RingTodayNote`, `DayScoreCard`).
  */
 export {
   RING_NOTE_WORDS,
@@ -9,8 +9,6 @@ export {
   RingGlance,
   RingShortVideos,
   RingSleepToday,
-  RingStepsToday,
-  RingTodayFaces,
   RingTodayNote,
   useRingNightHours,
   useRingTodayState,

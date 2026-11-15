@@ -7,10 +7,13 @@ export type RegisterSW = (options?: RegisterSWOptions) => (reloadPage?: boolean)
 
 /** How long to wait for a waiting worker to take over before giving the Reload key back. */
 const APPLY_TIMEOUT_MS = 6000;
+/** How often an open page asks the server for a new worker (an installed app can stay open for days). */
+export const UPDATE_CHECK_MS = 60 * 60 * 1000;
 
 let updateSW: ((reloadPage?: boolean) => Promise<void>) | null = null;
 let reloading = false;
 let applyTimer: ReturnType<typeof setTimeout> | undefined;
+let stopUpdateChecks: (() => void) | null = null;
 
 /**
  * Reload the page at most once per page life. A new worker taking control is reported twice over: by the
@@ -25,6 +28,54 @@ export function reloadOnce(reload: () => void = () => window.location.reload()):
   return true;
 }
 
+type WatchedRegistration = Pick<ServiceWorkerRegistration, 'update' | 'installing' | 'waiting' | 'addEventListener' | 'removeEventListener'>;
+
+/**
+ * The browser looks for a new worker only on navigation, so an installed app or a tab left open would never hear of
+ * a release. Ask again whenever the page comes back into view and hourly while it stays open.
+ *
+ * A worker found this way is announced here, not left to workbox alone: workbox stops listening for new workers after
+ * the first one it sees, so if that one failed to install (a precache fetch dropped on a phone network) the next,
+ * good one would wait unannounced until the next cold start. `onWaiting` is called once per waiting worker, and only
+ * on a page a worker already controls (the first install activates straight away; it is not an update).
+ */
+export function watchForUpdates(registration: WatchedRegistration, onWaiting: () => void, doc: Document = document): () => void {
+  let announced: ServiceWorker | null = null;
+  const announce = () => {
+    const waiting = registration.waiting;
+    if (!waiting || waiting === announced || !navigator.serviceWorker?.controller) return;
+    announced = waiting;
+    onWaiting();
+  };
+  const check = () => {
+    // one found earlier may have finished installing while nobody was looking
+    announce();
+    // a worker already installing will report itself; offline the fetch can only fail
+    if (registration.installing || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+    void registration.update().catch(() => undefined);
+  };
+  const onFound = () => {
+    const worker = registration.installing;
+    if (!worker) return;
+    const onState = () => {
+      if (worker.state === 'installed') announce();
+      if (worker.state !== 'installing') worker.removeEventListener('statechange', onState);
+    };
+    worker.addEventListener('statechange', onState);
+  };
+  const onVisible = () => {
+    if (doc.visibilityState === 'visible') check();
+  };
+  registration.addEventListener('updatefound', onFound);
+  doc.addEventListener('visibilitychange', onVisible);
+  const timer = setInterval(check, UPDATE_CHECK_MS);
+  return () => {
+    registration.removeEventListener('updatefound', onFound);
+    doc.removeEventListener('visibilitychange', onVisible);
+    clearInterval(timer);
+  };
+}
+
 /** The user chose "Reload": tell the waiting worker to take over. The page reloads when it does. */
 export async function applyUpdate(): Promise<void> {
   if (!updateSW) return;
@@ -37,6 +88,12 @@ export async function applyUpdate(): Promise<void> {
     clearTimeout(applyTimer);
     dispatchSw({ type: 'apply-failed' });
   }
+}
+
+/** A new worker is waiting: say so, and let "Reload" hand over to it. */
+function needRefresh(): void {
+  dispatchSw({ type: 'need-refresh' });
+  showUpdateNotice(() => void applyUpdate());
 }
 
 export interface StartPwaOptions {
@@ -76,13 +133,14 @@ export function startPwa({ registerSW, enabled, reload }: StartPwaOptions): void
   updateSW = registerSW({
     immediate: false,
     onOfflineReady: () => dispatchSw({ type: 'ready' }),
-    onNeedRefresh: () => {
-      dispatchSw({ type: 'need-refresh' });
-      showUpdateNotice(() => void applyUpdate());
-    },
+    onNeedRefresh: needRefresh,
     onNeedReload: () => void reloadOnce(reload),
     onRegisteredSW: (_url, registration) => {
       if (registration?.active) dispatchSw({ type: 'ready' });
+      if (registration) {
+        stopUpdateChecks?.();
+        stopUpdateChecks = watchForUpdates(registration, needRefresh);
+      }
     },
     onRegisterError: (error) => dispatchSw({ type: 'unavailable', error: error instanceof Error ? error.message : String(error) }),
   });
@@ -95,4 +153,6 @@ export function resetController(): void {
   updateSW = null;
   reloading = false;
   clearTimeout(applyTimer);
+  stopUpdateChecks?.();
+  stopUpdateChecks = null;
 }

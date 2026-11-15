@@ -1,13 +1,12 @@
 /**
- * The ring on Today (r071). Today mounts these cards by name (`RingSleepToday`, `RingGlance`, `ShortVideoCard`,
- * `RingStepsToday`, `RingTodayNote`), or the two groups `RingTodayFaces` has always drawn (`part` glance and videos). Each
- * opens the Ring section on the same day; each takes an `infoFooter` for the (i) panel's foot ("Remove from Today"). Without
- * a server or Gauge data they render nothing: the Ring section carries the empty state, and the one slim note says why.
- * Never an error wall.
+ * The ring on Today (r071). Today mounts these cards by name (`RingSleepToday`, `RingGlance`, `RingShortVideos`,
+ * `RingTodayNote`). Each opens the Ring section on the same day; each takes an `infoFooter` for the (i) panel's foot
+ * ("Remove from Today"). Without a server or Gauge data they render nothing: the Ring section carries the empty state, and
+ * the one slim note says why. Never an error wall.
  *
  * - `RingSleepToday`: last night, compact (the number, a small hypnogram, the goal).
- * - `RingGlance`: heart rate now, with HRV, blood oxygen and stress under it. The Day score is its own card.
- * - `RingStepsToday`: the day's steps on a day without a plan (the Activity card's compact form).
+ * - `RingGlance`: the Signals card, heart rate now with HRV, blood oxygen and stress under it (the Ring Overview's name
+ *   for the same readings). The Day score is its own card.
  * - `RingShortVideos`: the short-video count, where Gauge has counted some this week.
  */
 import type { ReactNode } from 'react';
@@ -34,30 +33,9 @@ import { statusWord } from './signalWords';
 import { MeasureKey } from './components/MeasureKey';
 import { Loading, useUnitPrefs } from './components/parts';
 import { SignalHero, SignalRow, pickHero, signalStatus } from './components/SignalRows';
-import { ActivityCard } from './views/ActivityCard';
 import { ShortVideoCard } from './views/ShortVideoCard';
 import { SleepCard } from './views/SleepCard';
 import './views/overview.css';
-
-export function RingTodayFaces({
-  date,
-  today,
-  part = 'all',
-}: {
-  date: string;
-  today: string;
-  /** (r068 V1) Both cards (default), or one of them where Today places them in different columns. */
-  part?: 'all' | 'glance' | 'videos';
-}) {
-  const a = useAvailability();
-  if (a.status !== 'ready' || !hasGaugeData(a.data) || date > today) return null;
-  return (
-    <>
-      {part !== 'videos' ? <RingGlance date={date} today={today} /> : null}
-      {part !== 'glance' ? <RingShortVideos date={date} /> : null}
-    </>
-  );
-}
 
 /** Why Today has no ring cards, or 'ready' (and 'loading' while the server is asked). */
 export type RingTodayState = 'loading' | 'ready' | 'empty' | 'unreachable' | 'unpaired';
@@ -150,24 +128,6 @@ export function useRingNightHours(date: string): number | null {
   return v && Number.isFinite(v.tstLower) && v.tstLower > 0 ? Math.round(v.tstLower / 15) / 4 : null;
 }
 
-/** The day's steps on Today without a plan: the Ring overview's Activity card, compact (the number against the goal). */
-export function RingStepsToday({
-  date,
-  today,
-  infoFooter,
-}: {
-  date: string;
-  today: string;
-  infoFooter?: ReactNode;
-}) {
-  const state = useRingTodayState();
-  const day = useRingDay(date);
-  if (state !== 'ready' || date > today) return null;
-  return (
-    <ActivityCard date={date} day={day} title={RING_TODAY_WORDS.steps} compact infoFooter={infoFooter} />
-  );
-}
-
 // (0.6.7, owner: "stress is missing") Today's ring card names the signals Today's own cards do not show (never sleep
 // times, steps, energy or zones). (r068 V4) Only four of them: heart rate, HRV, blood oxygen and stress first (in the
 // person's own order, any they hid left out, the next shown filling a gap); the full list is the Ring page's. (r071) The
@@ -197,7 +157,7 @@ export function glanceIds(shown: readonly string[]): string[] {
 }
 
 /**
- * Heart rate now, and what else the ring says about how you are (r071): the heart rate as the hero with the day's spark,
+ * Signals: heart rate now, and what else the ring says about how you are (r071): the heart rate as the hero with the day's spark,
  * HRV, blood oxygen and stress as three rows on their scales, "Measure now" and when Gauge last sent in the foot (today
  * only). The whole card opens the Ring overview on this day. Nothing while Gauge data is unavailable or the day is ahead.
  */
@@ -264,7 +224,7 @@ function GlanceCard({ date, today, infoFooter }: { date: string; today: string; 
         <CardHead
           as="h2"
           icon={HeartPulse}
-          title={C.heartRate}
+          title={C.signals}
           info={signalsInfo({ quiet, prefs, footer: infoFooter })}
         />
       }

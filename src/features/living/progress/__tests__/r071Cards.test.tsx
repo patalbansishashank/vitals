@@ -24,7 +24,7 @@ afterEach(() => {
 describe('r071 Progress cards', () => {
   it('shows mean energy balance as an integer hero with its scenario range beneath it', async () => {
     renderLiving(<ProgressPage />);
-    const card = (await screen.findByRole('heading', { name: 'Energy out and intake' })).closest('section')!;
+    const card = (await screen.findByRole('heading', { name: 'Energy balance' })).closest('section')!;
     expect(card.querySelectorAll('.lm-hero')).toHaveLength(1);
     const hero = card.querySelector('.lm-hero')!;
     expect(hero.getAttribute('aria-label')).toMatch(/Intake minus out −?\d+ kcal a day/);

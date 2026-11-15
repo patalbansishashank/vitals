@@ -6,6 +6,9 @@ import android.content.pm.PackageInstaller
 import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
 import com.pulseloop.shortvideo.ShortVideoRuntime
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -48,5 +51,40 @@ class EngineStateReaderTest {
         val p = EngineStateReader.permissions(app, Perm.GRANTED)
         assertTrue(p.shortVideoAccessibility)
         assertNull(p.shortVideoRestricted)
+    }
+
+    private fun perms(healthConnect: Perm) = EngineState.Permissions(Perm.GRANTED, healthConnect, Perm.GRANTED, Perm.GRANTED, shortVideoAccessibility = false, batteryUnrestricted = true)
+
+    @Test fun `the permissions are asked once and kept until something may have changed them`() = runBlocking {
+        var asked = 0
+        var answer = perms(Perm.DENIED)
+        val kept = EnginePermissions { asked++; answer }
+        assertEquals(Perm.DENIED, kept.get().healthConnect)
+        // every new ring reading builds the state again: no further lookup
+        repeat(50) { kept.get() }
+        assertEquals(1, asked)
+        // the person granted it in the system's sheet and came back
+        answer = perms(Perm.GRANTED)
+        assertEquals(Perm.DENIED, kept.get().healthConnect)
+        kept.invalidate()
+        assertEquals(Perm.GRANTED, kept.get().healthConnect)
+        kept.get()
+        assertEquals(2, asked)
+    }
+
+    @Test fun `an answer overtaken by a change is not kept`() = runBlocking {
+        val gate = CompletableDeferred<Unit>()
+        var asked = 0
+        val kept = EnginePermissions {
+            // the first lookup is still under way when the permission changes
+            if (asked++ == 0) { gate.await(); perms(Perm.DENIED) } else perms(Perm.GRANTED)
+        }
+        val slow = async { kept.get() }
+        kotlinx.coroutines.yield()
+        kept.invalidate()
+        gate.complete(Unit)
+        assertEquals(Perm.DENIED, slow.await().healthConnect)
+        assertEquals(Perm.GRANTED, kept.get().healthConnect)
+        assertEquals(2, asked)
     }
 }

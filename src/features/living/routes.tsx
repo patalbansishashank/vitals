@@ -16,6 +16,7 @@ const ProgressPage = lazy(() => import('./progress/ProgressPage'));
 const PlanDetailsPage = lazy(() => import('./plan/PlanDetailsPage'));
 const SleepPage = lazy(() => import('./sleep/SleepPage'));
 const EnergyPage = lazy(() => import('./energy/EnergyPage'));
+const MovementPage = lazy(() => import('./activity/MovementPage'));
 
 const outlet = <Outlet />;
 
@@ -37,10 +38,14 @@ export const livingRoutes: RouteObject[] = [
       { path: 'today', element: <TodayPage /> },
       { path: 'today/:date', element: <TodayPage /> },
       { path: 'progress', element: <ProgressPage /> },
-      // (0.6.3 S24/A7) Train is the activity hub too: logging, recording and review work without a plan (its sessions
-      // and plan matching appear when one runs)
+      // (r087) Activity, one place with three tabs: Train · Movement · Energy, with or without a plan
+      // (0.6.3 S24/A7) Train is where activities are logged and recorded too (its sessions and plan matching appear
+      // when a plan runs)
       { path: 'train', element: <TrainPage /> },
       { path: 'train/:date', element: <TrainPage /> },
+      // steps, their history and the activities that count (until r087 the Ring's Activity tab)
+      { path: 'activity', element: <MovementPage /> },
+      { path: 'activity/:date', element: <MovementPage /> },
       // the night's sleep (the same sections as Ring › Sleep), with or without a plan
       { path: 'sleep', element: <SleepPage /> },
       { path: 'sleep/:date', element: <SleepPage /> },

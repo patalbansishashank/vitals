@@ -16,7 +16,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { HttpError, readBody, sendJson } from '../security.ts';
 import type { CoachEvent, TurnImage } from './backends.ts';
 import { COACH_APPS, type CoachApp } from './personas.ts';
-import { CoachError, type Coach, type CoachCaller } from './sessions.ts';
+import { COACH_MESSAGES, CoachError, type Coach, type CoachCaller } from './sessions.ts';
 
 export const COACH_PREFIX = '/v1/coach/';
 export const MAX_TEXT_BYTES = 16 * 1024;
@@ -90,7 +90,9 @@ export function createCoachRoutes(o: { coach: Coach; resolve: (req: IncomingMess
     // every event goes out at once (no Nagle delay); the ping keeps idle phone networks and proxies from closing it
     res.socket?.setNoDelay(true);
     let open = true;
+    let settled = false;
     const send = (e: CoachEvent) => {
+      if (e.type === 'done' || e.type === 'error') settled = true;
       if (open && !res.writableEnded) res.write(`data: ${JSON.stringify(e)}\n\n`);
     };
     const ping = setInterval(() => {
@@ -101,10 +103,24 @@ export function createCoachRoutes(o: { coach: Coach; resolve: (req: IncomingMess
       if (open) turn.abort();
       open = false;
     });
+    let failed = false;
     try {
       await turn.run(send);
+    } catch (e) {
+      failed = true;
+      o.log(`coach: turn stream failed (${e instanceof Error ? e.name : 'error'})`);
     } finally {
       clearInterval(ping);
+      // A listener must always learn how the turn ended, or the app waits on an answer that never comes. The headers
+      // are out, so a 500 can no longer be sent: the ending travels as the stream's last event. A turn that returns
+      // without one was stopped on purpose (its session deleted, expired or the server stopping), not broken.
+      if (!settled) {
+        send(
+          failed
+            ? { type: 'error', code: 'backend_error', message: COACH_MESSAGES.backend_error }
+            : { type: 'error', code: 'session_expired', message: COACH_MESSAGES.session_expired },
+        );
+      }
       if (open) {
         open = false;
         res.end();

@@ -1,15 +1,16 @@
 /**
- * (0.6.3 S24/A7) Train's activity hub without a live plan: tracking never waits for a plan. Log an activity by hand,
+ * (0.6.3 S24/A7) Activity › Train without a live plan: tracking never waits for a plan. Log an activity by hand,
  * record one through Gauge (on today, when a ring or this phone can record); what the ring and phone detected is counted
  * automatically (r070; the same activity sheet as Today). Plan matching and projections stay optional: a
  * quiet "Make a plan" key, nothing else asks for one. The recording banner itself is Today's (one banner slot).
  *
  * r068 L17: one row of keys, then the last seven days' activities as rows (tap one to open it), or one line when there
- * are none. No date strip: without a plan the days hold nothing to pick between.
+ * are none. No date strip: without a plan the days hold nothing to pick between. (r087) What the days burned is the
+ * Energy tab beside this one, so the card carries no link to it.
  */
 import { useState } from 'react';
 import { Activity, ChevronRight, Circle } from 'lucide-react';
-import { CardHead, CardFoot, GradientCard, HeroNumber, HighlightBars, MonoMeta, StatusDot, Icon, IconKey, Key, KeyLink, durationText } from '@/components';
+import { CardHead, CardFoot, GradientCard, HeroNumber, HighlightBars, MonoMeta, StatusDot, Icon, IconKey, Key, durationText } from '@/components';
 import type { LocalDate } from '@/living';
 import { addDays } from '@/living/dates';
 import type { ReviewRow } from '@/living/activityCandidates';
@@ -48,7 +49,7 @@ export function ActivityHub({ id, date, today, quiet, onLog }: ActivityHubProps)
   const minutes = dates.map((d) => recent.filter((r) => r.date === d).reduce((n, r) => n + r.minutes, 0));
   const total = minutes.reduce((n, m) => n + m, 0);
   return (
-    // the page is titled Activities: the hub keeps the name for screen readers, and its card is the week's list
+    // the page is Activity › Train: the section keeps its own name for screen readers, and its card is the week's list
     <section className="lv-train-hub" id={id} aria-label={TRAIN_COPY.hub.title}>
       <div className="lv-train-hub__keys">
         {onLog ? (
@@ -65,7 +66,6 @@ export function ActivityHub({ id, date, today, quiet, onLog }: ActivityHubProps)
         <HeroNumber value={total} unit="min" size="num-l" label={quiet ? 'Activity this week' : `${total} active minutes in the last seven days`} quietWord={quiet ? 'This week' : undefined} />
         <MonoMeta>Last seven days</MonoMeta>
         <HighlightBars dates={dates} values={minutes} name="Active minutes" hue="steps" quiet={quiet} height={72} highlight={dates.indexOf(today)} />
-        <KeyLink variant="text" to="/energy">Energy burned</KeyLink>
         {recent.length === 0 ? (
           <p className="lv-train-hub__none">{TRAIN_COPY.hub.none}</p>
         ) : (

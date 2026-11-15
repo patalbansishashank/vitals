@@ -44,8 +44,12 @@
  * clock, not with the data), `Last-Modified` (the person's last Gauge upload) and `Cache-Control: private, max-age=30`.
  * A matching `If-None-Match` answers 304 with no body. Every derived answer carries `inputsHash` (its input event ids and
  * revisions plus the algorithm versions), so a source revision or deletion changes the ETag too.
+ *
+ * (r087) The answers come through the hub's kept reads (`./gaugeReads.ts`): a repeat whose inputs did not change is
+ * answered from memory, and when its `If-None-Match` matches the kept ETag the 304 goes out before the store is read at
+ * all. A read that has to run takes its turn in one queue, so `/health`, uploads and the pulse are served between
+ * reads; the same read asked twice at once runs once.
  */
-import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { PersonContext } from './home.ts';
 import type { LumenHub } from './lumen.ts';
@@ -69,8 +73,9 @@ export const GAUGE_CONTEXT_ROUTE = 'fusion-context';
 const CONTEXT_FIELDS = ['window', 'activities', 'corrections', 'preference', 'tz'];
 /** (r069 sync) The pulse route. */
 export const GAUGE_PULSE_ROUTE = 'pulse';
-/** A read at least this slow is logged (route and duration only). */
+/** A read at least this slow is logged (route and duration only), and one that waited this long for its turn. */
 export const GAUGE_SLOW_MS = 250;
+export const GAUGE_SLOW_WAIT_MS = 2000;
 
 /** Each endpoint's tool and the query parameters it takes (the tool's arguments). */
 export const GAUGE_ROUTES: Readonly<Record<string, { tool: string; params: readonly string[] }>> = {
@@ -118,9 +123,7 @@ function argsOf(query: string, params: readonly string[]): Record<string, unknow
   return args;
 }
 
-const CLOCK_FIELDS = new Set(['minutesSinceLastUpload', 'minutesSinceLastReading']);
-export const gaugeEtag = (body: unknown) =>
-  `W/"${createHash('sha256').update(JSON.stringify(body, (k, v: unknown) => (CLOCK_FIELDS.has(k) ? undefined : v))).digest('base64url').slice(0, 27)}"`;
+export { gaugeEtag } from './gaugeReads.ts';
 
 /** RFC 9110 weak comparison: any listed tag (or `*`) equal to ours, ignoring `W/`. */
 function matches(ifNoneMatch: string | undefined, etag: string): boolean {
@@ -186,24 +189,33 @@ export function createGaugeRoutes(o: GaugeRoutesOptions): GaugeRoutes {
       } else args = argsOf(query, route!.params);
       const tool = post ? post.tool : route!.tool;
       const person = await o.persons.get(ctx.personId);
-      const started = performance.now();
-      const envelope = await o.lumen.toolsFor(ctx.personId, person?.timeZone ?? 'UTC').call(tool, args);
-      // every read runs on the main thread (r063): name the slow ones, never their data
-      const tookMs = Math.round(performance.now() - started);
-      if (tookMs >= GAUGE_SLOW_MS) ctx.log(`gauge: ${name} took ${tookMs} ms`);
-      if (!envelope.ok) {
-        const internal = envelope.error?.code !== 'invalid_input';
-        return sendJson(res, internal ? 503 : 400, envelope, internal ? { 'Retry-After': '30' } : {});
-      }
-      const etag = gaugeEtag(envelope);
-      const lastUpload = (o.lumen.peek(ctx.personId)?.installations() ?? []).map((i) => i.lastIngestAt).filter((x): x is string => Boolean(x)).sort().at(-1);
-      const headers: Record<string, string> = {
+      const timeZone = person?.timeZone ?? 'UTC';
+      const ifNoneMatch = typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined;
+      const headersOf = (etag: string, lastUpload: string | null): Record<string, string> => ({
         ETag: etag,
         'Cache-Control': `private, max-age=${GAUGE_MAX_AGE_S}`,
         Vary: 'Origin, Authorization',
         ...(lastUpload ? { 'Last-Modified': new Date(lastUpload).toUTCString() } : {}),
-      };
-      if (matches(typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined, etag)) {
+      });
+      // a poll of an answer that still stands: its ETag is known without reading the store
+      const known = ifNoneMatch ? o.lumen.reads.etag(ctx.personId, timeZone, tool, args) : null;
+      if (known && matches(ifNoneMatch, known.etag)) {
+        res.writeHead(304, headersOf(known.etag, known.lastUpload)).end();
+        return;
+      }
+      const started = performance.now();
+      const a = await o.lumen.reads.read(ctx.personId, timeZone, tool, args, { alive: () => !res.destroyed });
+      if (res.destroyed) return;
+      // a read holds the main thread while it runs (r063): name the slow ones (and how long they queued), never their data
+      const waitedMs = Math.round(performance.now() - started);
+      if (a.tookMs >= GAUGE_SLOW_MS || waitedMs >= GAUGE_SLOW_WAIT_MS) ctx.log(`gauge: ${name} took ${Math.round(a.tookMs)} ms (${waitedMs} ms with its wait)`);
+      const { envelope } = a;
+      if (!envelope.ok || a.etag === null) {
+        const internal = envelope.error?.code !== 'invalid_input';
+        return sendJson(res, internal ? 503 : 400, envelope, internal ? { 'Retry-After': '30' } : {});
+      }
+      const headers = headersOf(a.etag, a.lastUpload);
+      if (matches(ifNoneMatch, a.etag)) {
         res.writeHead(304, headers).end();
         return;
       }

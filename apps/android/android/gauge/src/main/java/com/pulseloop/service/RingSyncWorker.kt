@@ -42,17 +42,14 @@ class RingSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
             .getBoolean(com.pulseloop.ring.RingBLEClient.USER_DISCONNECTED_KEY, false)
         if (userStopped) return Result.success()
         val alreadyConnected = client.state.value.connectionState == RingConnectionState.CONNECTED
-        val battery = applicationContext.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
-        val level = battery?.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, 100) ?: 100
-        val scale = battery?.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, 100) ?: 100
-        val charging = (battery?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
-        val role = RingSyncWorkerRole.select(alreadyConnected, !charging && level * 100 / scale.coerceAtLeast(1) <= 15, userStopped)
+        val role = RingSyncWorkerRole.select(alreadyConnected, PhoneBattery.isLow(applicationContext), userStopped)
         if (role == RingSyncWorkerRole.Role.SKIP) return Result.success()
         if (!runtime.apiKeyStore.keepConnected && isAppForeground()) return Result.success()
         return try {
-            if (!RingConnectionService.running) setForeground(RingConnectionService.foregroundInfo(applicationContext))
+            val promoted = RingConnectionService.running ||
+                promoteIfAllowed { setForeground(RingConnectionService.foregroundInfo(applicationContext)) }
             withContext(Dispatchers.Main.immediate) {
-                if (runtime.apiKeyStore.keepConnected) RingConnectionService.startIfEligible(applicationContext, exempt = true)
+                if (runtime.apiKeyStore.keepConnected) RingConnectionService.startIfEligible(applicationContext, exempt = promoted)
                 if (role == RingSyncWorkerRole.Role.LIVE_PASS) {
                     // An unattended pass never enters the manual deep cursor planner. The
                     // coordinator also refuses overlap with history, workouts and measurements.
@@ -93,4 +90,24 @@ class RingSyncWorker(context: Context, params: WorkerParameters) : CoroutineWork
     private suspend fun isAppForeground(): Boolean = withContext(Dispatchers.Main.immediate) {
         ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
     }
+}
+
+/**
+ * Promote the job to a foreground service where Android lets it. From Android 12 a job that starts in the background
+ * may not, and the refusal used to end the job in a retry before it had read anything, exactly when no service was
+ * holding the link. The pass does not depend on the promotion: the job has its own execution window.
+ */
+internal suspend fun promoteIfAllowed(promote: suspend () -> Unit): Boolean = try {
+    promote()
+    true
+} catch (cancelled: CancellationException) {
+    throw cancelled
+} catch (_: IllegalStateException) {
+    // ForegroundServiceStartNotAllowedException is one of these.
+    false
+} catch (_: SecurityException) {
+    false
+} catch (e: java.util.concurrent.ExecutionException) {
+    // The same refusals, when the job library hands them over still wrapped.
+    if (e.cause is IllegalStateException || e.cause is SecurityException) false else throw e
 }

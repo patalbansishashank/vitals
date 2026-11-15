@@ -6,6 +6,9 @@ import { dispatch } from '@/commands/bus';
 import { makeGaugeFixture } from '../fixtures';
 import { shiftDate } from '../model';
 import { ringHooks, setupScreens, renderAt, today, expectWordsOnly } from './screenKit';
+import { act } from '@testing-library/react';
+import { resetGaugeEngineStoreForTests, startGaugeEngine, type EngineReadings } from '@/state/gaugeEngine';
+import { baseState, fakeEngine } from '../engine/__tests__/fakeEngine';
 
 setupScreens();
 
@@ -24,9 +27,9 @@ describe('Ring screens: pushed', () => {
     expect(within(zones).getAllByRole('listitem')[0]!.textContent).toMatch(/^Zone \d · \d+–\d+ bpm/);
     expect(screen.queryByRole('img', { name: /^Zones over time:/ })).toBeNull();
     expect(screen.getByRole('img', { name: /^Heart-rate zones:/ })).toBeInTheDocument();
-    expect(screen.queryByText(/^On-device \(legacy, 220 − age\)/)).toBeNull();
+    expect(screen.queryByText(/^Phone \(legacy, 220 − age\)/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'About Heart rate' }));
-    expect(await screen.findByText(/^On-device \(legacy, 220 − age\)/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Phone \(legacy, 220 − age\)/)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Heart rate during the workout table' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Heart-rate zones table' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /^Route of 48 GPS points/ })).toBeInTheDocument();
@@ -74,6 +77,24 @@ describe('Ring screens: pushed', () => {
     expect(await screen.findByRole('img', { name: /^HRV, daily mean, 7 days:/ })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: /^Average HRV / })).toBeInTheDocument();
     expect(screen.getByText(/^Avg per day · \d of 7 days$/)).toBeInTheDocument();
+  });
+
+  it('a heart-rate page leads with the phone\'s newer reading; its lowest and highest stay the server\'s', async () => {
+    const f = fakeEngine();
+    startGaugeEngine({ plugin: () => f.plugin, credentials: () => null, onPairing: () => () => undefined, visible: () => true });
+    try {
+      renderAt('/ring/signals/hr');
+      await screen.findByRole('img', { name: /^Heart rate on / }, { timeout: 8000 });
+      const readings: EngineReadings = { latestHr: { bpm: 199, at: new Date(Date.now() + 1000).toISOString() } };
+      act(() => f.set({ ...baseState(), ...readings }));
+      await waitFor(() => expect(screen.getByRole('meter', { name: 'Heart rate' }).getAttribute('aria-valuetext')).toMatch(/\b199 beats per minute/));
+      fireEvent.click(screen.getByRole('button', { name: 'About Heart rate' }));
+      const highest = (await screen.findByText('Highest reading')).parentElement!;
+      expect(highest.textContent).toMatch(/Highest reading.*bpm/);
+      expect(highest.textContent).not.toMatch(/199/);
+    } finally {
+      resetGaugeEngineStoreForTests();
+    }
   });
 
   it('a heart-rate page keeps Measure now and puts its fixed bands in (i)', async () => {

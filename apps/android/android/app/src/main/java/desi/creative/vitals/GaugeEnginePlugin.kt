@@ -24,8 +24,12 @@ import com.pulseloop.PulseLoopRuntime
 import com.pulseloop.command.RingSync
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.engine.EngineMode
+import com.pulseloop.engine.EnginePermissions
+import com.pulseloop.engine.EngineSignals
+import com.pulseloop.engine.EngineSignals.paced
 import com.pulseloop.engine.EngineState
 import com.pulseloop.engine.EngineStateReader
+import com.pulseloop.engine.Perm
 import com.pulseloop.health.HealthConnectReadPermissions
 import com.pulseloop.hub.HubSync
 import com.pulseloop.ring.RingConnectionState
@@ -33,24 +37,14 @@ import com.pulseloop.ring.WearableCapability
 import com.pulseloop.service.RingConnectionService
 import com.pulseloop.service.RingSyncCoordinator
 import com.pulseloop.shortvideo.ShortVideoSettings
-import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.flow.onStart
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -65,6 +59,9 @@ import org.json.JSONObject
  * `passive` (it neither holds the ring, counts steps or short videos, nor uploads); once Gauge is gone and `takeOver()`
  * was called it is `active`. The methods that act on the ring and the upload (`scanRings`, `connectRing`, `forgetRing`,
  * `syncNow`, `measure`) are refused with the code `passive` until then.
+ *
+ * While active the event also fires when the ring's count of today's steps or the newest heart-rate reading changes, so
+ * the screen shows them from this phone before the server has them.
  */
 @CapacitorPlugin(name = "GaugeEngine")
 class GaugeEnginePlugin : Plugin() {
@@ -77,29 +74,21 @@ class GaugeEnginePlugin : Plugin() {
 
     private val app get() = context.applicationContext
 
-    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
+    private val enginePermissions by lazy { EnginePermissions { EngineStateReader.permissions(app) } }
+
     override fun load() {
-        val activeSignals = GaugeEngine.changes.onStart { emit(Unit) }.flatMapLatest {
-            if (!GaugeEngine.isActive(app)) emptyFlow()
-            else {
-                val runtime = withContext(Dispatchers.Main.immediate) { PulseLoopRuntime.ensureRing(app) }
-                val db = PulseLoopDatabase.getInstance(app)
-                val hub = HubSync.store(app)
-                val today = LocalDate.now().toString()
-                merge(
-                    runtime.bleClient.state.map {
-                        listOf(it.connectionState, it.batteryPercent, it.lastError, it.firmwareVersion, it.credentialRejected, it.credentialAuthenticated)
-                    }.distinctUntilChanged().map { },
-                    hub.pairing.map { },
-                    hub.status.map { },
-                    db.hubOutboxDao().pendingCountFlow().map { },
-                    db.deviceDao().currentFlow().map { },
-                    ShortVideoSettings.get(app).prefs.map { },
-                    db.shortVideoDao().rangeFlow(today, today).map { },
+        scope.launch {
+            EngineSignals.forState(
+                GaugeEngine.changes,
+                // an engine change is the only thing that can come with a changed permission
+                onChange = enginePermissions::invalidate,
+                isActive = { GaugeEngine.isActive(app) },
+            ) {
+                EngineSignals.active(
+                    PulseLoopDatabase.getInstance(app), ring().bleClient.state, HubSync.store(app), ShortVideoSettings.get(app).prefs,
                 )
-            }
+            }.paced(EMIT_GAP_MS).collect { emit() }
         }
-        scope.launch { merge(GaugeEngine.changes, activeSignals).debounce(400).collect { emit() } }
         // Turning the short-video service on or off happens in the system's settings: the state follows it.
         val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
             override fun onChange(selfChange: Boolean) = GaugeEngine.notifyChanged()
@@ -139,15 +128,20 @@ class GaugeEnginePlugin : Plugin() {
         return pending
     }
 
-    private suspend fun state(): EngineState {
-        val pending = if (GaugeEngine.gaugeInstalled(app)) withContext(Dispatchers.IO) { pendingOfGauge() } else null
-        return withContext(Dispatchers.Main.immediate) { EngineStateReader.read(app, pending) }
+    /**
+     * [fresh] asks the system for the permissions again (an answer to the web layer); the `state` events keep the last
+     * answer, so a new ring reading costs no Health Connect, package or settings lookup.
+     */
+    private suspend fun state(fresh: Boolean): EngineState = withContext(Dispatchers.IO) {
+        val pending = if (GaugeEngine.gaugeInstalled(app)) pendingOfGauge() else null
+        if (fresh) enginePermissions.invalidate()
+        EngineStateReader.read(app, pending, enginePermissions.get())
     }
 
-    private suspend fun stateJs(): JSObject = JSObject(state().toJson().toString())
+    private suspend fun stateJs(fresh: Boolean): JSObject = JSObject(state(fresh).toJson().toString())
 
     private suspend fun emit() {
-        val js = runCatching { stateJs() }.getOrNull() ?: return
+        val js = runCatching { stateJs(fresh = false) }.getOrNull() ?: return
         val text = js.toString()
         if (text == lastEmitted) return
         lastEmitted = text
@@ -167,7 +161,7 @@ class GaugeEnginePlugin : Plugin() {
         }
     }
 
-    private suspend fun resolveState(call: PluginCall) = call.resolve(stateJs())
+    private suspend fun resolveState(call: PluginCall) = call.resolve(stateJs(fresh = true))
 
     /** The ring and upload methods only work once the engine is on; otherwise the call is rejected as `passive`. */
     private fun requireActive(call: PluginCall): Boolean {
@@ -180,7 +174,10 @@ class GaugeEnginePlugin : Plugin() {
         return false
     }
 
-    private suspend fun ring() = withContext(Dispatchers.Main.immediate) { PulseLoopRuntime.ensureRing(app) }
+    /** The engine's state changes on the main thread: the ring runtime, its jobs and the link to the ring live there. */
+    private suspend fun <T> onMain(block: () -> T): T = withContext(Dispatchers.Main.immediate) { block() }
+
+    private suspend fun ring() = onMain { PulseLoopRuntime.ensureRing(app) }
 
     @PluginMethod
     fun getState(call: PluginCall) = go(call) { resolveState(call) }
@@ -209,8 +206,10 @@ class GaugeEnginePlugin : Plugin() {
 
     @PluginMethod
     fun takeOver(call: PluginCall) = go(call) {
-        val mode = GaugeEngine.takeOver(app)
-        if (mode == EngineMode.ACTIVE) GaugeEngine.maybeFindRing(app)
+        onMain {
+            val mode = GaugeEngine.takeOver(app)
+            if (mode == EngineMode.ACTIVE) GaugeEngine.maybeFindRing(app)
+        }
         resolveState(call)
     }
 
@@ -244,12 +243,15 @@ class GaugeEnginePlugin : Plugin() {
         resolveState(call)
     }
 
-    private fun afterPermissions() {
+    private suspend fun afterPermissions() {
         GaugeEngine.notifyChanged()
         if (!GaugeEngine.isActive(app)) return
-        if (EngineStateReader.activityRecognition(app) == com.pulseloop.engine.Perm.GRANTED) RingConnectionService.onActivityRecognitionGranted(app)
-        PulseLoopRuntime.onForeground(app)
-        GaugeEngine.maybeFindRing(app)
+        val countsSteps = EngineStateReader.activityRecognition(app) == Perm.GRANTED
+        onMain {
+            if (countsSteps) RingConnectionService.onActivityRecognitionGranted(app)
+            PulseLoopRuntime.onForeground(app)
+            GaugeEngine.maybeFindRing(app)
+        }
     }
 
     /** Launches a system permission dialog and waits for the owner's answer (null when there is no activity to show it). */
@@ -436,5 +438,7 @@ class GaugeEnginePlugin : Plugin() {
         val ADDRESS = Regex("^([0-9A-F]{2}:){5}[0-9A-F]{2}$")
         const val SCAN_MS = 8_000L
         const val FORGET_MS = 12_000L
+        /** The least time between two `state` events while signals keep coming. */
+        const val EMIT_GAP_MS = 1_000L
     }
 }

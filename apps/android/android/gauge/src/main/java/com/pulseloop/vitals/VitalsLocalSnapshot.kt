@@ -3,8 +3,8 @@ package com.pulseloop.vitals
 import android.content.Context
 import com.pulseloop.GaugeHost
 import com.pulseloop.data.PulseLoopDatabase
+import com.pulseloop.engine.EngineReadings
 import com.pulseloop.hub.HubSync
-import com.pulseloop.util.TimeUtil
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -14,6 +14,9 @@ import org.json.JSONObject
  * What the engine answers the Vitals plugin's `local` call (schema 1; Vitals' `localSnapshotOf` reads it field by
  * field): the upload queue and the ring's own count of today's steps. Gauge 2.8.7 served it to Vitals through an exported,
  * caller-checked provider; inside Vitals (0.7.0) the plugin asks in-process and nothing is exported.
+ *
+ * The web layer asks for it only until it has the engine's first state: from then on the `state` event carries the same
+ * count as it changes ([com.pulseloop.engine.EngineState.today], read by the same [EngineReadings.ringDay]).
  */
 object VitalsLocalSnapshot {
     data class Input(
@@ -60,9 +63,7 @@ object VitalsLocalSnapshot {
         val pairing = settings.pairing.value
         val status = settings.status.value
         val db = PulseLoopDatabase.getInstance(context)
-        val day = db.activityDailyDao().byDay(TimeUtil.startOfDayLocal(now, zone))
-            // a demo row is never a real count (DemoDataPolicy)
-            ?.takeIf { it.source != "demo" && it.source != "mock" }
+        val day = EngineReadings.ringDay(db, now, zone)
         return json(
             Input(
                 at = now,
@@ -74,9 +75,9 @@ object VitalsLocalSnapshot {
                 lastErrorAt = status.lastErrorAt.takeIf { (it ?: 0) > (status.lastUploadAt ?: 0) },
                 retryAt = status.notBefore.takeIf { it > now },
                 needsRepair = pairing?.needsRepair == true,
-                today = LocalDate.now(zone),
-                ringSteps = day?.steps,
-                ringStepsAt = day?.updatedAt,
+                today = day.date,
+                ringSteps = day.steps,
+                ringStepsAt = day.stepsAt,
             ),
         )
     }

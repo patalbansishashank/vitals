@@ -280,6 +280,8 @@ object GaugeEngine {
                         // Gauge may have come back while the app was away.
                         if (reconcile(app) != EngineMode.ACTIVE) return@LifecycleEventObserver
                         BroadcastOutboxDispatcher.onProcessForeground(app)
+                        // What was stored while the app was away goes up now, not at the next debounce or job.
+                        HubSync.flushNow(app)
                         PulseLoopRuntime.onForeground(app)
                         appScope.launch { adoptIdentity(app) }
                         maybeFindRing(app)

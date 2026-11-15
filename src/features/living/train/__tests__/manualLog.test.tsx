@@ -388,6 +388,10 @@ describe('0.6.3 manual log: placement, overlap, weight, no plan, setup state', (
     const { user, log } = await openLog('/train/2026-10-01', { plan: null });
     const hub = await screen.findByRole('region', { name: 'Activities' }).catch(() => screen.findByText('Activities'));
     expect(hub).toBeTruthy();
+    // (r087) the same place and name as with a plan; Energy is the tab beside this one, so the card has no link to it
+    expect(screen.getByRole('heading', { level: 1, name: 'Activity' })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Activity section' })).getByRole('link', { name: 'Energy' })).toHaveAttribute('href', '/energy');
+    expect(screen.queryByRole('link', { name: 'Energy burned' })).toBeNull();
     expect(screen.getByText('No plan running')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Log an activity' }));
     const sheet = await screen.findByRole('dialog', { name: 'Log an activity' });

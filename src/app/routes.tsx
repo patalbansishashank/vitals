@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ComponentType } from 'react';
-import { Navigate, type RouteObject } from 'react-router';
+import { Navigate, useLocation, type RouteObject } from 'react-router';
 import { OnboardingGate } from '@/features/onboarding/OnboardingGate';
+import { MOVEMENT_PATH } from '@/features/living/paths';
 import { livingRoutes } from '@/features/living/routes';
 import { AppShell, MorePage, NotFound, PageFallback, RootError, RouteError } from './shell';
 import { TODAY_PATH } from './shell/nav';
@@ -28,7 +29,7 @@ const AvatarDemoPage = lazy(() => import('@/features/body/avatar/AvatarDemoPage'
 const DevFigurePage = lazy(() => import('@/features/body/figure3d/DevFigurePage'));
 const ErrorTestPage = lazy(() => import('./dev/ErrorTestPage'));
 const ValidationReportPage = lazy(() => import('@/features/evidence/ValidationReportPage'));
-// Ring: Gauge's screens (sleep, activity, workouts, signals, scores, short videos), read from the person's server
+// Ring: Gauge's screens (sleep, signals, scores, a workout, short videos), read from the person's server
 const RingPage = lazy(() => import('@/features/ring/RingPage'));
 
 // Guarded: the chart engineer's demo is mounted only once the file exists, so the build never breaks without it.
@@ -44,6 +45,12 @@ const ChartsDemoPage = chartDemoLoader ? lazy(chartDemoLoader) : null;
  */
 function RootRedirect() {
   return <Navigate to={TODAY_PATH} replace />;
+}
+
+/** A screen that moved: the same query and hash at its new path, so a dated or period link opens the same selection. */
+function MovedTo({ to }: { to: string }) {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: to, search, hash }} replace />;
 }
 
 export const routes: RouteObject[] = [
@@ -73,12 +80,14 @@ export const routes: RouteObject[] = [
               // Intake v2 (design/screens/onboarding-intake-v2.md): /onboarding/{activity,training,diet,kitchen,supplements,summary}
               { path: 'onboarding', element: <Navigate to="activity" replace /> },
               { path: 'onboarding/:section', HydrateFallback: PageFallback, lazy: () => import('@/features/intake/IntakePage').then((m) => ({ Component: m.default })) },
-              // Today (home in every mode) and Living mode's Food · Train · Coach · Progress · plan details (src/features/living/routes.tsx)
+              // Today (home in every mode), Activity (Train · Movement · Energy) and Living mode's Food · Coach · Progress ·
+              // plan details (src/features/living/routes.tsx)
               ...livingRoutes,
-              // Ring (with or without a plan): Overview · Sleep · Activity · Scores, and its pushed pages
+              // Ring (with or without a plan): Overview · Sleep · Scores, and its pushed pages
               { path: 'ring', element: <RingPage /> },
               { path: 'ring/sleep', element: <RingPage /> },
-              { path: 'ring/activity', element: <RingPage /> },
+              // (r087) steps and activities moved to Activity › Movement; old links, widgets and bookmarks keep working
+              { path: 'ring/activity', element: <MovedTo to={MOVEMENT_PATH} /> },
               { path: 'ring/scores', element: <RingPage /> },
               { path: 'ring/signals/:kind', element: <RingPage /> },
               { path: 'ring/workouts/:id', element: <RingPage /> },

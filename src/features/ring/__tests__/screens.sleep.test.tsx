@@ -122,7 +122,7 @@ describe('Ring screens: sleep', () => {
     expect(rows[0]!.textContent).toContain(`${signed(hrvDifference)} ms vs usual`);
     expect(rows[0]!.textContent).toContain('Near usual');
     const tempDifference = Math.round((metrics.skinTempNightC! - baselines.tempBaseline!.median) * 10) / 10;
-    expect(rows[1]!.textContent).toContain(`Skin temp vs usual${signed(tempDifference, 1)}°C`);
+    expect(rows[1]!.textContent).toContain(`Skin temperature${signed(tempDifference, 1)}°C`);
     expect(rows[1]!.textContent).toContain('Near usual');
     expect(rows[2]!.textContent).toContain(`Blood oxygen${metrics.spo2Night!.meanPct}%`);
     expect(rows[2]!.textContent).toContain(`Lowest ${metrics.spo2Night!.minPct} %`);
@@ -136,8 +136,8 @@ describe('Ring screens: sleep', () => {
   it('Sleep heart rate: the sleeping low as the number, the night as one line with the lowest marked, the facts in one line', async () => {
     renderAt('/ring/sleep');
     const hr = (await screen.findByRole('heading', { level: 2, name: 'Sleep heart rate' }, { timeout: 8000 })).closest('section')!;
-    expect(within(hr).getByRole('img', { name: /^Sleeping low HR \d+ beats per minute$/ })).toBeInTheDocument();
-    expect(within(hr).getByText(/^Sleeping low HR · Near usual$/, { selector: '.lm-overflow__item' })).toBeInTheDocument();
+    expect(within(hr).getByRole('img', { name: /^Low sleeping heart rate \d+ beats per minute$/ })).toBeInTheDocument();
+    expect(within(hr).getByText(/^Low sleeping heart rate · Near usual$/, { selector: '.lm-overflow__item' })).toBeInTheDocument();
     expect(within(hr).getByRole('img', { name: /^Heart rate overnight, \d\d:\d\d to \d\d:\d\d: starts at \d+, ends at \d+ bpm, lowest \d+, highest \d+, \d+ readings$/ })).toBeInTheDocument();
     // (Claude UI P3-11) one "low" per meaning: the percentile is the number, the mark is the lowest five minutes with its
     // clock, and the time to it is a fact of its own
@@ -153,7 +153,7 @@ describe('Ring screens: sleep', () => {
     fireEvent.click(within(hr).getByRole('button', { name: 'About Sleep heart rate' }));
     const panel = await screen.findByRole('dialog', { name: 'Heart rate while you slept' });
     expect(within(panel).getByRole('region', { name: 'Heart rate overnight table' })).toBeInTheDocument();
-    expect(within(panel).getByText('Sleeping low HR')).toBeInTheDocument();
+    expect(within(panel).getByText('Low sleeping heart rate')).toBeInTheDocument();
   });
 
   it('the four weeks: the average night as the number, a bar a night, the goal in the foot, no Indices card', async () => {
@@ -252,12 +252,12 @@ describe('Ring screens: sleep', () => {
   });
 
 
-  it('an older server without S2: the night from the legacy fields, the Sleep index labelled On-device (legacy), no timing, overnight or heart-rate cards', async () => {
+  it('an older server without S2: the night from the legacy fields, the Sleep index labelled Phone, no timing, overnight or heart-rate cards', async () => {
     setGaugeApi(makeGaugeFixture({ v2: false }));
     renderAt('/ring/sleep');
     const night = (await screen.findByRole('heading', { level: 2, name: 'Last night' }, { timeout: 8000 })).closest('section')!;
     expect(await within(night).findByRole('meter', { name: 'Asleep' })).toBeInTheDocument();
-    expect(await within(night).findByRole('link', { name: /On-device \(legacy\)$/ })).toHaveAttribute('href', '/ring/scores');
+    expect(await within(night).findByRole('link', { name: / · Phone$/ })).toHaveAttribute('href', '/ring/scores');
     expect(screen.queryByRole('heading', { level: 2, name: 'Timing' })).toBeNull();
     expect(screen.queryByRole('heading', { level: 2, name: 'Overnight' })).toBeNull();
     expect(screen.queryByRole('heading', { level: 2, name: 'Sleep heart rate' })).toBeNull();

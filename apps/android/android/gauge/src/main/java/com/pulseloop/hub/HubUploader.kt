@@ -20,11 +20,15 @@ sealed interface HubDrainResult {
 /**
  * Drains the hub outbox to `POST /v1/lumen/events` (contract §2).
  *
- * - Batches up to the server's `maxBatch` events and `maxBytes` decompressed bytes, oldest first.
+ * - Batches up to the server's `maxBatch` events and `maxBytes` decompressed bytes, oldest first. Rows that
+ *   have failed [STUCK_ATTEMPTS] times wait until the others have gone, so nothing queues up behind them.
  * - 413 halves the batch for the rest of the drain; a single event the server still refuses, or
  *   one larger than `maxBytes` on its own, is marked rejected so it cannot wedge the queue.
  * - 401 flags the pairing for re-pair and stops. 429/503 record Retry-After and stop. Anything
  *   else stops for a WorkManager exponential-backoff retry.
+ * - A row the server keeps answering with a server error is found and left out of this drain's later
+ *   batches, so the others still go up. It stays queued and is tried again in later drains, the least
+ *   tried first: a server error is never taken as a verdict on the row.
  * - Idempotent by event id: a row is only marked done after a 200, and the server counts a
  *   re-sent id as a duplicate, so a lost response just re-sends the same ids.
  */
@@ -48,19 +52,39 @@ class HubUploader(
 
         val installationId = settings.installationId
         val startedAt = elapsedNow()
-        var batchLimit = pairing.maxBatch.coerceIn(1, MAX_BATCH_CAP)
+        val fullBatch = pairing.maxBatch.coerceIn(1, MAX_BATCH_CAP)
+        var batchLimit = fullBatch
         val maxBytes = pairing.maxBytes.coerceAtLeast(MIN_BYTES)
         var uploaded = 0
+        // Rows the server refused on their own in this drain (event id to its error), left out of later batches.
+        val setAside = linkedMapOf<String, String>()
+        // The server took one of the rows that had kept failing, so a refusal after it is about the rows sent, not
+        // the server.
+        var accepting = false
+        // Rows refused on their own since the server last took one of the rows that had kept failing.
+        var refusedInARow = 0
 
         while (elapsedNow() - startedAt < maxDrainMillis) {
             beforeBatch()
-            val pending = dao.pending(batchLimit)
+            val fresh = dao.pendingFresh(STUCK_ATTEMPTS, batchLimit)
+            val stuck = fresh.isEmpty()
+            val pending = if (!stuck) fresh else
+                dao.pendingStuck(STUCK_ATTEMPTS, batchLimit + setAside.size).filterNot { it.eventId in setAside }.take(batchLimit)
             if (pending.isEmpty()) {
+                val refusal = setAside.values.lastOrNull()
+                if (refusal != null) {
+                    // The rows behind went up, which cleared the error; the queue is still not empty.
+                    settings.recordError(refusal, now())
+                    return HubDrainResult.Retry(refusal, uploaded)
+                }
                 return if (uploaded == 0) HubDrainResult.Empty else HubDrainResult.Success(uploaded)
             }
-            val batch = packByBytes(installationId, pending, maxBytes)
+            // These rows have failed drain after drain. One goes alone until the server takes it: if a row is the
+            // cause, the others are not sent into the same refusal again, and if the server is down, the cost is a
+            // few one-row requests.
+            val batch = packByBytes(installationId, if (stuck && !accepting) pending.take(1) else pending, maxBytes)
             if (batch.isEmpty()) {
-                // The oldest event alone is larger than the server will ever take.
+                // This event alone is larger than the server will ever take.
                 dao.markRejected(listOf(pending.first().eventId), now(), "Larger than the server's maxBytes")
                 settings.recordSuccess(0, 0, 1, now())
                 continue
@@ -77,6 +101,10 @@ class HubUploader(
                     }
                     settings.recordSuccess(response.accepted, response.duplicates, rejected.size, at)
                     uploaded += batch.size
+                    if (stuck) {
+                        accepting = true
+                        refusedInARow = 0
+                    }
                 }
                 HubUploadResponse.TooLarge -> {
                     if (batch.size == 1) {
@@ -103,7 +131,18 @@ class HubUploader(
                     val at = now()
                     dao.markFailed(batch.map { it.eventId }, at, response.error)
                     settings.recordError(response.error, at)
-                    return HubDrainResult.Retry(response.error, uploaded)
+                    val serverError = response.status != null && response.status in 500..599
+                    if (!serverError || !stuck) return HubDrainResult.Retry(response.error, uploaded)
+                    if (batch.size > 1) {
+                        // Reached only once the server has taken one of these rows in this drain: the cause is in
+                        // this batch.
+                        batchLimit = batch.size / 2
+                    } else {
+                        if (refusedInARow >= MAX_SET_ASIDE) return HubDrainResult.Retry(response.error, uploaded)
+                        setAside[batch.single().eventId] = response.error
+                        refusedInARow++
+                        batchLimit = fullBatch
+                    }
                 }
             }
         }
@@ -117,6 +156,17 @@ class HubUploader(
         private const val DEFAULT_THROTTLE_MS = 60_000L
         private const val MIN_RETRY_AFTER_MS = 1_000L
         private const val MAX_RETRY_AFTER_MS = 6 * 60 * 60_000L
+        /**
+         * Failed attempts after which the oldest row of a batch counts as stuck. A server that is restarting fails a
+         * few drains in a row and then recovers; only past that does the uploader look for a row to leave out.
+         */
+        const val STUCK_ATTEMPTS = 5
+        /**
+         * Rows refused one after another, with nothing taken in between, before a drain stops. A server that refuses
+         * everything costs one more one-row request than this; rows refused here and there among ones the server
+         * takes are all left out, however many they are.
+         */
+        const val MAX_SET_ASIDE = 3
 
         /** One drain per process: a periodic run and an immediate one must not send twice at once. */
         private val drainLock = Mutex()

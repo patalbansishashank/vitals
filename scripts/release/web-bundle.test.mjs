@@ -6,12 +6,23 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bundleVersion, makeZip, minNativeVersionCodeOf, sha256Hex, signSha, verifySha, versionCodeOf } from './web-bundle.mjs';
+import { bundleVersion, floorNote, makeZip, minNativeVersionCodeOf, sha256Hex, signSha, verifySha, versionCodeOf } from './web-bundle.mjs';
 
 test('versionCode matches build.gradle', () => {
   assert.equal(versionCodeOf('0.6.1'), 601);
   assert.equal(versionCodeOf('1.2.3-rc.1'), 10203);
   assert.throws(() => versionCodeOf('x'));
+});
+
+test('versionCode refuses a minor or patch that would collide with the next release', () => {
+  assert.equal(versionCodeOf('0.99.99'), 9999);
+  assert.throws(() => versionCodeOf('0.100.0'), /minor and patch must be 0\.\.99/);
+  assert.throws(() => versionCodeOf('1.2.100'), /minor and patch must be 0\.\.99/);
+});
+
+test('the floor note names the versionCode and whether it was the default', () => {
+  assert.match(floorNote(806, false), /minimum native versionCode: 806 \(this package's own versionCode, the default\)/);
+  assert.match(floorNote(802, true), /minimum native versionCode: 802 \(given with --min-native-version-code\); only phones on APK 802 or newer/);
 });
 
 test('native compatibility floor defaults to the package and accepts an older compatible version', () => {

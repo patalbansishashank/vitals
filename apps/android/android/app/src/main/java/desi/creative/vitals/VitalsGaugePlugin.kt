@@ -197,7 +197,8 @@ class VitalsGaugePlugin : Plugin() {
             return
         }
         if (embedded()) {
-            // (0.7.0) the engine is in this process: its own snapshot, no provider call
+            // (0.7.0) the engine is in this process: its own snapshot, no provider call. The web layer asks only until
+            // it has the engine's first state; from then on the `GaugeEngine` plugin's `state` event carries the same.
             scope.launch {
                 if (method == GaugeLocalData.METHOD_FLUSH) HubSync.flushNow(context)
                 val json = runCatching { VitalsLocalSnapshot.read(context) }.getOrNull()

@@ -580,20 +580,53 @@ class JStyle2301SyncEngine(
     private val mayReadSleep: () -> Boolean = { true },
     private val mayReadSleepUnattended: () -> Boolean = { true },
     private val firmwarePasscode: () -> ByteArray = JStyle2301Passcode::bytes,
+    /** How long the ring may take to answer the firmware or authentication request ([armHandshakeDeadline]). */
+    private val handshakeTimeoutMs: Long = HANDSHAKE_TIMEOUT_MS,
 ) : RingSyncEngine {
+    companion object {
+        /** A ring that is listening answers in well under a second; this leaves room for a queue of earlier writes. */
+        const val HANDSHAKE_TIMEOUT_MS = 12_000L
+    }
+
+    /** A whole-archive pass, as opposed to a routine or single-purpose read. */
+    private enum class Archive {
+        NONE,
+        /** The person asked for it (Sync). */
+        ASKED,
+        /** The one-time recovery, which is allowed to run with nobody watching ([refreshUnattendedBackfill]). */
+        UNATTENDED,
+    }
+
     private data class HistoryRequest(
         val streams: List<JStyle2301HistoryStream>,
         val pageLimit: Int,
         val forceShallow: Boolean = false,
+        val archive: Archive = Archive.NONE,
     )
 
-    private var firmwareProfile = JStyle2301FirmwareProfile.UNKNOWN
+    // The handshake is driven from three threads: passes are asked for on the main thread, the ring's answers arrive
+    // on the Bluetooth thread, and a deadline fires on this engine's scope. The functions that move it from one step
+    // to the next are synchronized on the engine; the flags stay volatile for the readers that only look.
+    @Volatile private var firmwareProfile = JStyle2301FirmwareProfile.UNKNOWN
     @Volatile private var authenticated = false
     @Volatile private var authenticationPending = false
     @Volatile private var authenticationFailed = false
     private var triedStoredPasscode = false
     private var triedBuiltInPasscode = false
+    /** The tried flags as they were before the attempt in flight: an unanswered attempt was not a refusal. */
+    private var triedBeforeAttempt = false to false
     @Volatile private var pendingHistory: HistoryRequest? = null
+    /** The ring let a firmware or authentication request go unanswered ([armHandshakeDeadline]); the next pass asks again. */
+    @Volatile private var handshakeLapsed = false
+    /**
+     * The one-time recovery pass lost to an unanswered handshake. It is asked for once, so the next routine pass runs
+     * it. A Sync the person asked for is not kept this way: a routine pass may run with nobody watching, and only the
+     * recovery is allowed a deep read then. The person can tap Sync again.
+     */
+    @Volatile private var unansweredBackfill: HistoryRequest? = null
+    private var handshakeDeadline: Job? = null
+    /** Names the wait a deadline belongs to, so one that fires as its answer arrives cannot end a later wait. */
+    private var handshakeWait = 0
     @Volatile private var pendingHeartRate = false
     @Volatile private var heartRateActive = false
     @Volatile private var realtimePreparationActive = false
@@ -606,6 +639,9 @@ class JStyle2301SyncEngine(
     /** Exposes the actual pager/authentication state to a cold-start WorkManager owner. */
     override val isHistorySyncRunning: Boolean
         get() = pendingHistory != null || authenticationPending || historySync.isRunning
+
+    /** Every pass begins with a battery read, which a listening ring answers whatever else it has to send. */
+    override val answersEveryPass: Boolean get() = true
 
     override val credentialAuthenticationFailed: Boolean get() = authenticationFailed
 
@@ -628,17 +664,20 @@ class JStyle2301SyncEngine(
         // cursor's bounded/deep plan. Routine startup and foreground passes stay shallow.
         val streams = if (mayReadSleep()) JStyle2301HistorySync.catalog
         else JStyle2301HistorySync.catalog - JStyle2301HistoryStream.SLEEP
-        requestHistory(streams, pageLimit = 1)
+        requestHistory(streams, pageLimit = 1, archive = Archive.ASKED)
     }
 
     override fun refreshUnattendedBackfill() {
         val streams = if (mayReadSleepUnattended()) JStyle2301HistorySync.catalog
         else JStyle2301HistorySync.catalog - JStyle2301HistoryStream.SLEEP
-        requestHistory(streams, pageLimit = 1)
+        requestHistory(streams, pageLimit = 1, archive = Archive.UNATTENDED)
     }
 
     override fun refreshForeground(): Boolean {
-        if (isHistorySyncRunning || (firmwareProfile.requiresAuthentication && !authenticated)) return false
+        if (isHistorySyncRunning) return false
+        // Without an accepted passcode the ring ignores history, so automatic passes wait for one; after an
+        // unanswered handshake the pass is how the ring gets asked again.
+        if (firmwareProfile.requiresAuthentication && !authenticated && !handshakeLapsed) return false
         val streams = if (mayReadSleepUnattended()) JStyle2301HistorySync.catalog
         else JStyle2301HistorySync.catalog - JStyle2301HistoryStream.SLEEP
         requestHistory(streams, pageLimit = 1, forceShallow = true)
@@ -647,6 +686,8 @@ class JStyle2301SyncEngine(
 
     override fun querySleep() {
         if (!mayReadSleep()) return
+        // A pass still waiting for the ring's handshake would be replaced by this one read.
+        if (isHistorySyncRunning) return
         requestHistory(listOf(JStyle2301HistoryStream.SLEEP), pageLimit = 4)
     }
 
@@ -673,8 +714,20 @@ class JStyle2301SyncEngine(
         }
     }
 
-    private fun requestHistory(streams: List<JStyle2301HistoryStream>, pageLimit: Int, forceShallow: Boolean = false) {
-        pendingHistory = HistoryRequest(streams, pageLimit, forceShallow)
+    @Synchronized
+    private fun requestHistory(
+        streams: List<JStyle2301HistoryStream>,
+        pageLimit: Int,
+        forceShallow: Boolean = false,
+        archive: Archive = Archive.NONE,
+    ) {
+        // A routine pass (the only shallow kind) runs the recovery pass that went unanswered in its place, for the
+        // streams it may read now: the sleep hold is judged at this pass, not at the earlier one.
+        val carried = unansweredBackfill?.takeIf { forceShallow }
+        if (carried != null || archive != Archive.NONE) unansweredBackfill = null
+        pendingHistory = carried?.copy(streams = carried.streams.filter(streams::contains))
+            ?: HistoryRequest(streams, pageLimit, forceShallow, archive)
+        handshakeLapsed = false
         // Battery on every pass (0.6.4): the ring never pushes it, and asking only while the link
         // was not yet ready meant one read per connection — a ring that stays connected showed the
         // same percent for days (100 % for a week on the owner's V0789). The read is harmless and
@@ -687,24 +740,67 @@ class JStyle2301SyncEngine(
         // V0789 must answer firmware before any history command is sent, because it ignores
         // history until opcode 0x3C succeeds.
         writer?.enqueue(JStyle2301Protocol.infoRequest(JStyle2301Protocol.INFO_FIRMWARE))
+        armHandshakeDeadline()
     }
 
+    /**
+     * Nothing else bounds the wait for the firmware or authentication answer: the pager's own timers start only with
+     * the first history request. A ring that stays silent here used to leave the pass "running" for as long as the
+     * link stayed up, and every later pass and Sync was refused as busy.
+     */
+    private fun armHandshakeDeadline() {
+        val wait = ++handshakeWait
+        handshakeDeadline?.cancel()
+        handshakeDeadline = scope.launch {
+            delay(handshakeTimeoutMs)
+            lapseHandshake(wait)
+        }
+    }
+
+    private fun clearHandshakeDeadline() {
+        handshakeWait++
+        handshakeDeadline?.cancel(); handshakeDeadline = null
+        handshakeLapsed = false
+    }
+
+    @Synchronized
+    private fun lapseHandshake(wait: Int) {
+        // The answer, a newer request or the end of the link got here first.
+        if (handshakeWait != wait) return
+        if (pendingHistory == null && !authenticationPending) return
+        if (authenticationPending) {
+            authenticationPending = false
+            triedStoredPasscode = triedBeforeAttempt.first
+            triedBuiltInPasscode = triedBeforeAttempt.second
+        }
+        pendingHistory?.takeIf { it.archive == Archive.UNATTENDED }?.let { unansweredBackfill = it }
+        pendingHistory = null
+        handshakeLapsed = true
+        PulseEventBus.publishBlocking(PulseEvent.SyncProgress("Ring handshake unanswered"))
+    }
+
+    @Synchronized
     private fun handleFirmware(revision: String) {
         firmwareProfile = JStyle2301FirmwareProfile.forRevision(revision)
         if (!firmwareProfile.requiresAuthentication) {
+            clearHandshakeDeadline()
             startPendingOperations()
             return
         }
         if (authenticated) {
+            clearHandshakeDeadline()
             startPendingOperations()
             return
         }
+        // An authentication attempt in flight keeps its own deadline.
         if (authenticationPending) return
+        clearHandshakeDeadline()
         if (!startAuthenticationAttempt()) finishAuthenticationFailure()
     }
 
     /** Stored legacy override first, then the built-in firmware passcode at most once. */
     private fun startAuthenticationAttempt(): Boolean {
+        triedBeforeAttempt = triedStoredPasscode to triedBuiltInPasscode
         val stored = connectionSecret
         if (!triedStoredPasscode && !stored.isNullOrEmpty()) {
             triedStoredPasscode = true
@@ -734,6 +830,7 @@ class JStyle2301SyncEngine(
         authenticationFailed = false
         PulseEventBus.publishBlocking(PulseEvent.SyncProgress("Authenticating V0789 ring…"))
         writer?.enqueue(command)
+        armHandshakeDeadline()
     }
 
     private fun finishAuthenticationFailure() {
@@ -743,11 +840,16 @@ class JStyle2301SyncEngine(
         PulseEventBus.publishBlocking(PulseEvent.SyncProgress("Ring firmware authentication failed"))
     }
 
+    @Synchronized
     private fun handleAuthentication(accepted: Boolean) {
-        if (!authenticationPending) return
+        // An answer that arrives after its deadline: a yes still stands (the ring is open, and what waited for it
+        // may start); a no settles nothing, and the next pass asks again.
+        if (!authenticationPending && (!accepted || authenticated)) return
+        clearHandshakeDeadline()
         authenticationPending = false
         authenticated = accepted
         if (accepted) {
+            authenticationFailed = false
             PulseEventBus.publishBlocking(PulseEvent.SyncProgress("V0789 ring authenticated"))
             startPendingOperations()
         } else {
@@ -791,6 +893,7 @@ class JStyle2301SyncEngine(
         startPendingWorkout()
     }
 
+    @Synchronized
     private fun requestProtectedOperation() {
         if (historyReady()) {
             startPendingHeartRate()
@@ -876,7 +979,10 @@ class JStyle2301SyncEngine(
         }
     }
 
+    @Synchronized
     internal fun connectionDidEnd() {
+        clearHandshakeDeadline()
+        unansweredBackfill = null
         heartRateStartJob?.cancel(); heartRateStartJob = null
         clockSynced = false
         pendingHeartRate = false

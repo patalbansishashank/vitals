@@ -12,16 +12,23 @@ import com.pulseloop.PulseLoopRuntime
 import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.health.reader.HcCapability
 import com.pulseloop.health.reader.HcType
+import com.pulseloop.hub.HubSettingsSource
 import com.pulseloop.hub.HubSync
 import com.pulseloop.ring.JStyle2301FirmwareProfile
+import com.pulseloop.ring.RingBLEClient
+import com.pulseloop.ring.RingConnectionState
 import com.pulseloop.ring.RingDeviceType
 import com.pulseloop.shortvideo.ShortVideoApp
 import com.pulseloop.shortvideo.ShortVideoDaySummary
+import com.pulseloop.shortvideo.ShortVideoPrefs
 import com.pulseloop.shortvideo.ShortVideoRepository
 import com.pulseloop.shortvideo.ShortVideoRuntime
 import com.pulseloop.shortvideo.ShortVideoSettings
 import java.time.Instant
-import java.time.LocalDate
+import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * (Vitals 0.7.0) Reads the engine's state off the phone. While the engine is not [EngineMode.ACTIVE] it opens nothing
@@ -31,13 +38,23 @@ import java.time.LocalDate
 object EngineStateReader {
     fun iso(ms: Long?): String? = ms?.takeIf { it > 0 }?.let { Instant.ofEpochMilli(it).toString() }
 
-    suspend fun read(context: Context, gaugePending: Int? = null): EngineState {
+    /**
+     * Safe to call from any thread: the permission checks and the database are read off the main thread, and only the
+     * ring runtime is taken on it (where it is made). [keptPermissions] is an answer the caller kept ([EnginePermissions]);
+     * null asks the system now.
+     */
+    suspend fun read(
+        context: Context,
+        gaugePending: Int? = null,
+        keptPermissions: EngineState.Permissions? = null,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): EngineState = withContext(Dispatchers.IO) {
         val app = context.applicationContext
         val mode = GaugeEngine.mode(app)
-        val permissions = permissions(app, healthConnect(app))
+        val permissions = keptPermissions ?: permissions(app)
         val prefs = ShortVideoSettings.get(app).prefs.value
         if (mode != EngineMode.ACTIVE) {
-            return EngineState(
+            return@withContext EngineState(
                 mode = mode,
                 gaugeInstalled = GaugeEngine.gaugeInstalled(app),
                 gaugePendingUploads = gaugePending,
@@ -48,33 +65,58 @@ object EngineStateReader {
             )
         }
         val db = PulseLoopDatabase.getInstance(app)
-        val runtime = PulseLoopRuntime.ensureRing(app)
-        val client = runtime.bleClient
-        val ble = client.state.value
+        val runtime = withContext(Dispatchers.Main.immediate) { PulseLoopRuntime.ensureRing(app) }
+        active(
+            db = db,
+            link = runtime.bleClient.state.value,
+            ringPasswordSet = { runtime.apiKeyStore.ringPassword.isNotEmpty() },
+            hub = HubSync.store(app),
+            videoPrefs = prefs,
+            permissions = permissions,
+            now = System.currentTimeMillis(),
+            zone = zone,
+        )
+    }
+
+    /**
+     * The state while the engine runs the ring, from what it holds: [link] is the link to the ring now, [hub] the
+     * upload's own record, and the rest is what [db] has stored, with the ring's count of the phone's today and the
+     * newest heart rate. [ringPasswordSet] is only asked for a ring that does not sign in by itself.
+     */
+    internal suspend fun active(
+        db: PulseLoopDatabase,
+        link: RingBLEClient.BLEState,
+        ringPasswordSet: () -> Boolean,
+        hub: HubSettingsSource,
+        videoPrefs: ShortVideoPrefs,
+        permissions: EngineState.Permissions,
+        now: Long,
+        zone: ZoneId,
+    ): EngineState {
         val device = db.deviceDao().currentReal()
-        val credentialRequired = (ble.activeDeviceType ?: device?.deviceType) == RingDeviceType.JSTYLE_2301 &&
-            JStyle2301FirmwareProfile.forRevision(ble.firmwareVersion ?: device?.firmwareVersion).requiresAuthentication
-        val hub = HubSync.store(app)
+        val credentialRequired = (link.activeDeviceType ?: device?.deviceType) == RingDeviceType.JSTYLE_2301 &&
+            JStyle2301FirmwareProfile.forRevision(link.firmwareVersion ?: device?.firmwareVersion).requiresAuthentication
         val pairing = hub.pairing.value
         val status = hub.status.value
-        val today = runCatching {
-            ShortVideoDaySummary.of(LocalDate.now(), db.shortVideoDao().day(LocalDate.now().toString()), prefs.dailyLimit)
+        val date = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+        val videos = runCatching {
+            ShortVideoDaySummary.of(date, db.shortVideoDao().day(date.toString()), videoPrefs.dailyLimit)
         }.getOrNull()
         return EngineState(
-            mode = mode,
+            mode = EngineMode.ACTIVE,
             gaugeInstalled = false,
             gaugePendingUploads = null,
             ring = EngineState.Ring(
-                state = EngineState.ringState(ble.connectionState, device != null),
-                credentialConfigured = credentialRequired || runtime.apiKeyStore.ringPassword.isNotEmpty(),
+                state = EngineState.ringState(link.connectionState, device != null),
+                credentialConfigured = credentialRequired || ringPasswordSet(),
                 credentialRequired = credentialRequired,
-                credentialRejected = credentialRequired && ble.credentialRejected,
-                credentialAuthenticated = credentialRequired && ble.connectionState == com.pulseloop.ring.RingConnectionState.CONNECTED && ble.credentialAuthenticated,
+                credentialRejected = credentialRequired && link.credentialRejected,
+                credentialAuthenticated = credentialRequired && link.connectionState == RingConnectionState.CONNECTED && link.credentialAuthenticated,
                 name = device?.advertisedName ?: device?.name,
                 address = device?.peripheralIdentifier ?: device?.bleAddressHint,
-                battery = ble.batteryPercent ?: device?.batteryPercent,
+                battery = link.batteryPercent ?: device?.batteryPercent,
                 lastSyncAt = iso(device?.lastFullSyncAt ?: device?.lastSyncAt),
-                lastError = ble.lastError,
+                lastError = link.lastError,
             ),
             permissions = permissions,
             upload = EngineState.Upload(
@@ -84,13 +126,18 @@ object EngineStateReader {
                 lastError = status.lastError?.takeIf { (status.lastErrorAt ?: 0) > (status.lastUploadAt ?: 0) },
             ),
             shortVideo = EngineState.ShortVideo(
-                enabled = prefs.enabled,
-                dailyLimit = EngineState.limitOf(prefs.enabled, prefs.dailyLimit),
-                instagram = today?.count(ShortVideoApp.INSTAGRAM) ?: 0,
-                youtube = today?.count(ShortVideoApp.YOUTUBE) ?: 0,
+                enabled = videoPrefs.enabled,
+                dailyLimit = EngineState.limitOf(videoPrefs.enabled, videoPrefs.dailyLimit),
+                instagram = videos?.count(ShortVideoApp.INSTAGRAM) ?: 0,
+                youtube = videos?.count(ShortVideoApp.YOUTUBE) ?: 0,
             ),
+            today = runCatching { EngineReadings.today(db, now, zone) }.getOrNull(),
+            latestHr = runCatching { EngineReadings.latestHr(db) }.getOrNull(),
         )
     }
+
+    /** Every permission as the system answers now (Health Connect, the package manager and the settings are asked). */
+    suspend fun permissions(app: Context): EngineState.Permissions = permissions(app, healthConnect(app))
 
     fun permissions(app: Context, healthConnect: Perm): EngineState.Permissions {
         val counterOn = ShortVideoRuntime.isServiceEnabled(app)
@@ -138,5 +185,27 @@ object EngineStateReader {
             readable == 0 -> Perm.DENIED
             else -> Perm.PARTIAL
         }
+    }
+}
+
+/**
+ * The permission part of the state, kept between reads. Each answer asks Health Connect, the package manager and the
+ * settings, and none of them changes while the person stays in the app, so the state built for every new ring reading
+ * reuses the last answer. [invalidate] when one may have changed: the app came to the front, a permission dialog
+ * closed, the engine's mode changed.
+ */
+class EnginePermissions(private val load: suspend () -> EngineState.Permissions) {
+    private val epoch = AtomicInteger()
+    @Volatile private var kept: Pair<Int, EngineState.Permissions>? = null
+
+    fun invalidate() {
+        epoch.incrementAndGet()
+    }
+
+    suspend fun get(): EngineState.Permissions {
+        val asked = epoch.get()
+        kept?.let { (at, value) -> if (at == asked) return value }
+        // filed under the epoch it was asked in: an answer overtaken by [invalidate] is not served again
+        return load().also { kept = asked to it }
     }
 }

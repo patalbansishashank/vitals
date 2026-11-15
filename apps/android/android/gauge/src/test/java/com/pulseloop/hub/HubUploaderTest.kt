@@ -182,6 +182,150 @@ class HubUploaderTest {
         assertEquals("HTTP 500", settings.status.value.lastError)
     }
 
+    // ---- (r087, A12) a row the server keeps refusing with a server error ----
+
+    /** Rows that have already failed in drain after drain, as a stuck queue holds them. */
+    private suspend fun enqueueStuck(count: Int) = (0 until count).forEach {
+        dao.enqueue(event(it).copy(attemptCount = HubUploader.STUCK_ATTEMPTS, lastError = "HTTP 500"))
+    }
+
+    /** Answers 500 to any request that carries one of [poison], 200 to the rest; records each request's event ids. */
+    private fun refuse(vararg poison: Int): MutableList<List<String>> {
+        val bad = poison.map { event(it).eventId }.toSet()
+        val seen = java.util.Collections.synchronizedList(mutableListOf<List<String>>())
+        server.dispatcher = object : okhttp3.mockwebserver.Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val ids = request.json().getValue("events").jsonArray.map { it.jsonObject.getValue("id").jsonPrimitive.content }
+                seen += ids
+                return if (ids.any { it in bad }) MockResponse().setResponseCode(500) else ok(ids.size)
+            }
+        }
+        return seen
+    }
+
+    private fun pendingIds() = dao.rows.values.filter { it.uploadedAt == null }.map { it.eventId }
+
+    @Test fun `a refused oldest row no longer blocks the rows behind it, and is kept`() = runBlocking {
+        enqueueStuck(6)
+        val requests = refuse(0)
+        val settings = settings()
+        val result = uploader(settings).drain()
+
+        assertEquals(HubDrainResult.Retry("HTTP 500", uploaded = 5), result)
+        assertEquals(listOf(event(0).eventId), pendingIds())
+        val kept = dao.rows.getValue(event(0).eventId)
+        assertFalse("a server error is not a verdict on the row", kept.rejected)
+        assertEquals(event(0).payloadJson, kept.payloadJson)
+        // The refused row went alone, then one row proved the server is up, then the rest in one batch.
+        assertEquals(listOf(1, 1, 4), requests.map { it.size })
+        assertEquals("the queue is not empty, and the status says why", "HTTP 500", settings.status.value.lastError)
+    }
+
+    @Test fun `a refused row in the middle of the queue is found by halving`() = runBlocking {
+        enqueueStuck(8)
+        val requests = refuse(5)
+        val result = uploader(settings()).drain()
+
+        assertEquals(HubDrainResult.Retry("HTTP 500", uploaded = 7), result)
+        assertEquals(listOf(event(5).eventId), pendingIds())
+        assertTrue("found in a handful of requests, not one per row", requests.size <= 8)
+        assertTrue(dao.rows.values.none { it.rejected })
+    }
+
+    @Test fun `several refused rows are each left out`() = runBlocking {
+        enqueueStuck(10)
+        refuse(0, 1, 6)
+        val result = uploader(settings()).drain()
+
+        assertEquals(HubDrainResult.Retry("HTTP 500", uploaded = 7), result)
+        assertEquals(listOf(0, 1, 6).map { event(it).eventId }, pendingIds())
+    }
+
+    @Test fun `new rows go up whatever the number of refused rows ahead of them`() = runBlocking {
+        enqueueStuck(10)
+        (10 until 16).forEach { dao.enqueue(event(it)) }
+        val requests = refuse(*IntArray(10) { it })
+        val result = uploader(settings()).drain()
+
+        assertEquals(HubDrainResult.Retry("HTTP 500", uploaded = 6), result)
+        assertEquals((0 until 10).map { event(it).eventId }, pendingIds())
+        // The new rows in one batch first, then a few one-row tries at the rows that keep failing.
+        assertEquals(listOf(6) + List(HubUploader.MAX_SET_ASIDE + 1) { 1 }, requests.map { it.size })
+        assertTrue(dao.rows.values.none { it.rejected })
+    }
+
+    @Test fun `refused rows take turns, so more of them than one drain tries cannot hide the rest`() = runBlocking {
+        enqueueStuck(12)
+        refuse(0, 1, 2, 3, 8)
+        val poison = listOf(0, 1, 2, 3, 8).map { event(it).eventId }
+
+        // The four oldest rows are all refused: this drain learns nothing else.
+        assertEquals(HubDrainResult.Retry("HTTP 500", uploaded = 0), uploader(settings()).drain())
+        assertEquals(12, dao.pendingCount())
+
+        // The next one starts with the rows it has tried least, and everything the server will take goes up.
+        assertEquals(HubDrainResult.Retry("HTTP 500", uploaded = 7), uploader(settings()).drain())
+        assertEquals(poison, pendingIds())
+
+        // From then on the refused rows cost a few one-row requests per drain. The least tried go first, so within
+        // a few drains every one of them has had its turn.
+        val requests = refuse(0, 1, 2, 3, 8)
+        repeat(4) { assertTrue(uploader(settings()).drain() is HubDrainResult.Retry) }
+        assertTrue(requests.all { it.size == 1 })
+        assertEquals(4 * (HubUploader.MAX_SET_ASIDE + 1), requests.size)
+        assertEquals(poison.toSet(), requests.flatten().toSet())
+        assertTrue(dao.rows.values.none { it.rejected || (it.uploadedAt == null && it.payloadJson.isEmpty()) })
+    }
+
+    @Test fun `once the server takes the row, it goes up like any other`() = runBlocking {
+        enqueueStuck(3)
+        refuse(0)
+        assertTrue(uploader(settings()).drain() is HubDrainResult.Retry)
+        assertEquals(1, dao.pendingCount())
+
+        refuse()
+        dao.enqueue(event(9))
+        val settings = settings()
+        assertEquals(HubDrainResult.Success(2), uploader(settings).drain())
+        assertEquals(0, dao.pendingCount())
+        assertNull(settings.status.value.lastError)
+    }
+
+    @Test fun `a server that refuses everything costs a few one-row requests and loses nothing`() = runBlocking {
+        enqueueStuck(40)
+        val requests = refuse(*IntArray(40) { it })
+        val result = uploader(settings()).drain()
+
+        assertTrue(result is HubDrainResult.Retry)
+        assertEquals(HubUploader.MAX_SET_ASIDE + 1, requests.size)
+        assertTrue(requests.all { it.size == 1 })
+        assertEquals(40, dao.pendingCount())
+        assertTrue(dao.rows.values.none { it.rejected || it.payloadJson.isEmpty() })
+    }
+
+    @Test fun `a queue that has only just started failing is not picked apart`() = runBlocking {
+        enqueue(6)
+        val requests = refuse(0)
+        val result = uploader(settings()).drain()
+
+        assertTrue(result is HubDrainResult.Retry)
+        assertEquals(listOf(6), requests.map { it.size })
+        assertEquals(6, dao.pendingCount())
+    }
+
+    @Test fun `an unreachable server is one attempt, however long the rows have waited`() = runBlocking {
+        enqueueStuck(6)
+        val settings = settings()
+        server.shutdown()
+        val result = uploader(settings).drain()
+
+        assertTrue(result is HubDrainResult.Retry)
+        assertEquals(6, dao.pendingCount())
+        // Only the oldest row was tried, and only once.
+        assertEquals(listOf(HubUploader.STUCK_ATTEMPTS + 1) + List(5) { HubUploader.STUCK_ATTEMPTS },
+            dao.rows.values.map { it.attemptCount })
+    }
+
     @Test fun `idempotent by event id locally and across a lost response`() = runBlocking {
         val first = event(1)
         assertTrue(dao.enqueue(first) != -1L)

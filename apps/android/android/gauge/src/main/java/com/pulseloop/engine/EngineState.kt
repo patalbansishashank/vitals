@@ -7,8 +7,9 @@ enum class Perm(val wire: String) { GRANTED("granted"), DENIED("denied"), PARTIA
 
 /**
  * What `GaugeEngine.getState()` answers (Vitals' `EngineState`): the mode, whether Gauge is still on the phone, the
- * ring, the permissions the engine needs, the upload and the short-video counter. [toJson] is the wire shape, field for
- * field; everything absent is left out, never null.
+ * ring, the permissions the engine needs, the upload, the short-video counter and the two readings the screen shows
+ * before the server has them ([today], [latestHr]). [toJson] is the wire shape, field for field; everything absent is
+ * left out, never null.
  */
 data class EngineState(
     val mode: EngineMode,
@@ -19,6 +20,10 @@ data class EngineState(
     val permissions: Permissions,
     val upload: Upload,
     val shortVideo: ShortVideo,
+    /** The ring's own count of the phone's today; null while the ring has reported none for it. */
+    val today: Today? = null,
+    /** The newest heart-rate reading the engine holds; null when it holds none. */
+    val latestHr: LatestHr? = null,
 ) {
     enum class RingState(val wire: String) { NONE("none"), SCANNING("scanning"), CONNECTING("connecting"), CONNECTED("connected"), DISCONNECTED("disconnected") }
 
@@ -65,6 +70,16 @@ data class EngineState(
         val youtube: Int = 0,
     )
 
+    /**
+     * The day's steps as the ring counted them (the engine's `activity_daily`, never fused with the phone's), for the
+     * phone's local [date], and when the engine last wrote them. The server's fused answer stays the figure; this only
+     * shows first.
+     */
+    data class Today(val date: String, val ringSteps: Int, val ringStepsAt: String? = null)
+
+    /** One real reading with its own time, never an average. */
+    data class LatestHr(val bpm: Int, val at: String)
+
     fun toJson(): JSONObject {
         fun JSONObject.putIf(key: String, value: Any?) = apply { if (value != null) put(key, value) }
         return JSONObject()
@@ -105,6 +120,11 @@ data class EngineState(
                     .put("dailyLimit", shortVideo.dailyLimit ?: JSONObject.NULL)
                     .put("today", JSONObject().put("instagram", shortVideo.instagram).put("youtube", shortVideo.youtube)),
             )
+            .putIf(
+                "today",
+                today?.let { JSONObject().put("date", it.date).put("ringSteps", it.ringSteps).putIf("ringStepsAt", it.ringStepsAt) },
+            )
+            .putIf("latestHr", latestHr?.let { JSONObject().put("bpm", it.bpm).put("at", it.at) })
     }
 
     companion object {

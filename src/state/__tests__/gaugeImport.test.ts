@@ -45,8 +45,8 @@ describe('import window', () => {
   it('fills 30 days first, then re-reads two days before the last import', () => {
     expect(importWindow({ lastImportAt: null, lastDate: null, backfilled: false }, '2026-10-20')).toEqual({ from: '2026-09-21', to: '2026-10-20' });
     expect(importWindow({ lastImportAt: 'x', lastDate: '2026-10-20', backfilled: true }, '2026-10-20')).toEqual({ from: '2026-10-18', to: '2026-10-20' });
-    // a device away for months reads at most the last 30 days
-    expect(importWindow({ lastImportAt: 'x', lastDate: '2026-06-01', backfilled: true }, '2026-10-20')).toEqual({ from: '2026-09-21', to: '2026-10-20' });
+    // (r087) a device away for months reads the last four days now; the older ones are the reconcile chunk's
+    expect(importWindow({ lastImportAt: 'x', lastDate: '2026-06-01', backfilled: true }, '2026-10-20')).toEqual({ from: '2026-10-17', to: '2026-10-20' });
   });
 });
 
@@ -159,10 +159,19 @@ describe('runGaugeImport', () => {
 
 describe('r063 S14/A21: the correction window is really revisited', () => {
   it('the probe: after the backfill only two days were ever read again; now a failed feed is re-read from where it stopped', () => {
-    const st = { lastImportAt: 'x', lastDate: '2026-10-20', backfilled: true, feeds: { ring: '2026-10-20', sleep: '2026-10-15', steps: '2026-10-20' } };
-    expect(importWindow(st, '2026-10-20', ['ring', 'sleep', 'steps'])).toEqual({ from: '2026-10-13', to: '2026-10-20' });
-    // a feed that never succeeded on this device reads the whole window
-    expect(importWindow({ ...st, feeds: { ring: '2026-10-20', sleep: '2026-10-20' } }, '2026-10-20', ['ring', 'sleep', 'steps'])).toEqual({ from: '2026-09-21', to: '2026-10-20' });
+    const now = Date.parse('2026-10-20T06:34:00Z');
+    const st = { lastImportAt: 'x', lastDate: '2026-10-20', backfilled: true, feeds: { ring: '2026-10-20', sleep: '2026-10-19', steps: '2026-10-20' } };
+    expect(importWindow(st, '2026-10-20', ['ring', 'sleep', 'steps'])).toEqual({ from: '2026-10-17', to: '2026-10-20' });
+    expect(importWindow({ ...st, feeds: { ...st.feeds, sleep: '2026-10-20' } }, '2026-10-20', ['ring', 'sleep', 'steps'])).toEqual({ from: '2026-10-18', to: '2026-10-20' });
+    // (r087) never longer than four days on every run: what a feed is owed before them is the next reconcile chunk
+    const stalled = { ...st, feeds: { ...st.feeds, sleep: '2026-10-12' } };
+    expect(importWindow(stalled, '2026-10-20', ['ring', 'sleep', 'steps'])).toEqual({ from: '2026-10-17', to: '2026-10-20' });
+    // (`owed`: the rotation left its place for that day, once)
+    expect(reconcileWindow(stalled, '2026-10-20', '2026-10-17', now, ['ring', 'sleep', 'steps'])).toEqual({ from: '2026-10-10', to: '2026-10-16', next: '2026-09-21', owed: '2026-10-10' });
+    // a feed that never succeeded on this device is owed the whole window: the rotation walks it from the oldest day
+    const never = { ...st, feeds: { ring: '2026-10-20', sleep: '2026-10-20' } };
+    expect(importWindow(never, '2026-10-20', ['ring', 'sleep', 'steps'])).toEqual({ from: '2026-10-17', to: '2026-10-20' });
+    expect(reconcileWindow(never, '2026-10-20', '2026-10-17', now, ['ring', 'sleep', 'steps'])).toMatchObject({ from: '2026-09-21', to: '2026-09-27' });
   });
   it('a rotating reconcile walks the 30 days a week at a time, at most once an hour', () => {
     const now = Date.parse('2026-10-20T06:34:00Z');
@@ -178,6 +187,22 @@ describe('r063 S14/A21: the correction window is really revisited', () => {
     // not again within the hour; never before the window is filled
     expect(reconcileWindow({ ...st, reconcile: { next: '2026-09-28', at: new Date(now).toISOString() } }, '2026-10-20', '2026-10-18', now + 60_000)).toBeNull();
     expect(reconcileWindow({ ...st, backfilled: false }, '2026-10-20', '2026-10-18', now)).toBeNull();
+  });
+  it('(r087) the rotation leaves its place for an owed day once, and again only when another day is owed', () => {
+    const now = Date.parse('2026-10-20T06:34:00Z');
+    const feeds = ['ring', 'sleep', 'steps'] as const;
+    const st = { lastImportAt: 'x', lastDate: '2026-10-15', backfilled: true, feeds: { ring: '2026-10-20', sleep: '2026-10-15', steps: '2026-10-20' } };
+    const first = reconcileWindow(st, '2026-10-20', '2026-10-17', now, feeds)!;
+    expect(first).toEqual({ from: '2026-10-13', to: '2026-10-16', next: '2026-09-21', owed: '2026-10-13' });
+    // saved with the cursor: while the same day is owed, the rotation goes on through the older days
+    const after = { ...st, reconcile: { next: first.next, at: null, owed: first.owed } };
+    expect(reconcileWindow(after, '2026-10-20', '2026-10-17', now, feeds)).toEqual({ from: '2026-09-21', to: '2026-09-27', next: '2026-09-28', owed: '2026-10-13' });
+    // another feed stopped further back: another owed day, one more jump
+    const worse = { ...after, feeds: { ...st.feeds, steps: '2026-10-12' } };
+    expect(reconcileWindow(worse, '2026-10-20', '2026-10-17', now, feeds)).toEqual({ from: '2026-10-10', to: '2026-10-16', next: '2026-09-21', owed: '2026-10-10' });
+    // every feed caught up: nothing is owed before the recent days, and the mark goes
+    const well = { ...after, lastDate: '2026-10-20', feeds: { ring: '2026-10-20', sleep: '2026-10-20', steps: '2026-10-20' } };
+    expect(reconcileWindow(well, '2026-10-20', '2026-10-18', now, feeds)).toEqual({ from: '2026-09-21', to: '2026-09-27', next: '2026-09-28' });
   });
   it('a run reads the due chunk, advances it only on success, and tracks each feed', async () => {
     const storage = memoryStorage();

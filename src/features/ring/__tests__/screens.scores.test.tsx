@@ -14,7 +14,7 @@ describe('Ring screens: scores', () => {
     renderAt('/ring/scores');
     expect(await screen.findByRole('heading', { name: 'Day score' }, { timeout: 8000 })).toBeInTheDocument();
     // Gauge uses a different method: each score names its source on the page.
-    const gauge = (await screen.findByRole('heading', { name: 'On-device scores' }, { timeout: 8000 })).closest('section')!;
+    const gauge = (await screen.findByRole('heading', { name: 'Phone scores' }, { timeout: 8000 })).closest('section')!;
     expect(within(gauge).getByRole('heading', { name: 'Phone Recovery' })).toBeInTheDocument();
     // The parts are now heroes, so the Day score does not repeat the three rows.
     expect(screen.queryByRole('heading', { name: 'Indices' })).toBeNull();
@@ -40,7 +40,7 @@ describe('Ring screens: scores', () => {
   it('Scores in quiet mode keep every score, missing reason and contributor panel in words', async () => {
     await dispatch('settings.update', { patch: { quietMode: true } });
     renderAt('/ring/scores');
-    await screen.findByRole('heading', { name: 'On-device scores' }, { timeout: 8000 });
+    await screen.findByRole('heading', { name: 'Phone scores' }, { timeout: 8000 });
     expectWordsOnly(card('Day score'));
     for (const name of ['Vitals Recovery', 'Vitals Sleep', 'Vitals Activity']) expectWordsOnly(card(name));
     fireEvent.click(screen.getByRole('button', { name: 'What went into Recovery' }));

@@ -17,6 +17,7 @@ import { HC_RECORD_TYPES, instantMs, LumenReadError, READ_MAX_LIMIT, type HcReco
 import { SLEEP_METRIC_STATUS, SLEEP_METRICS_VERSION, type SleepMetrics, type Stage } from './sleepMetrics.ts';
 import { DEFAULT_PREFERENCE, FUSION_REVISION, FUSION_VERSION, type ActivityKind, type FusionContext, type StepLineage } from './stepFusion.ts';
 import { buildTimeline, emptyTimeline } from './timeline.ts';
+import { kindOf as eventKind, readWindow } from './readScope.ts';
 import { GPS_MOTION_VERSION, gpsSpeedMinutes, sportWindows } from './gpsMotion.ts';
 import { DETECT_CONFIG, DETECTOR } from './detect/detect.ts';
 import { exerciseTypeOf, normaliseExercisePayload } from './hcExercise.ts';
@@ -135,14 +136,23 @@ const OFFSET_CATEGORIES = ['activity/buckets', 'activity/daily', 'sleep/timeline
 /** How many of the newest events of each category the offset lookup reads (a bound on its cost). */
 const OFFSET_SCAN = 2000;
 
-/** The newest `local_offset_min` observed in `[loMs, hiMs)`, with its instant, or null. */
+const NEWEST_OFFSET = (rows: number) =>
+  `SELECT observed_ms, json_extract(data, '$.local_offset_min') AS o FROM (
+     SELECT observed_ms, data FROM current_events WHERE category = ? AND observed_ms >= ? AND observed_ms < ? ORDER BY observed_ms DESC LIMIT ${rows}
+   )${rows > 1 ? ' WHERE o IS NOT NULL ORDER BY observed_ms DESC LIMIT 1' : ''}`;
+
+/**
+ * The newest `local_offset_min` observed in `[loMs, hiMs)`, with its instant, or null. (r087) Of the current readings
+ * only (a deleted or replaced one no longer chooses the zone), and the newest reading of each category first: it nearly
+ * always carries the offset, so the scan of `OFFSET_SCAN` rows runs only when it does not.
+ */
 export function newestOffset(store: LumenStore, loMs: number, hiMs: number): { atMs: number; offsetMin: number } | null {
   let best: { atMs: number; offsetMin: number } | null = null;
   for (const category of OFFSET_CATEGORIES) {
-    const r = store.get<{ observed_ms: number; o: unknown }>(
-      `SELECT observed_ms, json_extract(data, '$.local_offset_min') AS o FROM (
-         SELECT observed_ms, data FROM events WHERE category = ? AND observed_ms >= ? AND observed_ms < ? ORDER BY observed_ms DESC LIMIT ${OFFSET_SCAN}
-       ) WHERE o IS NOT NULL ORDER BY observed_ms DESC LIMIT 1`, category, loMs, hiMs);
+    const r = readWindow(loMs, hiMs, eventKind(category), () => {
+      const top = store.get<{ observed_ms: number; o: unknown }>(NEWEST_OFFSET(1), category, loMs, hiMs);
+      return !top || top.o !== null ? top : store.get<{ observed_ms: number; o: unknown }>(NEWEST_OFFSET(OFFSET_SCAN), category, loMs, hiMs);
+    });
     const o = r ? num(r.o) : null;
     if (r && o !== null && Math.abs(o) <= 18 * 60 && (!best || r.observed_ms > best.atMs)) best = { atMs: r.observed_ms, offsetMin: o };
   }
@@ -320,35 +330,69 @@ interface Ctx {
   now: number;
   /** (r063 S6) The person's stored fusion context (`./fusionContext.ts`): every fused read resolves it. */
   fusion: StoredFusionContext | null;
+  /** What the answer's `provenance` was stamped from (set by it): a kept answer is stamped again from this. */
+  stamp?: ProvenanceStamp;
+  /** The parts of the stored fusion context the answer used (set by `storedContext`). */
+  usedContext?: UsedContext[];
+}
+
+/** One span of the person's stored fusion context an answer read, and the key of what it held then (`contextFor`). */
+export interface UsedContext {
+  loMs: number;
+  hiMs: number;
+  key: string | undefined;
+}
+
+/** The installations an answer drew on (null: all of them) and its newest reading. */
+export interface ProvenanceStamp {
+  installationIds: string[] | null;
+  lastObservedMs: number | null;
 }
 
 /** The part of the person's stored fusion context a fused read of `fromDate`..`toDate` uses (its widened read included). */
 function storedContext(c: Ctx, fromDate: string, toDate: string): FusionContextPart {
   const a = dayBounds(fromDate, c.tz);
   const b = dayBounds(toDate, c.tz);
-  return a && b ? contextFor(c.fusion, a[0] - FUSE_MAX_WIDEN_MS, b[1] + FUSE_MAX_WIDEN_MS) : {};
+  if (!a || !b) return {};
+  const part = contextFor(c.fusion, a[0] - FUSE_MAX_WIDEN_MS, b[1] + FUSE_MAX_WIDEN_MS);
+  (c.usedContext ??= []).push({ loMs: a[0] - FUSE_MAX_WIDEN_MS, hiMs: b[1] + FUSE_MAX_WIDEN_MS, key: part.contextKey });
+  return part;
 }
 /** The `inputsHash` version entry naming the context a result used (none without one). */
 const contextVersion = (ctx: { contextKey?: string }) => (ctx.contextKey ? [`context:${ctx.contextKey}`] : []);
 
 /** The installations a result drew on (all of them when it names none), and how fresh the data is. */
 function provenance(c: Ctx, installationIds: Iterable<string> | null, lastObservedMs: number | null) {
-  const all = c.store?.installations() ?? [];
-  const ids = installationIds ? new Set(installationIds) : null;
+  c.stamp = { installationIds: installationIds ? [...new Set(installationIds)] : null, lastObservedMs };
+  return provenanceOf(c.store?.installations() ?? [], c.tz, c.now, c.stamp);
+}
+
+/**
+ * The provenance fields of an answer: the only part that moves with the clock and with every upload (`lastUploadAt`),
+ * so an answer kept in memory is stamped again from the installations as they are now (`stampAgain`).
+ */
+export function provenanceOf(all: readonly InstallationRow[], tz: string, now: number, stamp: ProvenanceStamp) {
+  const ids = stamp.installationIds ? new Set(stamp.installationIds) : null;
   const used = all.filter((i) => !ids || ids.has(i.id));
   const lastIngest = used.map((i) => i.lastIngestAt).filter((x): x is string => Boolean(x)).sort().at(-1) ?? null;
   const ingestMs = lastIngest ? Date.parse(lastIngest) : null;
+  const lastObservedMs = stamp.lastObservedMs;
   return {
     source: 'lumen_health' as const,
-    timeZone: c.tz,
-    installations: used.map((i: InstallationRow) => ({ id: i.id, deviceName: i.deviceName, appVersion: i.appVersion, app: i.app, status: i.status, supersededBy: i.supersededBy, lastUploadAt: i.lastIngestAt ? isoIn(Date.parse(i.lastIngestAt), c.tz) : null })),
+    timeZone: tz,
+    installations: used.map((i: InstallationRow) => ({ id: i.id, deviceName: i.deviceName, appVersion: i.appVersion, app: i.app, status: i.status, supersededBy: i.supersededBy, lastUploadAt: i.lastIngestAt ? isoIn(Date.parse(i.lastIngestAt), tz) : null })),
     freshness: {
-      lastUploadAt: ingestMs !== null ? isoIn(ingestMs, c.tz) : null,
-      lastReadingAt: lastObservedMs !== null ? isoIn(lastObservedMs, c.tz) : null,
-      minutesSinceLastUpload: ingestMs !== null ? Math.max(0, Math.round((c.now - ingestMs) / 60_000)) : null,
-      minutesSinceLastReading: lastObservedMs !== null ? Math.max(0, Math.round((c.now - lastObservedMs) / 60_000)) : null,
+      lastUploadAt: ingestMs !== null ? isoIn(ingestMs, tz) : null,
+      lastReadingAt: lastObservedMs !== null ? isoIn(lastObservedMs, tz) : null,
+      minutesSinceLastUpload: ingestMs !== null ? Math.max(0, Math.round((now - ingestMs) / 60_000)) : null,
+      minutesSinceLastReading: lastObservedMs !== null ? Math.max(0, Math.round((now - lastObservedMs) / 60_000)) : null,
     },
   };
+}
+
+/** `envelope` (an ok answer stamped from `stamp`) as it reads now: the same fields in the same places, stamped again. */
+export function stampAgain(envelope: ToolResultEnvelope, stamp: ProvenanceStamp, all: readonly InstallationRow[], tz: string, now: number): ToolResultEnvelope {
+  return { ...envelope, data: { ...(envelope.data as Record<string, unknown>), ...provenanceOf(all, tz, now, stamp) } };
 }
 
 const ok = (summary: string, data: unknown): ToolResultEnvelope => ({ ok: true, status: 'applied', summary, data });
@@ -567,7 +611,7 @@ function activityData(c: Ctx, from: number, to: number, inputs: Inputs) {
     return d;
   };
   // the ring's daily totals: the latest revision of the day (it only climbs through the day; a correction can lower it)
-  const dailyRows = store.all<{ id: string; installation_id: string; observed_ms: number }>('SELECT id, installation_id, observed_ms FROM daily_activity WHERE observed_ms >= ? AND observed_ms <= ?', from, to);
+  const dailyRows = readWindow(from, to, 'activity/daily', () => store.all<{ id: string; installation_id: string; observed_ms: number }>('SELECT id, installation_id, observed_ms FROM daily_activity WHERE observed_ms >= ? AND observed_ms <= ?', from, to));
   chargeReadBudget(dailyRows.length);
   for (const r of dailyRows) dayOf(localDate(r.observed_ms, c.tz), r.observed_ms);
   for (const row of daily.values()) {
@@ -641,7 +685,7 @@ interface InsightRow { installation_id: string; key: string; observed_ms: number
 
 function insightRows(c: Ctx, from: number, to: number, key?: string) {
   const sql = 'SELECT installation_id, key, observed_ms, value, unit, confidence, algorithm_version, note, inputs FROM insights WHERE observed_ms >= ? AND observed_ms <= ?';
-  return key ? c.store!.all<InsightRow>(`${sql} AND key = ? ORDER BY observed_ms`, from, to, key) : c.store!.all<InsightRow>(`${sql} ORDER BY key, observed_ms`, from, to);
+  return readWindow(from, to, 'insights', () => (key ? c.store!.all<InsightRow>(`${sql} AND key = ? ORDER BY observed_ms`, from, to, key) : c.store!.all<InsightRow>(`${sql} ORDER BY key, observed_ms`, from, to)));
 }
 
 const parseJson = (text: string | null): unknown => {
@@ -824,12 +868,12 @@ function dailySummary(c: Ctx, args: Record<string, unknown>): ToolResultEnvelope
   const ins = insightRows(c, start, end - 1);
   const latestScore: Record<string, unknown> = {};
   for (const row of ins) latestScore[row.key] = scoreOut(c, row);
-  const agg = store.all<{ kind: string; unit: string | null; n: number; mean: number | null; min: number | null; max: number | null; sys: number | null; dia: number | null }>(
-    'SELECT kind, MAX(unit) AS unit, COUNT(*) AS n, AVG(value) AS mean, MIN(value) AS min, MAX(value) AS max, AVG(systolic) AS sys, AVG(diastolic) AS dia FROM metric_series WHERE observed_ms >= ? AND observed_ms < ? GROUP BY kind ORDER BY kind', start, end);
-  const latest = new Map(store.all<{ kind: string; last_ms: number; value: number | null; systolic: number | null; diastolic: number | null; installation_id: string }>(
-    'SELECT kind, MAX(observed_ms) AS last_ms, value, systolic, diastolic, installation_id FROM metric_series WHERE observed_ms >= ? AND observed_ms < ? GROUP BY kind', start, end).map((x) => [x.kind, x]));
+  const agg = readWindow(start, end, 'metric', () => store.all<{ kind: string; unit: string | null; n: number; mean: number | null; min: number | null; max: number | null; sys: number | null; dia: number | null }>(
+    'SELECT kind, MAX(unit) AS unit, COUNT(*) AS n, AVG(value) AS mean, MIN(value) AS min, MAX(value) AS max, AVG(systolic) AS sys, AVG(diastolic) AS dia FROM metric_series WHERE observed_ms >= ? AND observed_ms < ? GROUP BY kind ORDER BY kind', start, end));
+  const latest = new Map(readWindow(start, end, 'metric', () => store.all<{ kind: string; last_ms: number; value: number | null; systolic: number | null; diastolic: number | null; installation_id: string }>(
+    'SELECT kind, MAX(observed_ms) AS last_ms, value, systolic, diastolic, installation_id FROM metric_series WHERE observed_ms >= ? AND observed_ms < ? GROUP BY kind', start, end)).map((x) => [x.kind, x]));
   const times = new Map<string, number[]>();
-  const dayRows = store.all<{ id: string; kind: string; observed_ms: number }>('SELECT id, kind, observed_ms FROM metric_series WHERE observed_ms >= ? AND observed_ms < ? ORDER BY kind, observed_ms', start, end);
+  const dayRows = readWindow(start, end, 'metric', () => store.all<{ id: string; kind: string; observed_ms: number }>('SELECT id, kind, observed_ms FROM metric_series WHERE observed_ms >= ? AND observed_ms < ? ORDER BY kind, observed_ms', start, end));
   // (r063 FX2 sR13) a day's every metric row counts in the call's budget
   chargeReadBudget(dayRows.length);
   for (const x of dayRows) {
@@ -880,7 +924,8 @@ function dayDerived(c: Ctx, store: LumenStore, date: string, start: number, end:
   const sleepWindows = sleepRead(store, c.tz, start - DAY, end, inputs).bouts.filter((b) => b.endMs > start && b.startMs < end).flatMap(sleepParts);
   const minuteSteps = fused?.fusion.minuteSelected;
   const nonEx = nonExerciseHr(readings, { workouts: ws, sleep: sleepWindows, ...(minuteSteps ? { minuteSteps } : {}) });
-  const goal = store.get<{ id: string; value: number | null; observed_ms: number }>("SELECT id, value, observed_ms FROM metric_series WHERE kind = 'vendor.step_goal' AND observed_ms < ? ORDER BY observed_ms DESC, id DESC LIMIT 1", end);
+  // the newest goal set before the day ended, however long ago
+  const goal = readWindow(Number.MIN_SAFE_INTEGER, end, 'metric', () => store.get<{ id: string; value: number | null; observed_ms: number }>("SELECT id, value, observed_ms FROM metric_series WHERE kind = 'vendor.step_goal' AND observed_ms < ? ORDER BY observed_ms DESC, id DESC LIMIT 1", end));
   if (goal) inputs.add(goal.id);
   return {
     version: DAY_METRICS_VERSION,
@@ -1122,12 +1167,15 @@ function baselines(c: Ctx, args: Record<string, unknown>): ToolResultEnvelope {
   if (!c.store) return ok(NO_DATA, { date, ...provenance(c, [], null) });
   const store = c.store;
   const inputs = new Inputs();
-  const { baselines: base, bouts } = baselinesFor(store, c.tz, date, inputs);
-  // (0.6.3 FX5) while the ring's sleeping low is not ready: Health Connect's resting HR, labelled, as the fallback
-  const restingHrFallback = base.sleepLowHr.ready ? null : hcRestingHr(store, c.tz, date, inputs);
   // sampled non-exercise HR over the same 28 days before the date
   const lo = dayBounds(addDays(date, -28), c.tz)![0];
   const hi = b[0];
+  // (r087) the nights' heart rate and the idle heart rate are the same four weeks: read once, each takes its part
+  // (the call keeps the rows it has read)
+  samplesAll(store, 'hr', lo - 2 * DAY, hi);
+  const { baselines: base, bouts } = baselinesFor(store, c.tz, date, inputs);
+  // (0.6.3 FX5) while the ring's sleeping low is not ready: Health Connect's resting HR, labelled, as the fallback
+  const restingHrFallback = base.sleepLowHr.ready ? null : hcRestingHr(store, c.tz, date, inputs);
   const hr = metricSamples(store, 'hr', lo, hi, inputs);
   const ws = workoutsOverlapping(store, lo, hi, inputs);
   const sleepWindows = sleepRead(store, c.tz, lo - DAY, hi, inputs).bouts.flatMap(sleepParts);
@@ -1179,11 +1227,12 @@ function hcRecords(c: Ctx, args: Record<string, unknown>): ToolResultEnvelope {
   }));
   // (r063) Health Connect deletions: the records of this type overlapping the range whose latest revision a tombstone
   // (`hc/deleted`, from ring app's changes token) retracted, so a client that imported one can drop it; first page only
-  const deleted = pg.cursor ? [] : c.store.all<{ subject: string; installation_id: string; start_ms: number; end_ms: number; rev_ms: number | null; deleted_ms: number | null; origin_package: string | null }>(
+  const store = c.store;
+  const deleted = pg.cursor ? [] : readWindow(r.from, r.to, 'hc/record', () => store.all<{ subject: string; installation_id: string; start_ms: number; end_ms: number; rev_ms: number | null; deleted_ms: number | null; origin_package: string | null }>(
     `SELECT subject, installation_id, start_ms, end_ms, rev_ms, deleted_ms, origin_package FROM hc_deleted_records
       WHERE subject >= ? AND subject < ? AND start_ms <= ? AND MAX(end_ms, start_ms + 1) > ? ORDER BY start_ms, subject LIMIT ${READ_MAX_LIMIT}`,
     `${type}:`, `${type};`, r.to, r.from,
-  ).map((x) => ({
+  )).map((x) => ({
     id: x.subject.slice(type.length + 1), recordType: type, start: isoIn(x.start_ms, c.tz), end: isoIn(x.end_ms, c.tz), originPackage: x.origin_package,
     lastModified: x.rev_ms === null ? null : isoIn(x.rev_ms, c.tz), deletedAt: x.deleted_ms === null ? null : isoIn(x.deleted_ms, c.tz),
     ...(multi ? { installationId: x.installation_id } : {}),
@@ -1288,6 +1337,26 @@ export interface LumenToolSet {
   call(name: string, args: Record<string, unknown>): Promise<ToolResultEnvelope>;
 }
 
+/** One tool's answer, with what a kept copy of it needs to be answered again (`./gaugeReads.ts`). */
+export interface ToolAnswer {
+  envelope: ToolResultEnvelope;
+  /** What its provenance was stamped from; null for a rejection (nothing to stamp). */
+  stamp: ProvenanceStamp | null;
+  usedContext: UsedContext[];
+}
+
+/** Runs one tool in the zone `tz` (see `zoneFor`) inside one row budget. Synchronous; throws what the read throws. */
+export function runTool(name: string, args: Record<string, unknown>, o: { store: LumenStore | null; tz: string; now: number; fusion: StoredFusionContext | null }): ToolAnswer {
+  const c: Ctx = { store: o.store, tz: o.tz, now: o.now, fusion: o.fusion };
+  const envelope = withZone(withReadBudget(() => dispatch(name, args, c)), o.tz);
+  return { envelope, stamp: envelope.ok ? c.stamp ?? null : null, usedContext: c.usedContext ?? [] };
+}
+
+export const BAD_ZONE = 'tz is a time zone (IANA, e.g. Asia/Kolkata).';
+/** The rejection a failed read answers: a range over the row budget asks for a shorter one, anything else to try again. */
+export const readFailure = (e: unknown): ToolResultEnvelope =>
+  e instanceof ReadBudgetError ? rejected('invalid_input', e.message) : rejected('internal', 'The ring data could not be read on the server. Try again in a moment.');
+
 /** The tools for one person: `open()` gives the person's store, or null when Lumen never uploaded anything. */
 export function lumenToolSet(open: () => LumenStore | null, timeZone: string, now: () => number = Date.now, fusionContext: () => StoredFusionContext | null = () => null): LumenToolSet {
   return {
@@ -1296,11 +1365,10 @@ export function lumenToolSet(open: () => LumenStore | null, timeZone: string, no
       try {
         const store = open();
         const tz = zoneFor(store, args, timeZone);
-        if (tz === null) return rejected('invalid_input', 'tz is a time zone (IANA, e.g. Asia/Kolkata).');
-        return withZone(withReadBudget(() => dispatch(name, args, { store, tz, now: now(), fusion: fusionContext() })), tz);
+        if (tz === null) return rejected('invalid_input', BAD_ZONE);
+        return runTool(name, args, { store, tz, now: now(), fusion: fusionContext() }).envelope;
       } catch (e) {
-        if (e instanceof ReadBudgetError) return rejected('invalid_input', e.message);
-        return rejected('internal', 'The ring data could not be read on the server. Try again in a moment.');
+        return readFailure(e);
       }
     },
   };

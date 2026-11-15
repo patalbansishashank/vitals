@@ -31,8 +31,10 @@ import type { Envelope } from '@/living/sensors/types';
 import type { ReviewRow } from '@/living/activityCandidates';
 import type { EnergyBasis } from '@/state/livingActivity';
 import { useEnergyUnit, useQuietMode } from '@/state/settingsStore';
+import { useRingSynced } from '@/features/ring/bar';
 import { useActivity } from '@/features/ring/data';
 import { Loading } from '@/features/ring/components/parts';
+import { ACTIVITY_COPY, ActivityTabs, activityDocumentTitle } from '../activity/ActivityTabs';
 import { DateControl } from '../components/DateControl';
 import { ALL_PERIODS, periodDays, periodFromSearch, periodSearch, periodWords, type Period } from '../period';
 import { currentDay, useLivingClock } from '../clock';
@@ -100,9 +102,11 @@ function EnergyScreen({ period, today }: { period: Period; today: LocalDate }) {
   const navigate = useNavigate();
   const quiet = useQuietMode().on;
   const words = periodWords(period, today);
+  // the burn is worked out from the ring's and phone's readings: the bar says how fresh they are, as on Movement
+  const synced = useRingSynced();
   return (
     <>
-      <TopBar title={W.title} documentTitle={`${W.title} · ${words.text}`} />
+      <TopBar title={ACTIVITY_COPY.title} documentTitle={`${activityDocumentTitle('energy')} · ${words.text}`} subtitle={synced} tabs={<ActivityTabs period={period} today={today} />} />
       <Page stack className="en-page">
         <DateControl
           value={period}

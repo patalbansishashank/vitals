@@ -1,4 +1,4 @@
-/** The Overview's Activity card; Today's compact Steps card shares its goal and source controls. */
+/** The Ring Overview's Activity card: the day's steps against the goal. It opens Activity › Movement on the same day. */
 import type { ReactNode } from 'react';
 import { Footprints } from 'lucide-react';
 import { CardHead, ChartTwin, GradientCard, formatNumber } from '@/components';
@@ -42,7 +42,7 @@ export function ActivityCard({
     <GradientCard
       as="section"
       domain="steps"
-      href={ringPaths.tab('activity', date)}
+      href={ringPaths.movement(date)}
       head={
         <CardHead
           as="h2"

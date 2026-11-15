@@ -3,7 +3,8 @@
  * minutes and every request queued behind it). `perf_hooks.monitorEventLoopDelay` samples the loop's delay; the numbers
  * cover the current and the previous 30-second window, so a stall shows in `/health` for half a minute to a minute
  * after it ends. While the loop is blocked `/health` cannot answer at all: the deployment's watchdog
- * (`deploy/vitals-watchdog.sh`) counts that as a failure.
+ * (`deploy/vitals-watchdog.sh`) then looks at the main thread's CPU time to tell a loop that is working from one that is
+ * stuck (r087 S5).
  */
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 

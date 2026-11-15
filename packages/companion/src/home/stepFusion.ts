@@ -246,6 +246,18 @@ const overlapsAny = (xs: ReadonlyArray<{ startMs: number; endMs: number }>, s: n
   const i = firstEndAfter(xs, s);
   return i < xs.length && xs[i]!.startMs < e;
 };
+/** Two lists of disjoint intervals, each by start and none of one overlapping any of the other, as one list by start. */
+function mergeByStart<T extends { startMs: number }>(a: T[], b: T[]): T[] {
+  if (!b.length) return a;
+  if (!a.length) return b;
+  const out: T[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) out.push(a[i]!.startMs <= b[j]!.startMs ? a[i++]! : b[j++]!);
+  while (i < a.length) out.push(a[i++]!);
+  while (j < b.length) out.push(b[j++]!);
+  return out;
+}
 
 function lineageRank(pref: readonly string[], l: string): number {
   const cls = l.startsWith('hc-other:') ? 'hc-other' : l;
@@ -392,7 +404,11 @@ export function phoneBouts(phone: readonly TrackRecord[], ring: readonly TrackRe
   return runs.filter(([s, e]) => e - s >= BOUT_MIN * MIN).map(([s, e]) => {
     const phoneSteps = stepsOver(ph, s, e);
     const ringSteps = stepsOver(ringValid, s, e);
-    const ringCoverage = coveredMs(ringValid, s, e) / (e - s);
+    // only the ring's records of this bout: over the whole track, each bout of a month paid for every minute of it
+    const from = firstEndAfter(ringValid, s);
+    let to = from;
+    while (to < ringValid.length && ringValid[to]!.startMs < e) to++;
+    const ringCoverage = coveredMs(ringValid.slice(from, to), s, e) / (e - s);
     const countContrast = phoneSteps >= BOUT_RATIO * ringSteps && phoneSteps - ringSteps >= BOUT_MARGIN;
     const n = (e - s) / MIN;
     let both = 0;
@@ -449,15 +465,26 @@ export function fuseSteps(records: readonly StepRecord[], ctx: FusionContext = {
     const checked = list.map((r): TrackRecord => ({ ...r, ...validity(r) }));
     checked.sort((a, b) => (a.valid ? 0 : 1) - (b.valid ? 0 : 1) || (a.sourceRank ?? 0) - (b.sourceRank ?? 0) || cmpStr(a.source, b.source) ||
       SUPPORT_RANK[a.support] - SUPPORT_RANK[b.support] || a.startMs - b.startMs || a.endMs - b.endMs || cmpStr(a.id, b.id));
-    const track: TrackRecord[] = [];
+    // Each record joins the track unless one already in it overlaps it. The order above runs through the records in
+    // stretches of rising start (one per source and support class), so a stretch is checked against the track before
+    // it and against its own last kept record (the kept ones are disjoint and by start, so that one ends last), then
+    // merged in one pass: the track the one-by-one insert built, without moving its tail for every record.
+    let track: TrackRecord[] = [];
+    let stretch: TrackRecord[] = [];
+    let lastStart = -Infinity;
     for (const r of checked) {
-      if (overlapsAny(track, r.startMs, r.endMs)) {
+      if (r.startMs < lastStart) {
+        track = mergeByStart(track, stretch);
+        stretch = [];
+      }
+      lastStart = r.startMs;
+      if (overlapsAny(track, r.startMs, r.endMs) || (stretch.length > 0 && stretch[stretch.length - 1]!.endMs > r.startMs)) {
         copies.push(r);
         continue;
       }
-      const at = firstEndAfter(track, r.startMs);
-      track.splice(at, 0, r);
+      stretch.push(r);
     }
+    track = mergeByStart(track, stretch);
     // (r068 B1) the kept minute detail on the wall-clock minute
     tracks.set(lineage, alignMinuteDetail(track));
   }
@@ -465,15 +492,25 @@ export function fuseSteps(records: readonly StepRecord[], ctx: FusionContext = {
   // observed zeros: whole minutes of a window without a record of that lineage (never inside a bout whose carry says the
   // phone was not with the gait: a hand or desk carry, `locomotorRing`)
   const unobserved = ctx.activities?.filter((a) => a.kind === 'locomotorRing') ?? [];
+  // A zero is a whole wall-clock minute, so two of them overlap only as the same minute: each lineage's new zeros are
+  // told apart by their minute and merged into its track once, after every window (a month of observed zeros is tens
+  // of thousands of them: inserted one at a time, each moved the rest of the track).
+  const zeros = new Map<StepLineage, { track: TrackRecord[]; minutes: Set<number>; added: TrackRecord[] }>();
   for (const w of [...(ctx.zeroWindows ?? [])].sort((a, b) => a.startMs - b.startMs || cmpStr(a.lineage, b.lineage))) {
-    let track = tracks.get(w.lineage);
-    if (!track) tracks.set(w.lineage, (track = []));
+    let z = zeros.get(w.lineage);
+    if (!z) {
+      let track = tracks.get(w.lineage);
+      if (!track) tracks.set(w.lineage, (track = []));
+      zeros.set(w.lineage, (z = { track, minutes: new Set(), added: [] }));
+    }
     for (let m = Math.ceil(w.startMs / MIN) * MIN; m + MIN <= w.endMs; m += MIN) {
-      if (overlapsAny(track, m, m + MIN)) continue;
+      if (z.minutes.has(m) || overlapsAny(z.track, m, m + MIN)) continue;
       if (w.lineage === 'phone' && unobserved.some((a) => a.startMs < m + MIN && m < a.endMs)) continue;
-      track.splice(firstEndAfter(track, m), 0, { id: `zero:${w.lineage}:${m}`, lineage: w.lineage, source: w.source, startMs: m, endMs: m + MIN, steps: 0, support: 'minute', valid: true, synthetic: true });
+      z.minutes.add(m);
+      z.added.push({ id: `zero:${w.lineage}:${m}`, lineage: w.lineage, source: w.source, startMs: m, endMs: m + MIN, steps: 0, support: 'minute', valid: true, synthetic: true });
     }
   }
+  for (const [lineage, z] of zeros) if (z.added.length) tracks.set(lineage, mergeByStart(z.track, z.added.sort((a, b) => a.startMs - b.startMs)));
 
   // A coarse record of a lineage the unit could never select (hc-other or unknown: no context rule picks them) that
   // valid records of preferred lineages cover (at least ADEQUATE_COVERAGE of its time, r063 A3) is eclipsed: it stays in

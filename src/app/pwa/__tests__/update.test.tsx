@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { setPlatformForTests } from '@/platform';
 import { NoticesRegion, useNoticeStore } from '@/app/shell/notices';
-import { applyUpdate, reloadOnce, resetController, startPwa, type RegisterSW } from '../controller';
+import { applyUpdate, reloadOnce, resetController, startPwa, UPDATE_CHECK_MS, type RegisterSW } from '../controller';
 import { InstallSettings } from '@/features/settings/InstallSettings';
 import { SettingsIndex } from '@/features/settings/SettingsIndex';
 import { getInstallState, resetInstall, startInstallDetection, type BeforeInstallPromptEvent } from '../install';
@@ -96,6 +96,123 @@ describe('startPwa', () => {
     startPwa({ registerSW: fake.registerSW, enabled: true });
     act(() => fake.options().onRegisterError?.(new Error('SecurityError')));
     expect(getSwState()).toMatchObject({ offline: 'unavailable', error: 'SecurityError' });
+  });
+});
+
+describe('update checks while the page stays open', () => {
+  const setVisibility = (state: DocumentVisibilityState) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
+  afterEach(() => {
+    Reflect.deleteProperty(document, 'visibilityState');
+  });
+
+  function registered(controller: object | null = {}) {
+    stubServiceWorker(undefined, controller);
+    const fake = fakeRegister();
+    startPwa({ registerSW: fake.registerSW, enabled: true });
+    const registration = Object.assign(new EventTarget(), {
+      active: {},
+      installing: null as (EventTarget & { state: string }) | null,
+      waiting: null as object | null,
+      update: vi.fn(() => Promise.resolve()),
+    });
+    fake.options().onRegisteredSW?.('/sw.js', registration as unknown as ServiceWorkerRegistration);
+    return { fake, registration };
+  }
+
+  /** The browser found a worker: it starts installing and ends `installed` (waiting) or `redundant` (failed). */
+  function install(registration: ReturnType<typeof registered>['registration'], outcome: 'installed' | 'redundant') {
+    const worker = Object.assign(new EventTarget(), { state: 'installing' });
+    registration.installing = worker;
+    registration.dispatchEvent(new Event('updatefound'));
+    worker.state = outcome;
+    registration.installing = null;
+    if (outcome === 'installed') registration.waiting = worker;
+    worker.dispatchEvent(new Event('statechange'));
+    return worker;
+  }
+
+  const offerShown = () => useNoticeStore.getState().notices.filter((n) => n.id === UPDATE_NOTICE_ID).length;
+
+  it('asks for a new worker when the page comes back into view, not when it is hidden', () => {
+    const { registration } = registered();
+    expect(registration.update).not.toHaveBeenCalled();
+    setVisibility('hidden');
+    expect(registration.update).not.toHaveBeenCalled();
+    setVisibility('visible');
+    expect(registration.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks hourly while the page stays open, and skips while a worker is already installing', () => {
+    vi.useFakeTimers();
+    const { registration } = registered();
+    vi.advanceTimersByTime(UPDATE_CHECK_MS);
+    expect(registration.update).toHaveBeenCalledTimes(1);
+    registration.installing = Object.assign(new EventTarget(), { state: 'installing' });
+    vi.advanceTimersByTime(UPDATE_CHECK_MS);
+    expect(registration.update).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed check stays quiet, and a found update still waits for the Reload prompt', async () => {
+    const { fake, registration } = registered();
+    registration.update.mockImplementationOnce(() => Promise.reject(new Error('offline')));
+    setVisibility('visible');
+    await Promise.resolve();
+    expect(getSwState().error).toBeNull();
+    act(() => fake.options().onNeedRefresh?.());
+    expect(getSwState().needRefresh).toBe(true);
+    expect(fake.updateSW).not.toHaveBeenCalled();
+  });
+
+  it('skips the check while offline', () => {
+    const { registration } = registered();
+    Object.defineProperty(navigator, 'onLine', { configurable: true, get: () => false });
+    try {
+      setVisibility('visible');
+      expect(registration.update).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(navigator, 'onLine');
+    }
+  });
+
+  it('offers the update when a later check installs a worker after an earlier one failed', () => {
+    const { registration } = registered();
+    install(registration, 'redundant');
+    expect(offerShown()).toBe(0);
+    expect(getSwState().needRefresh).toBe(false);
+    install(registration, 'installed');
+    expect(offerShown()).toBe(1);
+    expect(getSwState().needRefresh).toBe(true);
+  });
+
+  it('offers a worker that is already waiting when the next check runs, once, even after the offer was dismissed', () => {
+    const { registration } = registered();
+    registration.waiting = {};
+    setVisibility('visible');
+    expect(offerShown()).toBe(1);
+    act(() => useNoticeStore.setState({ notices: [] }));
+    setVisibility('visible');
+    expect(offerShown()).toBe(0);
+  });
+
+  it('does not treat the first install on an uncontrolled page as an update', () => {
+    const { registration } = registered(null);
+    install(registration, 'installed');
+    expect(offerShown()).toBe(0);
+    expect(getSwState().needRefresh).toBe(false);
+  });
+
+  it('stops checking once torn down', () => {
+    vi.useFakeTimers();
+    const { registration } = registered();
+    resetController();
+    setVisibility('visible');
+    vi.advanceTimersByTime(UPDATE_CHECK_MS);
+    expect(registration.update).not.toHaveBeenCalled();
+    install(registration, 'installed');
+    expect(offerShown()).toBe(0);
   });
 });
 

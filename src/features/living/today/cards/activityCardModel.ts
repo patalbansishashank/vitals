@@ -10,8 +10,6 @@ import { energyText } from '../../activity/model';
 export const FACE_WORDS = {
   /** (Claude P2-16) A.1.4: without a plan or ring goal the 10 000 is a default, and says so. */
   defaultGoal: 'default goal',
-  /** (Claude P2-14) unknown steps are not "no steps"; (r068 T15) and nothing is forecast before a step is counted. */
-  noStepData: 'No step data yet',
   /** (Claude P1-7) */
   updated: 'counted, updated since',
   /** (Claude P3-9) a past day's card */
@@ -19,9 +17,6 @@ export const FACE_WORDS = {
   noActivitiesOfDay: 'Nothing recorded that day',
   /** (r068 T8) a past day's Heart Points line: "34 that day" */
   thatDay: 'that day',
-  /** (0.6.3 S31) quiet: the likely steps by bedtime in words */
-  stepsOnCourse: 'On course for the goal by bedtime',
-  stepsUnder: 'Likely under the goal by bedtime',
   /** 0.6.3: Today without a plan */
   noPlanCaption: 'From your body and the ring',
   noPlanNote: 'By bedtime assumes your usual steps and no more exercise.',

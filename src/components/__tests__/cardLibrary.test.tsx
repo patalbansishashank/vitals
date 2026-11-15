@@ -83,6 +83,8 @@ describe('the model', () => {
 
   it('groupItems keeps first-seen order; filterItems needs every word, in label, description or group', () => {
     expect(groupItems(ITEMS.filter((i) => !i.locked)).map((g) => [g.group, g.items.length])).toEqual([['Food', 1], ['Energy', 2], ['Sleep', 1], ['Move', 1], ['Body', 1], ['Recovery', 2]]);
+    // a page's fixed order wins; groups it does not name follow in first-seen order
+    expect(groupItems(ITEMS.filter((i) => !i.locked), ['Move', 'Sleep', 'Recovery']).map((g) => g.group)).toEqual(['Move', 'Sleep', 'Recovery', 'Food', 'Energy', 'Body']);
     expect(filterItems(ITEMS, 'calm').map((i) => i.id)).toEqual(['stress']);
     expect(filterItems(ITEMS, 'energy protein').map((i) => i.id)).toEqual(['eaten']);
     expect(filterItems(ITEMS, '  ').length).toBe(ITEMS.length);

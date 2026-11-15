@@ -9,8 +9,6 @@ import type { InfoEntry } from '../components/info';
 const cap = (s: string): string => (s ? `${s[0]!.toUpperCase()}${s.slice(1)}` : s);
 
 export const TRAIN_COPY = {
-  title: 'Train',
-
   /** Header status icon's name on a paused day (it opens Plan details). */
   paused: 'Plan paused',
   outsidePlan: 'Outside the plan',
@@ -18,6 +16,7 @@ export const TRAIN_COPY = {
   makePlan: 'Make a plan',
   /** (0.6.3 S24/A7) Tracking without a plan: log, record and review stay here. */
   hub: {
+    /** The section's accessible name (the page itself is "Activity" with or without a plan, r087). */
     title: 'Activities',
     record: 'Record',
     /** r068 L17: the hub's list of what was done lately. */

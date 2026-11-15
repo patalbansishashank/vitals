@@ -52,12 +52,12 @@ describe('the night in two parts on the Last night card', () => {
 });
 
 describe('the Last night card states', () => {
-  it('no Sleep index link while the index has no value; an older server\'s is labelled On-device (legacy)', () => {
+  it('no Sleep index link while the index has no value; an older server\'s is labelled Phone', () => {
     const { unmount } = inRouter(night(view(), false, { value: null, legacy: false }));
     expect(screen.queryByRole('link', { name: /Sleep index/ })).toBeNull();
     unmount();
     inRouter(night(view(), false, { value: 71, legacy: true }));
-    expect(screen.getByRole('link', { name: 'Sleep index 71 · Good · On-device (legacy)' })).toHaveAttribute('href', '/ring/scores');
+    expect(screen.getByRole('link', { name: 'Sleep index 71 · Good · Phone' })).toHaveAttribute('href', '/ring/scores');
   });
 
   it('a night still learning the baseline says so with its dots, and the card says nothing it does not know', () => {

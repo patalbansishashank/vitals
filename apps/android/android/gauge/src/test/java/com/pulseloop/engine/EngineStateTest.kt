@@ -81,6 +81,29 @@ class EngineStateTest {
         assertEquals(setOf("state", "credentialConfigured", "credentialRequired", "credentialRejected", "credentialAuthenticated"), json.keys().asSequence().toSet())
     }
 
+    @Test fun `today's ring steps and the latest heart rate are in the state only when the engine has them`() {
+        fun state(today: EngineState.Today? = null, latestHr: EngineState.LatestHr? = null) = EngineState(
+            mode = EngineMode.ACTIVE, gaugeInstalled = false, gaugePendingUploads = null,
+            ring = EngineState.Ring(), permissions = perms, upload = EngineState.Upload(), shortVideo = EngineState.ShortVideo(),
+            today = today, latestHr = latestHr,
+        ).toJson()
+        // nothing to show yet: the keys are left out, as on a phone still on the older app
+        val none = state()
+        assertFalse(none.has("today")); assertFalse(none.has("latestHr"))
+        val json = state(EngineState.Today("2026-11-15", 4321, "2026-11-15T09:29:00Z"), EngineState.LatestHr(73, "2026-11-15T09:28:00Z"))
+        val today = json.getJSONObject("today")
+        assertEquals("2026-11-15", today.getString("date"))
+        assertEquals(4321, today.getInt("ringSteps"))
+        assertEquals("2026-11-15T09:29:00Z", today.getString("ringStepsAt"))
+        val hr = json.getJSONObject("latestHr")
+        assertEquals(73, hr.getInt("bpm"))
+        assertEquals("2026-11-15T09:28:00Z", hr.getString("at"))
+        assertEquals(setOf("bpm", "at"), hr.keys().asSequence().toSet())
+        // a count without a time still shows; the short-video counts keep their own `today`
+        assertFalse(state(EngineState.Today("2026-11-15", 0)).getJSONObject("today").has("ringStepsAt"))
+        assertEquals(0, json.getJSONObject("shortVideo").getJSONObject("today").getInt("youtube"))
+    }
+
     @Test fun `permissions fold to granted, denied, partial or unavailable`() {
         assertEquals(Perm.GRANTED, EngineState.perm(listOf(true, true)))
         assertEquals(Perm.DENIED, EngineState.perm(listOf(false, false)))

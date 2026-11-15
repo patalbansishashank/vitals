@@ -48,13 +48,16 @@ describe('mode-aware shell navigation (IA §3.4–§3.6, SPEC §4)', () => {
   afterEach(() => resetActivePlan());
 
   // r068 U14: a labelled dock of five keys with Ring in it and More last; the sidebar one stable list in groups
-  it('Planning mode: the dock is Today · Plan · Activities · Ring · More, and the sidebar Today · Activities · Ring · Energy · Progress, then Planning', async () => {
+  it('Planning mode: the dock is Today · Plan · Activity · Ring · More, and the sidebar Today · Activity · Ring · Progress, then Planning', async () => {
     renderAt('/body');
     await screen.findByRole('heading', { level: 1 }, { timeout: 5000 });
-    // the same slots as Living's Today · Food · Train · Ring · More: Activities / Train third, Ring fourth (r068 V6)
-    expect(names(tabBar())).toEqual(['today', 'plan', 'activities', 'ring', 'more']);
-    // r068 L29: Progress (weigh-ins, body, markers) needs no plan, so Planning lists it too
-    expect(names(rail())).toEqual(['today', 'activities', 'ring', 'energy', 'progress']);
+    // the same slots as Living's Today · Food · Activity · Ring · More: Activity third, Ring fourth (r068 V6), under the
+    // same name with or without a plan (r087)
+    expect(names(tabBar())).toEqual(['today', 'plan', 'activity', 'ring', 'more']);
+    expect(within(tabBar()).getByRole('link', { name: 'activity' })).toHaveAttribute('href', '/train');
+    // r068 L29: Progress (weigh-ins, body, markers) needs no plan, so Planning lists it too; (r087) Energy is a tab of
+    // Activity, not a row
+    expect(names(rail())).toEqual(['today', 'activity', 'ring', 'progress']);
     expect(names(planning())).toEqual(['body', 'simulate', 'plan', 'coach']);
     expect(within(tabBar()).getByRole('link', { name: 'today' })).toHaveAttribute('href', '/today');
     expect(within(tabBar()).getByRole('link', { name: 'more' })).toHaveAttribute('href', '/more');
@@ -74,7 +77,7 @@ describe('mode-aware shell navigation (IA §3.4–§3.6, SPEC §4)', () => {
     expect(within(header()).queryByRole('menuitem', { name: 'Settings' })).toBeNull();
   });
 
-  it('Planning mode: ⌘/Ctrl + 1…4 follow the dock (1 = Today, 3 = Activities, 4 = Ring)', async () => {
+  it('Planning mode: ⌘/Ctrl + 1…4 follow the dock (1 = Today, 3 = Activity, 4 = Ring)', async () => {
     const router = renderAt('/body');
     await screen.findByRole('heading', { level: 1 }, { timeout: 5000 });
     fireEvent.keyDown(window, { key: '1', ctrlKey: true });
@@ -101,13 +104,13 @@ describe('mode-aware shell navigation (IA §3.4–§3.6, SPEC §4)', () => {
     expect(within(steps).getByRole('link', { name: 'Simulate' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('Living mode: the dock is Today · Food · Train · Ring · More; the sidebar adds Food and Your plan (Plan details); / goes to Today', async () => {
+  it('Living mode: the dock is Today · Food · Activity · Ring · More; the sidebar adds Food and Your plan (Plan details); / goes to Today', async () => {
     await seedPlan();
     const router = renderAt('/');
     await waitFor(() => expect(router.state.location.pathname).toBe('/today'), { timeout: 5000 });
     await screen.findByRole('heading', { level: 1, name: 'Today' }, { timeout: 8000 });
-    expect(names(tabBar())).toEqual(['today', 'food', 'train', 'ring', 'more']);
-    expect(names(rail())).toEqual(['today', 'food', 'train', 'ring', 'energy', 'progress']);
+    expect(names(tabBar())).toEqual(['today', 'food', 'activity', 'ring', 'more']);
+    expect(names(rail())).toEqual(['today', 'food', 'activity', 'ring', 'progress']);
     // (r068 final M19) a plan adds only its own page; Progress and Coach keep their groups in both modes
     expect(names(yourPlan())).toEqual(['plan details']);
     expect(within(yourPlan()).getByRole('link', { name: 'plan details' })).toHaveAttribute('href', '/plan/active');
@@ -135,14 +138,26 @@ describe('mode-aware shell navigation (IA §3.4–§3.6, SPEC §4)', () => {
     expect(within(tabBar()).getByRole('link', { name: 'more' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('Planning mode’s More leaves out the three steps the dock’s Plan key stands for, and leads with Energy and Progress (r069 D4, r068 L29: they need no plan)', async () => {
+  it('Planning mode’s More leaves out the three steps the dock’s Plan key stands for, and leads with Progress (r068 L29: it needs no plan); Energy is not there (r087: a tab of Activity)', async () => {
     renderAt('/more');
     await screen.findByRole('heading', { level: 1, name: 'More' }, { timeout: 8000 });
     const main = document.querySelector<HTMLElement>('.lm-page')!;
     const blocks = Array.from(main.querySelectorAll<HTMLElement>('.settings-block'));
-    expect(blocks.map((g) => within(g).getAllByRole('link').map((l) => l.getAttribute('href')))).toEqual([['/energy', '/progress'], ['/coach', '/evidence'], ['/settings']]);
+    expect(blocks.map((g) => within(g).getAllByRole('link').map((l) => l.getAttribute('href')))).toEqual([['/progress'], ['/coach', '/evidence'], ['/settings']]);
     // the first group is unlabelled (as the sidebar's), the others labelled
     expect(blocks.map((g) => g.getAttribute('role'))).toEqual([null, 'group', 'group']);
+  });
+
+  // (r087) movement data has one home: the Activity key stands for its three tabs, and More never lights for Energy
+  it('the Activity key is current on Train, Movement and Energy, in the dock and in the sidebar', async () => {
+    for (const path of ['/train', '/activity', '/energy']) {
+      renderAt(path);
+      await screen.findByRole('heading', { level: 1, name: 'Activity' }, { timeout: 8000 });
+      const lit = (el: HTMLElement) => within(el).getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page').map((a) => a.getAttribute('aria-label'));
+      expect([path, lit(tabBar())]).toEqual([path, ['activity']]);
+      expect([path, lit(rail())]).toEqual([path, ['activity']]);
+      cleanup();
+    }
   });
 
   it('the Your body setup hides the dock but keeps a way out: ✕ in the header leaves for Today (r068 V1)', async () => {
@@ -158,7 +173,7 @@ describe('mode-aware shell navigation (IA §3.4–§3.6, SPEC §4)', () => {
     const router = renderAt('/simulate');
     await screen.findByRole('heading', { level: 1 }, { timeout: 8000 });
     expect(useActivePlanStore.getState().planningOverride).toBe(false);
-    expect(names(tabBar())).toEqual(['today', 'food', 'train', 'ring', 'more']);
+    expect(names(tabBar())).toEqual(['today', 'food', 'activity', 'ring', 'more']);
     expect(within(tabBar()).getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page').map((a) => a.getAttribute('aria-label'))).toEqual(['more']);
     expect(within(planning()).getByRole('link', { name: 'simulate' })).toHaveAttribute('aria-current', 'page');
     expect(within(header()).queryByRole('button', { name: 'Back to Today' })).toBeNull();
@@ -174,7 +189,7 @@ describe('mode-aware shell navigation (IA §3.4–§3.6, SPEC §4)', () => {
     await screen.findByRole('heading', { level: 1, name: 'Today' }, { timeout: 8000 });
     // a Living screen: no plan icon (Today states the plan day in its own fact line)
     expect(document.querySelector('.lm-plan-status')).toBeNull();
-    expect(names(tabBar())).toEqual(['today', 'food', 'train', 'ring', 'more']);
+    expect(names(tabBar())).toEqual(['today', 'food', 'activity', 'ring', 'more']);
   });
 
   it('the plan status icon’s screens: Body, Simulate, the Planner and Evidence while a plan runs (any screen in the override), never Plan details', () => {

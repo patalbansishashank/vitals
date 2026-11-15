@@ -10,7 +10,7 @@
 //
 // It also writes dist/bundle.json, so an APK built from this dist afterwards (cap sync, no new web build) knows its own
 // bundle's version and build time: a phone never swaps the APK's bundle for an older download.
-// Prints the zip, the .sig and the server's publish command.
+// Prints the zip, the .sig, the minimum native versionCode it chose and the command that publishes it to the update feed.
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -29,10 +29,14 @@ const USAGE = `Usage: node scripts/release/web-bundle.mjs [--use-dist] [--out <d
   --min-native-version-code  oldest compatible Android versionCode (1..current package versionCode; default: current)
   --help       show this usage without building or signing`;
 
-/** versionCode = major*10000 + minor*100 + patch, as apps/android/android/app/build.gradle computes it. */
+/**
+ * versionCode = major*10000 + minor*100 + patch, as apps/android/android/app/build.gradle computes it. A minor or patch
+ * above 99 would collide with the next minor or major (0.100.0 and 1.0.0 are both 10000), so both refuse it.
+ */
 export function versionCodeOf(version) {
   const [major, minor, patch] = String(version).split(/[.-]/).slice(0, 3).map((n) => Number.parseInt(n, 10));
   if (![major, minor, patch].every(Number.isInteger)) throw new Error(`not a version: ${version}`);
+  if (minor > 99 || patch > 99) throw new Error(`version ${version}: minor and patch must be 0..99 for the Android versionCode`);
   return major * 10000 + minor * 100 + patch;
 }
 
@@ -44,6 +48,12 @@ export function minNativeVersionCodeOf(value, current) {
   const floor = Number(value);
   if (!Number.isSafeInteger(floor) || floor > current) throw new Error(`--min-native-version-code must be between 1 and ${current}`);
   return floor;
+}
+
+/** One line naming the minimum native versionCode a bundle was given and where it came from. */
+export function floorNote(floor, given) {
+  const why = given ? 'given with --min-native-version-code' : "this package's own versionCode, the default";
+  return `minimum native versionCode: ${floor} (${why}); only phones on APK ${floor} or newer take this bundle`;
 }
 
 /** `<yyyymmddHHMM UTC>-<git short hash>`: sorts by build time, names the commit, and is a safe folder name. */
@@ -178,7 +188,9 @@ function main() {
   writeFileSync(zipPath, zip);
   writeFileSync(`${zipPath}.sig`, `${sig}\n`);
   console.log(JSON.stringify({ zip: zipPath, sig: `${zipPath}.sig`, ...bundle, sha256: sha, size: zip.length }, null, 2));
-  console.log(`\npublish: vitals-server release publish vitals --web <zip> --version ${bundle.version} --sig <zip>.sig`);
+  // The server offers a bundle only to phones whose APK is at least this versionCode, so say which floor was used.
+  console.log(`\n${floorNote(minNativeVersionCode, minArg !== undefined)}`);
+  console.log(`publish: pnpm release:ota --web ${zipPath}   (docs/RELEASING.md "Publishing to the phones")`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main();
