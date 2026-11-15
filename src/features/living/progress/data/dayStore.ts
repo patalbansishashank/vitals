@@ -2,7 +2,8 @@
  * (r087 C3) One kept answer per local date for the questions the server answers a day at a time (the fused minute
  * timeline, a day's baselines). Every screen that needs a day reads it here, so a day is asked once however many cards
  * show it, and a window of many days never becomes a burst of requests:
- *  - today and yesterday are still filling: asked again after a few minutes, and when new data is announced;
+ *  - today and yesterday are still filling: asked again after a few minutes, and when new data is announced (then for an
+ *    answer newer than the announcement, and once more when a read was under way as it came);
  *  - an older day changes rarely: it is kept for hours, then asked again a couple at a time while a screen reads it
  *    (never the whole window at once), the days asked longest ago first, and the screens hear when such a day changed;
  *  - a day the server could not answer is null (no coverage, never zeros) and is asked again after a wait that grows;
@@ -155,11 +156,12 @@ type Prioritised = { withOptions?: (options: GaugeCallOptions & { priority?: 'sc
 
 /**
  * The client for one day read, at background priority. A client that takes per-read options answers with a view whose
- * `status()` is this read's own; an older client or a test fake is used as it is.
+ * `status()` is this read's own; an older client or a test fake is used as it is. `since`: when new data was last
+ * announced, so the answer never comes from a request another screen sent before it (the client shares identical reads).
  */
-function backgroundApi(api: RingApi): RingApi {
+function backgroundApi(api: RingApi, since?: number): RingApi {
   try {
-    return (api as RingApi & Prioritised).withOptions?.({ priority: 'background' }) ?? api;
+    return (api as RingApi & Prioritised).withOptions?.({ priority: 'background', ...(since !== undefined ? { since } : {}) }) ?? api;
   } catch {
     return api;
   }
@@ -233,7 +235,7 @@ export function createDayStore<T>(o: {
   const serverSource = async (date: LocalDate): Promise<Answer> => {
     let api: RingApi;
     try {
-      api = backgroundApi(gauge());
+      api = backgroundApi(gauge(), changedAt);
     } catch {
       return { value: null, problem: null };
     }
@@ -263,6 +265,8 @@ export function createDayStore<T>(o: {
   let gen = 0;
   let rev = 0;
   let epoch = 0;
+  /** When new data was last announced (undefined: not since the days were last dropped). */
+  let changedAt: number | undefined;
 
   const bump = (): void => {
     rev++;
@@ -272,6 +276,8 @@ export function createDayStore<T>(o: {
   function clear(): void {
     cache.clear();
     inflight.clear();
+    // the client drops its requests under way for the same reasons (or is another client): none from before can answer
+    changedAt = undefined;
     gen++;
     epoch++;
     bump();
@@ -333,6 +339,11 @@ export function createDayStore<T>(o: {
       done: job.done.then(() => {
         if (inflight.get(date) === flight) inflight.delete(date);
         ready();
+        // new data was announced while it ran: the screens ask again, once (the next read starts with `again` false)
+        if (flight.again && g === gen) {
+          epoch++;
+          bump();
+        }
       }),
     };
     inflight.set(date, flight);
@@ -383,8 +394,11 @@ export function createDayStore<T>(o: {
   // "Erase all data": nothing read before stays in memory
   registerEraseHook(() => clear());
   // (0.6.3 S28) new data arrived: the ring is still uploading today and yesterday; an older day waits for its keep time
-  onGaugeDataChanged(() => {
-    const since = addDays(deviceDate(Date.now()), -1);
+  onGaugeDataChanged((at) => {
+    const nowMs = Date.now();
+    // a late report of an earlier change never moves it back
+    changedAt = Math.max(changedAt ?? Number.NEGATIVE_INFINITY, at ?? nowMs);
+    const since = addDays(deviceDate(nowMs), -1);
     let any = false;
     for (const [d, e] of cache) {
       if (d < since) continue;

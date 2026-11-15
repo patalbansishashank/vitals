@@ -168,6 +168,26 @@ export function withLocalHeartRate(
   return { ...daily, metrics: { ...daily.metrics, hr: { ...(m ?? NO_HR), latest } } };
 }
 
+/**
+ * (r087) The day's latest heart rate as a surface shows it: the day summary's (`withLocalHeartRate`), and while there
+ * is no day summary yet (the server has not answered) the phone's own reading of that day, marked `provisional`, so the
+ * surface agrees with the Heart rate page, which shows it at once. null when neither has a reading.
+ */
+export function latestHeartRateOf(
+  daily: GaugeDaily | null,
+  i: { date: string; latestHr: LocalHeartRate | null | undefined },
+): { at: string; value: number; provisional?: true } | null {
+  if (!daily) {
+    const at = ms(i.latestHr?.at);
+    if (!i.latestHr || at === null || calendarDate(at) !== i.date) return null;
+    return { at: i.latestHr.at, value: i.latestHr.bpm, provisional: true };
+  }
+  const m = withLocalHeartRate(daily, i)?.metrics?.hr;
+  const l = m && 'latest' in m ? m.latest : null;
+  if (!l || !('value' in l) || typeof l.value !== 'number') return null;
+  return 'provisional' in l && l.provisional === true ? { at: l.at, value: l.value, provisional: true } : { at: l.at, value: l.value };
+}
+
 /** A point of the day's heart-rate series that is the phone's own reading, not yet in the server's answer. */
 export type LocalRawPoint = GaugeRawPoint & { value: number; provisional: true };
 

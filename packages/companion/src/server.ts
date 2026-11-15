@@ -453,6 +453,10 @@ export async function startCompanion(options: CompanionOptions): Promise<Compani
 
   const server = createServer((req, res) => {
     if (stopping) {
+      // CORS as in handle(): without it the app's WebView (another origin) gets a network error, not this 503 and its
+      // Retry-After
+      res.setHeader('Vary', 'Origin');
+      if ((home ? home.originCheck(req) : policy.check(req)) === 'allowed') applyCors(req, res, 'Retry-After');
       return sendJson(res, 503, { error: 'shutting_down' }, { 'Retry-After': '5', Connection: 'close' });
     }
     const url = req.url ?? '';

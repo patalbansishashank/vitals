@@ -7,7 +7,9 @@ import type { LocalDate } from '@/living';
 import { addDays, compareDates } from '@/living/dates';
 import { useBodyEstimate } from '@/state/profileStore';
 import { useQuietMode, useSettingsStore } from '@/state/settingsStore';
+import { RING_COPY } from '@/features/ring/copy';
 import { heartPointsQuietText } from '../../activity/model';
+import { livingPaths } from '../../paths';
 import { fmtDayMonth } from '../../format';
 import { ACTIVITY_COPY as C } from '../copy';
 import {
@@ -161,7 +163,7 @@ export function HeartPointsSection({ today, quiet: quietProp }: HeartPointsSecti
         <CardFoot
           state={{ word: quiet ? quietWord : C.standing[pointsStanding(cur.points, cur)] }}
           right={quiet ? 'WHO minutes hidden' : `WHO min ${whoText(curWho)}`}
-          link={{ to: '/ring/activity', label: 'Open in Ring' }}
+          link={{ to: livingPaths.movement(), label: `Open in ${RING_COPY.activityHub.title}` }}
         />
       }
     >

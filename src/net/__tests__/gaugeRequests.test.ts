@@ -20,6 +20,8 @@ interface Call {
   headers: Headers;
   signal: AbortSignal;
   answer: (body?: unknown, status?: number, headers?: Record<string, string>) => void;
+  /** The headers arrive (200) and the body never does: a connection that stalls after them. */
+  stall: () => void;
 }
 
 /** A paired server whose every request waits until the test answers it, and gives up when its signal aborts. */
@@ -31,6 +33,7 @@ function server() {
     calls.push({
       url: String(input).slice(BASE.length), method: init?.method ?? 'GET', headers: new Headers(init?.headers), signal,
       answer: (body = {}, status = 200, headers = {}) => resolve(new Response(status === 304 ? null : JSON.stringify(body), { status, headers })),
+      stall: () => resolve(new Response(new ReadableStream({ start: () => undefined }), { status: 200 })),
     });
   })) as typeof globalThis.fetch;
   const pairing = { baseUrl: BASE, person: { id: 'p', label: '' }, deviceId: 'd', pairedAt: 'pair' };
@@ -183,6 +186,156 @@ describe('the request queue in the client', () => {
     clock += 10 * 60_000;
     await vi.advanceTimersByTimeAsync(GAUGE_REQUEST_TIMEOUT_MS);
     expect(await frozen).toBeNull();
+    expect(api.status().problem).toBeNull();
+  });
+});
+
+describe('an answer whose body does not arrive', () => {
+  it('runs out of time like a slow request: the slot is held until then, the saved answer stays, and the client is not offline', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const s = server();
+    const api = createGaugeApi({ server: s, tz: () => 'UTC', store: noStore });
+    const saved = api.daily(day(1));
+    await vi.advanceTimersByTimeAsync(0);
+    s.calls[0]!.answer(daily(day(1)));
+    expect(await saved).toEqual(daily(day(1)));
+    const view = api.withOptions!({});
+    let settled = false;
+    const stuck = view.daily(day(1));
+    void stuck.then(() => { settled = true; });
+    const fresh = api.withOptions!({}).daily(day(2), { cached: false });
+    await vi.advanceTimersByTimeAsync(0);
+    s.sent('daily')[1]!.stall();
+    s.sent('daily')[2]!.stall();
+    // both bodies are being read: their two slots are held, so the other reads go one at a time
+    const others = [3, 4].map((n) => api.daily(day(n)));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(s.sent('daily').map(dateOf)).toEqual([1, 1, 2, 3].map(day));
+    s.sent('daily')[3]!.answer(daily(day(3)));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(s.sent('daily').map(dateOf)).toEqual([1, 1, 2, 3, 4].map(day));
+    s.sent('daily')[4]!.answer(daily(day(4)));
+    expect((await Promise.all(others)).map((d) => d?.date)).toEqual([3, 4].map(day));
+    await vi.advanceTimersByTimeAsync(GAUGE_REQUEST_TIMEOUT_MS - 1);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.sent('daily')[1]!.signal.aborted).toBe(true);
+    expect(await stuck).toEqual(daily(day(1)));
+    expect(await fresh).toBeNull();
+    expect(view.status().problem).toBe('server_error');
+    expect(api.status().problem).toBeNull();
+    // the slots came back with the timeout: three reads leave at once
+    const after = [5, 6, 7].map((n) => api.daily(day(n)));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(s.sent('daily').slice(5).map(dateOf)).toEqual([5, 6, 7].map(day));
+    for (const c of s.sent('daily').slice(5)) c.answer(daily(dateOf(c)!));
+    expect((await Promise.all(after)).map((d) => d?.date)).toEqual([5, 6, 7].map(day));
+    expect(api.status().problem).toBeNull();
+  });
+
+  it('ends at once when its only caller cancels, and gives the slot back', async () => {
+    const s = server();
+    const api = createGaugeApi({ server: s, now: () => NOW, tz: () => 'UTC', store: noStore });
+    const ctl = new AbortController();
+    const stuck = api.daily(day(1), { signal: ctl.signal });
+    const busy = [2, 3].map((n) => api.daily(day(n)));
+    const waiting = api.daily(day(4));
+    await settle();
+    s.sent('daily')[0]!.stall();
+    await settle();
+    expect(s.sent('daily')).toHaveLength(3);
+    ctl.abort();
+    expect(await stuck).toBeNull();
+    expect(s.sent('daily')[0]!.signal.aborted).toBe(true);
+    await vi.waitFor(() => expect(s.sent('daily')).toHaveLength(4));
+    for (const c of s.sent('daily').slice(1)) c.answer(daily(dateOf(c)!));
+    expect((await Promise.all([...busy, waiting])).map((d) => d?.date)).toEqual([2, 3, 4].map(day));
+    expect(api.status().problem).toBeNull();
+  });
+});
+
+describe('a 429 from the server', () => {
+  it('waits Retry-After with no slot held, asks once more, and the answer counts as any other', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const s = server();
+    const api = createGaugeApi({ server: s, tz: () => 'UTC', store: noStore });
+    const view = api.withOptions!({});
+    const read = view.daily(day(1));
+    const direct = api.daily(day(9), { cached: false });
+    await vi.advanceTimersByTimeAsync(0);
+    s.sent('daily')[0]!.answer({ ok: false, status: 'rate_limited', summary: 'Too many requests' }, 429, { 'Retry-After': '2' });
+    s.sent('daily')[1]!.answer({}, 429, { 'Retry-After': '2' });
+    await vi.advanceTimersByTimeAsync(0);
+    // not a failed read: nobody is told anything yet
+    expect(view.status().problem).toBeNull();
+    expect(api.status().problem).toBeNull();
+    // the wait holds no slot: three other reads all leave at once
+    const others = [2, 3, 4].map((n) => api.daily(day(n)));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(s.sent('daily').map(dateOf)).toEqual([1, 9, 2, 3, 4].map(day));
+    for (const c of s.sent('daily').slice(2)) c.answer(daily(dateOf(c)!));
+    expect((await Promise.all(others)).map((d) => d?.date)).toEqual([2, 3, 4].map(day));
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(s.sent('daily')).toHaveLength(5);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.sent('daily').map(dateOf)).toEqual([1, 9, 2, 3, 4, 1, 9].map(day));
+    s.sent('daily')[5]!.answer(daily(day(1)));
+    s.sent('daily')[6]!.answer(daily(day(9)));
+    expect(await read).toEqual(daily(day(1)));
+    expect(await direct).toEqual(daily(day(9)));
+    expect(view.status().problem).toBeNull();
+    expect(api.status().problem).toBeNull();
+  });
+
+  it('waits five seconds at most, and a second 429 is a server error with the last good answer', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const s = server();
+    const api = createGaugeApi({ server: s, tz: () => 'UTC', store: noStore });
+    const saved = api.daily(day(1));
+    await vi.advanceTimersByTimeAsync(0);
+    s.calls[0]!.answer(daily(day(1)));
+    await saved;
+    const view = api.withOptions!({});
+    const kept = view.daily(day(1));
+    const fresh = api.withOptions!({}).daily(day(2), { cached: false });
+    await vi.advanceTimersByTimeAsync(0);
+    s.sent('daily')[1]!.answer({}, 429, { 'Retry-After': '30' });
+    // no Retry-After at all: a short wait, then once more
+    s.sent('daily')[2]!.answer({}, 429);
+    await vi.advanceTimersByTimeAsync(999);
+    expect(s.sent('daily')).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.sent('daily').map(dateOf)).toEqual([1, 1, 2, 2].map(day));
+    await vi.advanceTimersByTimeAsync(3999);
+    expect(s.sent('daily')).toHaveLength(4);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(s.sent('daily').map(dateOf)).toEqual([1, 1, 2, 2, 1].map(day));
+    expect(view.status().problem).toBeNull();
+    s.sent('daily')[3]!.answer({}, 429, { 'Retry-After': '1' });
+    s.sent('daily')[4]!.answer({}, 429, { 'Retry-After': '1' });
+    expect(await kept).toEqual(daily(day(1)));
+    expect(await fresh).toBeNull();
+    expect(view.status().problem).toBe('server_error');
+    expect(api.status().problem).toBe('server_error');
+    // once more means once
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(s.sent('daily')).toHaveLength(5);
+  });
+
+  it('stops waiting when the caller cancels, and does not ask again', async () => {
+    vi.useFakeTimers({ now: NOW });
+    const s = server();
+    const api = createGaugeApi({ server: s, tz: () => 'UTC', store: noStore });
+    const ctl = new AbortController();
+    const read = api.daily(day(1), { signal: ctl.signal });
+    const gone = expect(read).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.advanceTimersByTimeAsync(0);
+    s.calls[0]!.answer({}, 429, { 'Retry-After': '5' });
+    await vi.advanceTimersByTimeAsync(1000);
+    ctl.abort();
+    await gone;
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(s.calls).toHaveLength(1);
     expect(api.status().problem).toBeNull();
   });
 });

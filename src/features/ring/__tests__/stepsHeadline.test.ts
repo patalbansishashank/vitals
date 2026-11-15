@@ -72,6 +72,25 @@ describe('one steps headline for Today and Ring', () => {
     expect(dayStepsHeadline({ date: day, isToday: true, local: local(6300), plan: plan(6400, ['ring:band']) })?.value).toBe(6400);
   });
 
+  it('the phone’s lead is added only while the server’s ring total is at least as new as the plan entry', () => {
+    const t = Date.parse('2026-11-15T14:00:00Z');
+    // the screen holds ring total 6000; the phone's ring count is 6300
+    const input = { date: day, isToday: true, stepsDay: stepsDay(6400, { ringDailyTotal: 6000 }), local: local(6300), plan: plan(6700, ['ring:band']) };
+    // the import read the entry (already with the ring's 6300) after the screen's answer: the 300 are not counted twice
+    expect(dayStepsHeadline({ ...input, planAt: t, ringAt: t - 60_000 })).toEqual({ value: 6700, lineage: 'fused' });
+    // the answer's time unknown while the entry's is known: nothing says the lead is new
+    expect(dayStepsHeadline({ ...input, planAt: t })).toEqual({ value: 6700, lineage: 'fused' });
+    expect(dayStepsHeadline({ ...input, planAt: t, ringAt: null })).toEqual({ value: 6700, lineage: 'fused' });
+    // the answer is as new as the entry, or newer: the phone's lead over it is steps the entry cannot hold
+    const caught = { ...input, plan: plan(6400, ['ring:band']) };
+    expect(dayStepsHeadline({ ...caught, planAt: t, ringAt: t })).toEqual({ value: 6700, lineage: 'fused', provisional: true });
+    expect(dayStepsHeadline({ ...caught, planAt: t, ringAt: t + 60_000 })).toEqual({ value: 6700, lineage: 'fused', provisional: true });
+    // the forecast follows the count shown
+    expect(daySteps({ ...input, planAt: t, ringAt: t - 60_000 }).likely).toBe(11_700);
+    // the person's own entry is never moved, whatever the times
+    expect(dayStepsHeadline({ ...input, plan: plan(3000, ['user']), planAt: t, ringAt: t + 60_000 })).toEqual({ value: 3000, lineage: 'fused' });
+  });
+
   it('an import that located no steps is still the import, not the person’s entry', () => {
     expect(ownStepsEntry([])).toBe(false);
     expect(ownStepsEntry(['user'])).toBe(true);

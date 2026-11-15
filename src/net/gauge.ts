@@ -20,7 +20,9 @@
  * first (`priority`). Identical reads share one request, except that a caller who needs an answer newer than some
  * moment (`since`) never joins a request sent before it. A request's 20 seconds start when it leaves the queue; when
  * they run out, that read failed (`server_error` for that read) but the client is not marked offline. It is only when
- * the requests sent after a full round of those also hear nothing, or when a request cannot be sent at all.
+ * the requests sent after a full round of those also hear nothing, or when a request cannot be sent at all. The 20
+ * seconds and the queue slot last until the answer's body has been read. A 429 is waited out (`Retry-After`, 5 seconds
+ * at most, no slot held) and the request sent once more before it counts as a failure.
  *
  * Gauge readings are device estimates, not medical measurements. Nothing here writes.
  */
@@ -943,6 +945,9 @@ export interface GaugeApi {
 
 /** Once a request has left the queue for the server, it may not take longer than this. */
 export const GAUGE_REQUEST_TIMEOUT_MS = 20_000;
+/** A 429 is waited out for the server's `Retry-After`, never longer than this, and for this long when it names none. */
+export const GAUGE_RETRY_AFTER_MAX_MS = 5_000;
+const GAUGE_RETRY_AFTER_DEFAULT_MS = 1_000;
 /** A saved snapshot whose body a 304 confirmed gets its new date on disk at most this often. */
 const SNAPSHOT_REDATE_MS = 10 * 60_000;
 
@@ -1182,6 +1187,25 @@ type Flight = { controller: AbortController; lane: GaugeLane; readers: Set<Reade
 
 const abortError = (signal: AbortSignal): unknown => signal.reason ?? new DOMException('This read was cancelled.', 'AbortError');
 
+/** `work`, or a rejection as soon as `signal` aborts: a body that stalls on the network must not outlive its request. */
+const unlessAborted = <T>(work: Promise<T>, signal: AbortSignal): Promise<T> => new Promise<T>((resolve, reject) => {
+  const onAbort = () => reject(abortError(signal));
+  if (signal.aborted) onAbort();
+  else signal.addEventListener('abort', onAbort, { once: true });
+  work.then(
+    (v) => { signal.removeEventListener('abort', onAbort); resolve(v); },
+    (e: unknown) => { signal.removeEventListener('abort', onAbort); reject(e); },
+  );
+});
+
+/** How long a 429 asks to wait (`Retry-After` in seconds or as a date), within `GAUGE_RETRY_AFTER_MAX_MS`. */
+function retryAfterMs(header: string | null, nowMs: number): number {
+  const text = header?.trim() ?? '';
+  const seconds = /^\d+(\.\d+)?$/.test(text) ? Number(text) * 1000 : Date.parse(text) - nowMs;
+  const ms = text && Number.isFinite(seconds) ? seconds : GAUGE_RETRY_AFTER_DEFAULT_MS;
+  return Math.min(GAUGE_RETRY_AFTER_MAX_MS, Math.max(0, ms));
+}
+
 export function createGaugeApi(opts: { server?: Server | (() => Server); now?: () => number; tz?: () => string; store?: GaugeCacheStore } = {}): GaugeApi & GaugeV2Api {
   const serverOf = (): Server => (typeof opts.server === 'function' ? opts.server() : (opts.server ?? getServerClient()));
   const now = opts.now ?? (() => Date.now());
@@ -1336,9 +1360,39 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
   };
 
   type Answer = { kind: 'data'; data: Record<string, unknown> } | { kind: 'null' } | { kind: 'status'; status: number };
+  /** The server refused for now (429): ask again after `waitMs`, if the pairing is still the one of `generation`. */
+  type Busy = { kind: 'busy'; waitMs: number; generation: number };
 
-  /** One request; `{kind:'status'}` hands a refused status back to the caller (tz fallback, the fuse route's 404). */
+  /**
+   * One request; `{kind:'status'}` hands a refused status back to the caller (tz fallback, the fuse route's 404).
+   * A 429 is the rate limit, not a failed read: it is waited out with no slot held, and the request sent once more.
+   */
   async function send(method: 'GET' | 'POST', path: string, key: string, body: unknown, o: InternalCallOptions, passStatus: (st: number) => boolean): Promise<Answer> {
+    const first = await attempt(method, path, key, body, o, passStatus, true);
+    if (first.kind !== 'busy') return first;
+    await new Promise<void>((resolve) => {
+      // `forget` (the pairing ended or changed) ends the wait as the caller's own signal does
+      const ctl = new AbortController();
+      controllers.add(ctl);
+      const done = () => {
+        clearTimeout(timer);
+        controllers.delete(ctl);
+        o.signal?.removeEventListener('abort', done);
+        resolve();
+      };
+      const timer = setTimeout(done, first.waitMs);
+      ctl.signal.addEventListener('abort', done, { once: true });
+      if (o.signal?.aborted) done();
+      else o.signal?.addEventListener('abort', done, { once: true });
+    });
+    if (o.signal?.aborted) throw abortError(o.signal);
+    watchPairing(serverOf());
+    if (generation !== first.generation) return { kind: 'null' };
+    return (await attempt(method, path, key, body, o, passStatus, false)) as Answer;
+  }
+
+  /** `retryBusy`: a 429 comes back as `busy` for `send` to wait out; otherwise it is the read's failure. */
+  async function attempt(method: 'GET' | 'POST', path: string, key: string, body: unknown, o: InternalCallOptions, passStatus: (st: number) => boolean, retryBusy: boolean): Promise<Answer | Busy> {
     const semantic = new URL(key, 'https://cache.invalid');
     semantic.searchParams.set('tz', zoneOf(o));
     semantic.searchParams.sort();
@@ -1382,6 +1436,9 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
     let timer: ReturnType<typeof setTimeout> | undefined;
     let release: (() => void) | null = null;
     let res: Response;
+    /** The parsed body of a 2xx answer; `unread` when it did not arrive whole or is not JSON. */
+    let parsed: unknown;
+    let unread = false;
     // The body a 304 confirms. A fusion context that arrives meanwhile may let an unconfirmed snapshot go from memory.
     let asked: Entry | undefined;
     try {
@@ -1443,6 +1500,19 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
         }
         return offline('offline');
       }
+      // The body is part of the answer: the timeout and the slot last until it has been read. A connection that
+      // stalls after the headers would otherwise leave this read pending for good.
+      if (res.ok) {
+        try {
+          parsed = await unlessAborted(res.json() as Promise<unknown>, ctl.signal);
+        } catch {
+          // cancelled (by the caller, or with the pairing): no answer, as for any answer that comes too late
+          if (stale()) return { kind: 'null' };
+          // The headers came, so the server can be reached: out of time here is this read's failure, as above.
+          if (timedOut) return offline('server_error', false);
+          unread = true;
+        }
+      }
     } finally {
       controllers.delete(ctl);
       clearTimeout(timer);
@@ -1470,14 +1540,9 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
       return { kind: 'null' };
     }
     if (!res.ok && passStatus(res.status)) return { kind: 'status', status: res.status };
+    if (res.status === 429 && retryBusy) return { kind: 'busy', waitMs: retryAfterMs(res.headers.get('retry-after'), now()), generation: requestGeneration };
     if (!res.ok) return offline(res.status === 404 ? 'not_supported' : 'server_error');
-    let data: Record<string, unknown> | null;
-    try {
-      data = gaugeData((await res.json()) as unknown);
-    } catch {
-      data = null;
-    }
-    if (stale()) return { kind: 'null' };
+    let data: Record<string, unknown> | null = unread ? null : gaugeData(parsed);
     if (!data) return offline('server_error');
     data = adaptGaugeData(path, data);
     // (r063 S5) an answer that cannot be a timeline is a server error, never an object a screen trips over

@@ -442,7 +442,8 @@ function SignalCard(
       title={title}
       icon={icon}
       domain={domain}
-      href={ringPaths.signal(kind, c.isToday ? undefined : c.date)}
+      // the card's own day: Today's day rolls over later than Ring's calendar day, so "today" here can be Ring's yesterday
+      href={ringPaths.signal(kind, c.date)}
       info={{
         body: signalInfo[kind],
         source: { kind: 'ring' },
@@ -548,7 +549,7 @@ function StressCard(p: TodayCardProps) {
       title="Stress today"
       icon={Activity}
       domain="recovery"
-      href={ringPaths.signal('stress', c.isToday ? undefined : c.date)}
+      href={ringPaths.signal('stress', c.date)}
       info={{
         body: 'Estimated time in the Elevated or High bands of the ring’s own unvalidated stress index. Estimated coverage follows each sample until the next reading, capped at one and a half times the day’s typical sample gap. Unsupported time stays unknown; the index is not a clinical measurement or a percentage.',
         source: { kind: 'ring' },
@@ -589,7 +590,7 @@ function DayScoreCard(p: TodayCardProps) {
       title="Day score"
       icon={Gauge}
       domain="recovery"
-      href={ringPaths.tab('scores', c.isToday ? undefined : c.date)}
+      href={ringPaths.tab('scores', c.date)}
       info={{
         body: 'An experimental wellness index combining the available sleep, recovery and activity parts. Missing parts remain missing. The score is not a diagnosis, fitness test or measure of your worth.',
         source: { kind: 'engine', words: source },
@@ -629,7 +630,7 @@ function SleepTimingCard(p: TodayCardProps) {
       title="Last night's timing"
       icon={Moon}
       domain="sleep"
-      href={sleepPath(c.isToday ? undefined : c.date)}
+      href={sleepPath(c.date)}
       info={{
         body: 'The main sleep session ending on this day. Fell asleep and woke are the ring’s observed sleep window, not the time you got into or out of bed. Missing endpoints stay unknown.',
         source: { kind: 'ring' },
@@ -677,7 +678,7 @@ function SleepHrCard(p: TodayCardProps) {
       title="Sleep heart rate"
       icon={HeartPulse}
       domain="heart"
-      href={sleepPath(c.isToday ? undefined : c.date)}
+      href={sleepPath(c.date)}
       info={{
         body: 'Heart rate during the main sleep session. The low is a sleeping value, never a waking resting-heart-rate measurement. Gaps remain gaps and sparse recordings do not produce a low.',
         source: { kind: 'ring' },

@@ -59,6 +59,7 @@ export interface HomeOptions {
   /** `server.json` `maxOpenPersons` (default 4): person workers open at once. */
   maxOpenPersons?: number;
   log: Logger;
+  /** Requests per token (a device, an agent, a ring app); default `DEVICE_RATE_LIMIT`. Tests only: `server.json` has no key for it. */
   rateLimit?: { capacity: number; perMinute: number };
   /** `server.json` `limits`: AI requests per minute and per day, per person. */
   ai?: { requestsPerMinute?: number; requestsPerDay?: number };
@@ -96,6 +97,15 @@ export interface HomeServer {
   close(): Promise<void>;
 }
 
+/**
+ * Requests one token may make: 240 at once, then 20 a second (1200 a minute). Every `/v1/gauge/*` request takes one,
+ * a 304 and the pulse too. Sized for a warm screen (r087): kept answers return in milliseconds and the app keeps 3
+ * reads in flight, so a screen asking for about 55 past-day timelines beside its other reads spends its burst in about
+ * a second. The old 30 and 2 a second fit reads that took half a second each and answered such a screen with 429s.
+ * Still a limit: a client in a loop is held to 20 requests a second.
+ */
+export const DEVICE_RATE_LIMIT = { capacity: 240, perMinute: 1200 } as const;
+
 export async function startHome(o: HomeOptions): Promise<HomeServer> {
   const log = o.log;
   const persons = createPersonRegistry(o.dataDir);
@@ -107,7 +117,7 @@ export async function startHome(o: HomeOptions): Promise<HomeServer> {
   });
   const origins = new Set([...(o.allowedOrigins?.length ? o.allowedOrigins : [PUBLIC_APP_ORIGIN]), ...APP_SHELL_ORIGINS].map(normalizeOrigin));
   const hosts = new Set((o.publicHosts ?? []).map((h) => h.toLowerCase()));
-  const limiter = createRateLimiter(o.rateLimit ?? { capacity: 30, perMinute: 120 });
+  const limiter = createRateLimiter(o.rateLimit ?? DEVICE_RATE_LIMIT);
   const ipLimiter = createRateLimiter({ capacity: 60, perMinute: 240 });
   const flushTimer = setInterval(() => void devices.flush().catch(() => undefined), 60_000);
   flushTimer.unref();

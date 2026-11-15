@@ -18,6 +18,7 @@ const m = vi.hoisted(() => ({
   useTimeline: vi.fn(),
   useRingDay: vi.fn(),
   useLocalHeartRate: vi.fn(),
+  useDaily: vi.fn(),
   ringTimeline: vi.fn(),
   living: { today: vi.fn(), trend: vi.fn() },
 }));
@@ -29,7 +30,7 @@ vi.mock('@/features/living/data/source', () => ({ useLiving: (select: (s: unknow
 vi.mock('@/features/ring/day', () => ({ useRingDay: m.useRingDay }));
 vi.mock('@/features/ring/data', () => ({
   useTimeline: m.ringTimeline,
-  useDaily: () => ({ data: { date: '2026-10-28', metrics: { hr: { unit: 'bpm', count: 300, mean: 70, min: 52, max: 118, latest: { value: 79, at: '2026-10-28T07:46:00Z' } } } } }),
+  useDaily: m.useDaily,
   useAvailability: m.useAvailability,
 }));
 vi.mock('@/features/ring/localFill', async (orig) => ({ ...(await orig<Record<string, unknown>>()), useLocalHeartRate: m.useLocalHeartRate }));
@@ -106,6 +107,7 @@ beforeEach(() => {
   m.useTimeline.mockReset().mockReturnValue(timeline);
   m.ringTimeline.mockReset().mockReturnValue({ status: 'ready', data: timeline });
   m.useLocalHeartRate.mockReset().mockReturnValue(null);
+  m.useDaily.mockReset().mockReturnValue({ data: { date: '2026-10-28', metrics: { hr: { unit: 'bpm', count: 300, mean: 70, min: 52, max: 118, latest: { value: 79, at: '2026-10-28T07:46:00Z' } } } } });
   m.useRingDay.mockReset().mockReturnValue({ night, goals: { sleepMin: { value: 450 } } });
   m.living.today.mockReset().mockReturnValue({ trendWeight: { kg: 85.2, sd: 0.2 }, drift: [{ state: 'onTrack' }] });
   m.living.trend.mockReset().mockReturnValue({ trend: [86.1, 86, 85.8, Number.NaN, 85.5, 85.2] });
@@ -140,6 +142,20 @@ describe('the feed reads the models, not the cards', () => {
     const s = await mount(shell({ placed: 5, byCard: placed, contract: 2, pin: true }));
     expect(m.useLocalHeartRate).toHaveBeenCalled();
     expect(lastSnapshot(s).ring?.hr).toMatchObject({ value: '96', unit: 'bpm', state: 'Elevated' });
+  });
+
+  it('the Heart rate widget shows the phone\'s reading while there is no day summary yet', async () => {
+    m.useDaily.mockReturnValue({ status: 'loading' });
+    const at = new Date(2026, 9, 28, 9, 0, 0, 412).toISOString();
+    m.useLocalHeartRate.mockReturnValue({ bpm: 96, at });
+    const s = await mount(shell({ placed: 5, byCard: placed, contract: 2, pin: true }));
+    expect(lastSnapshot(s).ring?.hr).toMatchObject({ value: '96', unit: 'bpm', state: 'Elevated', at: Date.parse(at) });
+  });
+
+  it('the Heart rate widget has no heart rate with neither a day summary nor a reading on the phone', async () => {
+    m.useDaily.mockReturnValue({ status: 'loading' });
+    const s = await mount(shell({ placed: 5, byCard: placed, contract: 2, pin: true }));
+    expect(lastSnapshot(s).ring?.hr ?? null).toBeNull();
   });
 
   it('does not read or send what no widget of this shell draws: the week’s Heart Points and the last sync', async () => {

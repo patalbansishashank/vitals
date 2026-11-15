@@ -353,6 +353,15 @@ describe('Progress activity cards', () => {
     expect(await screen.findByRole('dialog', { name: 'Steps' })).toBeInTheDocument();
   });
 
+  it('Steps and Heart Points open Activity › Movement, and say so', async () => {
+    renderLiving(<ProgressPage />, { path: '/progress', route: 'progress' });
+    for (const name of ['Steps', 'Heart Points']) {
+      const card = (await screen.findByRole('heading', { level: 2, name })).closest('section')!;
+      expect(within(card).getByRole('link', { name: 'Open in Activity' })).toHaveAttribute('href', '/activity');
+      expect(within(card).queryByRole('link', { name: 'Open in Ring' })).toBeNull();
+    }
+  });
+
   it('steps preserves the goal, at-least outlines and a keyboard-scrubbed hero', async () => {
     renderLiving(<ProgressPage />, { path: '/progress', route: 'progress' });
     const card = (await screen.findByRole('heading', { name: 'Steps' })).closest('section')!;

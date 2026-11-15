@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { GaugeLocalSnapshot } from '@/platform/gaugeLocal';
-import { LOCAL_FRESH_MS, lastSentOf, stepsUpdatedAt, waitingOf, withLocalHeartPoint, withLocalHeartRate, withLocalSteps } from '../localFill';
+import { LOCAL_FRESH_MS, lastSentOf, latestHeartRateOf, stepsUpdatedAt, waitingOf, withLocalHeartPoint, withLocalHeartRate, withLocalSteps } from '../localFill';
 import { sentText } from '../model';
 import type { GaugeDaily } from '../types';
 
@@ -100,6 +100,27 @@ describe('local fill', () => {
     const first = withLocalHeartRate(empty, { date: '2026-10-29', latestHr: { bpm: 58, at: at(0, 20) } })!;
     expect(first).toEqual({ ...empty, metrics: { hr: first.metrics!.hr } });
     expect(first.metrics!.hr).toEqual({ unit: 'bpm', count: 0, mean: null, min: null, max: null, latest: { at: at(0, 20), value: 58, provisional: true } });
+  });
+
+  it('with no day summary yet the phone\'s heart rate is the latest shown; with one, the summary\'s rule holds', () => {
+    const at = (h: number, m: number) => new Date(2026, 9, 29, h, m).toISOString();
+    const phone = { bpm: 71, at: at(11, 58) };
+    // no answer from the server for the day: the phone's reading of that day stands, marked
+    expect(latestHeartRateOf(null, { date: '2026-10-29', latestHr: phone })).toEqual({ at: at(11, 58), value: 71, provisional: true });
+    // not a reading of another day, no reading, or a time that is not one
+    expect(latestHeartRateOf(null, { date: '2026-10-28', latestHr: phone })).toBeNull();
+    expect(latestHeartRateOf(null, { date: '2026-10-29', latestHr: null })).toBeNull();
+    expect(latestHeartRateOf(null, { date: '2026-10-29', latestHr: { bpm: 71, at: 'soon' } })).toBeNull();
+    // with a summary: the server's latest, or the phone's while it is newer
+    const daily = {
+      date: '2026-10-29', source: 'lumen_health', timeZone: 'UTC', installations: [],
+      freshness: { lastUploadAt: null, lastReadingAt: null, minutesSinceLastUpload: null, minutesSinceLastReading: null },
+      metrics: { hr: { unit: 'bpm', count: 12, mean: 62, min: 55, max: 80, latest: { at: at(11, 40), value: 64 } } },
+    } as GaugeDaily;
+    expect(latestHeartRateOf(daily, { date: '2026-10-29', latestHr: null })).toEqual({ at: at(11, 40), value: 64 });
+    expect(latestHeartRateOf(daily, { date: '2026-10-29', latestHr: { bpm: 90, at: at(11, 10) } })).toEqual({ at: at(11, 40), value: 64 });
+    expect(latestHeartRateOf(daily, { date: '2026-10-29', latestHr: phone })).toEqual({ at: at(11, 58), value: 71, provisional: true });
+    expect(latestHeartRateOf({ ...daily, metrics: {} }, { date: '2026-10-29', latestHr: null })).toBeNull();
   });
 
   it('a day\'s heart-rate series ends with the phone\'s reading only while it is newer than the server\'s last point', () => {

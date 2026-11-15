@@ -8,17 +8,21 @@
  * is the count the plan's energy model uses. The two are not the same count, so they are never compared: on the real
  * today the plan's entry is the headline, with only the phone's ring steps since the server's last ring total added to
  * an imported entry (recent steps fall on the same day in either meaning, and the phone's ring count is the ring's
- * total, so this is skipped when the entry counts located steps only). Without an entry, and on any other day, the
- * Ring's pipeline is the headline; the timeline's counted minutes are the last resort; nothing observed is "No reading".
+ * total, so this is skipped when the entry counts located steps only). The entry and the server's ring total reach the
+ * screen at different moments: when the entry was read after the ring total held here was answered, it may already hold
+ * the steps the phone is ahead by, so they are added only while that answer is at least as new as the entry; otherwise
+ * the entry stands alone. Without an entry, and on any other day, the Ring's pipeline is the headline; the timeline's
+ * counted minutes are the last resort; nothing observed is "No reading".
  *
  * Today holds the plan's steps model (an engine run); the Ring never starts a second run. Today's card publishes the
  * model here and Movement reads it (memory only, like `./planEnergy`).
  */
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
-import { useDaily } from './data';
+import { useDaily, useSteps } from './data';
 import { stepsHeadlineOf, type StepsHeadline } from './day';
 import { useGaugeLive, withLocalSteps } from './localFill';
 import type { GaugeLocalSnapshot } from '@/platform/gaugeLocal';
+import { liveTodaySteps, subscribeLiveSteps } from '@/state/liveSteps';
 import type { TodayStepsModel } from '@/living/todayReplay';
 import type { GaugeStepDay } from './types';
 
@@ -50,6 +54,10 @@ export interface DayStepsInput {
   local?: GaugeLocalSnapshot | null;
   /** Today's plan steps model (read only on the real today). */
   plan?: PlanSteps | null;
+  /** When the plan entry's count was read (epoch ms: the import's reading of today), when known. */
+  planAt?: number | null;
+  /** When the server's ring total held here was answered (epoch ms: the `/steps` answer, else the day summary). */
+  ringAt?: number | null;
   /** The timeline's counted minutes, summed. */
   counted?: number | null;
 }
@@ -96,7 +104,9 @@ export function daySteps(i: DayStepsInput): DaySteps {
   let own = false;
   if (plan && fin(plan.fusedSoFar)) {
     own = ownStepsEntry(plan.lineages);
-    const ahead = own || plan.headlinePolicy === 'located' ? 0 : phoneRingAhead(i);
+    // an entry read after the ring total held here may already count the phone's lead over it: never added twice
+    const entryNewer = fin(i.planAt) && !(fin(i.ringAt) && i.ringAt >= i.planAt);
+    const ahead = own || plan.headlinePolicy === 'located' || entryNewer ? 0 : phoneRingAhead(i);
     const lineage = server?.lineage ?? 'fused';
     headline = ahead > 0 ? { value: plan.fusedSoFar + ahead, lineage, provisional: true } : { value: plan.fusedSoFar, lineage };
   } else {
@@ -166,11 +176,18 @@ export function publishedPlanSteps(
  * `isToday` is the app day's today on both screens.
  */
 export function useDaySteps(
-  i: Omit<DayStepsInput, 'ringSteps' | 'local'> & { nowMs?: number },
+  i: Omit<DayStepsInput, 'ringSteps' | 'local' | 'planAt' | 'ringAt'> & { nowMs?: number },
 ): DaySteps {
   const daily = useDaily(i.date);
   const ringSteps = daily.status === 'ready' ? (daily.data?.activity?.steps ?? null) : null;
   const local = useGaugeLive().local;
+  // the times of the two answers the phone's lead is measured between: the import's reading of today behind the plan
+  // entry, and the `/steps` answer both screens hold for the day (the same read as theirs), else the day summary
+  const live = useSyncExternalStore(subscribeLiveSteps, liveTodaySteps, liveTodaySteps);
+  const liveAt = live && live.day.date === i.date ? Date.parse(live.at) : Number.NaN;
+  const planAt = Number.isFinite(liveAt) ? liveAt : null;
+  const stepsSavedAt = useSteps(i.date, i.date).savedAt ?? null;
+  const ringAt = fin(i.stepsDay?.ringDailyTotal) ? stepsSavedAt : (daily.savedAt ?? null);
   const held = useSyncExternalStore(subscribe, () => published, () => published);
   const { date, isToday, stepsDay, fused, counted, nowMs } = i;
   const passed = 'plan' in i;
@@ -180,8 +197,8 @@ export function useDaySteps(
   }, [passed, isToday, given, date]);
   const plan = passed ? (given ?? null) : nowMs === undefined ? null : publishedPlanSteps(held, date, nowMs);
   return useMemo(
-    () => daySteps({ date, isToday, stepsDay, fused, ringSteps, local, plan, counted }),
-    [date, isToday, stepsDay, fused, ringSteps, local, plan, counted],
+    () => daySteps({ date, isToday, stepsDay, fused, ringSteps, local, plan, planAt, ringAt, counted }),
+    [date, isToday, stepsDay, fused, ringSteps, local, plan, planAt, ringAt, counted],
   );
 }
 

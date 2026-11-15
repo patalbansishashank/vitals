@@ -8,7 +8,9 @@ import type { LocalDate } from '@/living';
 import { addDays } from '@/living/dates';
 import { useQuietMode } from '@/state/settingsStore';
 import { useHeartSettings } from '@/features/settings/heart/v3Adapter';
+import { RING_COPY } from '@/features/ring/copy';
 import { useLiving } from '../../data/source';
+import { livingPaths } from '../../paths';
 import { fmtDayMonth } from '../../format';
 import { ACTIVITY_COPY as C } from '../copy';
 import { DEFAULT_STEPS_GOAL, TREND_DAYS, stepsRows, stepsSummary } from '../activityModel';
@@ -107,7 +109,7 @@ export function StepsSection({ today, quiet: quietProp }: StepsSectionProps) {
         <CardFoot
           state={{ word: quiet ? 'Step history' : `${C.fourWeeks} ${sum.all === null ? '—' : n0(sum.all)}` }}
           right={quiet ? 'Goal' : goalText}
-          link={{ to: '/ring/activity', label: 'Open in Ring' }}
+          link={{ to: livingPaths.movement(), label: `Open in ${RING_COPY.activityHub.title}` }}
         />
       }
     >

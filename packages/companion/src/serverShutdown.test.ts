@@ -130,6 +130,46 @@ describe('close() (r087 S5)', () => {
     expect(t.lines.filter((l) => l.includes('request failed'))).toEqual([]);
   });
 
+  it('answers the app on another origin 503 with CORS headers while it drains, so it reads Retry-After', async () => {
+    const t = await boot(5000);
+    const body = JSON.stringify({ installationId: INSTALL, events: [hr('2026-11-15T08:00:00Z', 61)] });
+    const half = Math.floor(body.length / 2);
+    // one open connection per origin, each kept open by an upload still sending its body
+    const open = async () => {
+      const socket = connect(Number(new URL(t.c.url).port), '127.0.0.1');
+      const got = { raw: '' };
+      socket.setEncoding('utf8');
+      socket.on('data', (d: string) => (got.raw += d));
+      const ended = new Promise<void>((r) => socket.on('close', () => r()));
+      await new Promise<void>((r) => socket.once('connect', () => r()));
+      socket.write(`POST /v1/lumen/events HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer ${t.gauge}\r\nContent-Type: application/json\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body.slice(0, half)}`);
+      const next = (origin: string) => socket.write(`${body.slice(half)}GET /v1/gauge/pulse HTTP/1.1\r\nHost: 127.0.0.1\r\nOrigin: ${origin}\r\nAuthorization: Bearer ${t.device}\r\n\r\n`);
+      return { got, ended, next };
+    };
+    const app = await open();
+    const foreign = await open();
+    await settle(100);
+
+    const closing = t.c.close();
+    await settle(50);
+    app.next(SITE);
+    foreign.next('https://evil.example');
+    await Promise.all([app.ended, foreign.ended, closing]);
+
+    const refusal = (raw: string) => raw.slice(raw.indexOf('HTTP/1.1 503')).toLowerCase();
+    for (const c of [app, foreign]) expect([...c.got.raw.matchAll(/HTTP\/1\.1 (\d{3})/g)].map((m) => Number(m[1]))).toEqual([200, 503]);
+    const seen = refusal(app.got.raw);
+    expect(seen).toContain(`access-control-allow-origin: ${SITE}`);
+    expect(seen).toContain('access-control-expose-headers: retry-after');
+    expect(seen).toContain('retry-after: 5');
+    expect(seen).toContain('vary: origin');
+    expect(seen).toContain('"error":"shutting_down"');
+    // an origin the server does not know gets the refusal without them
+    expect(refusal(foreign.got.raw)).toContain('"error":"shutting_down"');
+    expect(refusal(foreign.got.raw)).not.toContain('access-control-allow-origin');
+    expect(t.lines.filter((l) => l.includes('request failed'))).toEqual([]);
+  });
+
   it('stops waiting after drainMs', async () => {
     const t = await boot(300);
     const upload = slowUpload(t.c.url, t.gauge);

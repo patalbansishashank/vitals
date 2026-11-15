@@ -2,13 +2,14 @@
  * r063 S27/A29: live numbers refresh. Today's steps read a live snapshot apart from the throttled entry; Progress's caches
  * expire and retry a failed (null) load instead of keeping it for the session.
  */
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { liveStepsOverlay, planGaugeImport } from '@/living/gaugeImport';
 import { todayActual } from '@/living/todayReplay';
 import type { DayTemplate } from '@/engine';
 import type { LogEntry, PrescribedDaySnapshot } from '@/living/types';
 import type { GaugeTimeline } from '@/net/gauge';
+import { notifyGaugeDataChanged } from '@/net/gaugeIdentity';
 import { DAY_PAST_TTL_MS } from '../data/dayStore';
 import { clearTimelines, setTimelineSource, timelinesFor } from '../data/timelines';
 import { PROGRESS_GAUGE_RETRY_MS, setProgressGauge, useProgressGauge, type ProgressGauge } from '../data/gauge';
@@ -88,5 +89,34 @@ describe('A29: Progress caches expire and retry failures', () => {
     });
     expect(load).toHaveBeenCalledTimes(2);
     expect(result.current).toEqual({ status: 'ready', data: { n: 1 } });
+  });
+});
+
+describe('r087: the Progress questions and new data', () => {
+  afterEach(() => setProgressGauge(null));
+
+  it('are asked at screen priority, and after an announcement for an answer newer than it (since)', async () => {
+    const options: unknown[] = [];
+    const client = {
+      withOptions: (o: unknown) => {
+        options.push(o);
+        return client;
+      },
+    } as unknown as ProgressGauge;
+    setProgressGauge(client);
+    let n = 0;
+    const load = vi.fn(async () => ({ n: ++n }));
+    const { result } = renderHook(() => useProgressGauge('q', load));
+    await waitFor(() => expect(result.current).toEqual({ status: 'ready', data: { n: 1 } }));
+    expect(options).toEqual([{ priority: 'screen' }]);
+    const at = Date.now() + 1_000;
+    act(() => notifyGaugeDataChanged(at));
+    await waitFor(() => expect(result.current).toEqual({ status: 'ready', data: { n: 2 } }));
+    expect(options[1]).toEqual({ priority: 'screen', since: at });
+    // a late report of an earlier change does not move it back
+    act(() => notifyGaugeDataChanged(at - 500));
+    await waitFor(() => expect(result.current).toEqual({ status: 'ready', data: { n: 3 } }));
+    expect(options[2]).toEqual({ priority: 'screen', since: at });
+    expect(options).toHaveLength(3);
   });
 });

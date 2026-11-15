@@ -30,6 +30,8 @@ let generation = 0;
 let epoch = 0;
 /** Retire pending presentation promises without immediately retrying a refused query. */
 let refusalRevision = 0;
+/** When new data was last announced (undefined: not yet, or not for this client). */
+let changedAt: number | undefined;
 
 /** The client Progress reads from. */
 export const progressGauge = (): ProgressGauge => override ?? gaugeApi;
@@ -37,6 +39,7 @@ export const progressGauge = (): ProgressGauge => override ?? gaugeApi;
 /** Tests and the screenshot harness: read from this client (null restores the real one). Drops the cache. */
 export function setProgressGauge(api: ProgressGauge | null): void {
   override = api;
+  changedAt = undefined;
   lastShown.clear();
   savedMeta.clear();
   cache.clear();
@@ -94,8 +97,13 @@ try {
   // no Gauge client here: the per-answer check below still applies
 }
 // (0.6.3 S28) a successful import or measurement: ask again, keeping what is shown until the new answer arrives (a
-// failed read is never kept past it either)
-onGaugeDataChanged(() => askAgain({ forget: false }));
+// failed read is never kept past it either). (r087) The client shares identical reads, so the new question says since
+// when: its answer never comes from a request that left before the change.
+onGaugeDataChanged((at) => {
+  // a late report of an earlier change never moves it back
+  changedAt = Math.max(changedAt ?? Number.NEGATIVE_INFINITY, at ?? Date.now());
+  askAgain({ forget: false });
+});
 
 export type GaugeRead<T> = { status: 'loading' } | { status: 'unavailable' } | { status: 'ready'; data: T; cached?: boolean; savedAt?: number | null };
 
@@ -133,7 +141,8 @@ export function useProgressGauge<T>(key: string, load: (api: ProgressGauge) => P
     let p = pending.get(cacheKey);
     if (!p) {
       const source = progressGauge();
-      const api = source.withOptions?.({}) ?? source;
+      // a mounted Progress card shows it: ahead of the background reads
+      const api = source.withOptions?.({ priority: 'screen', ...(changedAt !== undefined ? { since: changedAt } : {}) }) ?? source;
       let completed = false;
       if (!lastShown.has(shownKey) && api.snapshot) {
         void api.snapshot(load).then((saved) => {

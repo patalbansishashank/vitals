@@ -7,7 +7,8 @@ import { request } from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createRedactingLogger } from '../security.ts';
 import { startCompanion } from '../server.ts';
-import { startTestHome } from './testHome.ts';
+import { DEVICE_RATE_LIMIT } from './home.ts';
+import { fakeWorkers, SITE, startTestHome } from './testHome.ts';
 
 let stop: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -258,4 +259,36 @@ describe('AI and agent routes on the home role', () => {
     const pre = await fetch(`${t.c.url}/v1/ai/keys/nim`, { method: 'OPTIONS', headers: { origin: 'https://vitals.creative.desi', 'access-control-request-method': 'PUT' } });
     expect(pre.headers.get('access-control-allow-methods') ?? '').toContain('PUT');
   });
+});
+
+describe('the request limit per device (r087)', () => {
+  it('lets a warm screen read its burst and still answers a client in a loop 429 with Retry-After', async () => {
+    // no `rateLimit` here: the limit the server runs with (the other suites raise it to 1000)
+    const dataDir = await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), 'home-limit-'));
+    const c = await startCompanion({ port: 0, dataDir: join(dataDir, 'relay'), allowedOrigins: [], relay: false, home: { dataDir, allowedOrigins: [SITE], publicOrigin: 'https://host.tail0.ts.net:8443', workerFactory: fakeWorkers().factory } });
+    stop.push(() => c.close());
+    const p = await c.home!.persons.add({ label: 'Ana', timeZone: 'Asia/Kolkata', secret: new Uint8Array(32).fill(3), relayUrl: null });
+    const paired = await fetch(`${c.url}/v1/pair/device`, { method: 'POST', headers: { 'content-type': 'application/json', origin: SITE }, body: JSON.stringify({ code: (await c.home!.devices.issueCode(p.id)).code, label: 'Phone' }) });
+    const { token } = (await paired.json()) as { token: string };
+    const read = async () => {
+      const r = await fetch(`${c.url}/v1/gauge/pulse`, { headers: { authorization: `Bearer ${token}`, origin: SITE } });
+      await r.arrayBuffer();
+      return r;
+    };
+    expect(DEVICE_RATE_LIMIT).toEqual({ capacity: 240, perMinute: 1200 });
+
+    // one screen and the next: 120 reads that each answer in milliseconds, 3 in flight (the old 30 refused most)
+    const screen: number[] = [];
+    for (let i = 0; i < 40; i++) screen.push(...(await Promise.all([read(), read(), read()])).map((r) => r.status));
+    expect(screen.filter((s) => s !== 200)).toEqual([]);
+
+    // a client in a loop: what is left of the 240 passes, the rest is refused and told when to come back
+    const flood = await Promise.all(Array.from({ length: 400 }, read));
+    const refused = flood.filter((r) => r.status === 429);
+    expect(flood.filter((r) => r.status === 200).length).toBeGreaterThanOrEqual(120);
+    expect(flood.filter((r) => r.status !== 200 && r.status !== 429)).toEqual([]);
+    expect(refused.length).toBeGreaterThan(0);
+    expect(Number(refused[0]!.headers.get('retry-after'))).toBeGreaterThanOrEqual(1);
+    expect(refused[0]!.headers.get('access-control-expose-headers')).toContain('Retry-After');
+  }, 30_000);
 });

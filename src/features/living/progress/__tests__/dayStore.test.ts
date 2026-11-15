@@ -125,12 +125,46 @@ describe('C3: a window of days is never a burst of requests', () => {
   });
 
   it('an answer that was on its way when new data was announced is asked again', async () => {
-    const h = harness();
+    const h = harness((date, nth) => ({ date, v: nth }));
+    // a mounted reader (useDayAnswers): asks for its day again when the store calls for it, and at no other time
+    let epoch = h.store.epoch();
+    const off = h.store.subscribe(() => {
+      if (h.store.epoch() === epoch) return;
+      epoch = h.store.epoch();
+      void h.store.load([TODAY], TODAY, T0 + 1_000);
+    });
+    const first = h.store.load([TODAY], TODAY, T0);
+    // twice while the one read runs: still one more read
+    notifyGaugeDataChanged();
+    notifyGaugeDataChanged();
+    expect((await first).get(TODAY)!.v).toBe(1);
+    await vi.waitFor(() => expect(h.store.peek(TODAY)!.v).toBe(2));
+    // it ends there: the second answer stands, nothing calls for another
+    const settled = h.store.epoch();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(h.asked).toEqual([TODAY, TODAY]);
+    expect(h.store.epoch()).toBe(settled);
+    off();
+  });
+
+  it('a read that fails while new data is announced does not start a loop of reads', async () => {
+    const h = harness(() => null);
+    let epoch = h.store.epoch();
+    let calls = 0;
+    const off = h.store.subscribe(() => {
+      if (h.store.epoch() === epoch) return;
+      epoch = h.store.epoch();
+      calls++;
+      void h.store.load([TODAY], TODAY, T0 + 1_000);
+    });
     const first = h.store.load([TODAY], TODAY, T0);
     notifyGaugeDataChanged();
     await first;
-    await h.store.load([TODAY], TODAY, T0 + 1_000);
-    expect(h.asked).toEqual([TODAY, TODAY]);
+    await new Promise((r) => setTimeout(r, 20));
+    // the readers were called once; the failed day waits its minute as any failed day does
+    expect(calls).toBe(1);
+    expect(h.asked).toEqual([TODAY]);
+    off();
   });
 
   it('today is asked again after a few minutes, the older days are kept', async () => {
@@ -271,6 +305,63 @@ describe('C3: the client is read at background priority, and a saved day shows a
     await vi.waitFor(() => expect(timelineDays.peek(TODAY)!.minutes).toBe(720));
     expect(changes).toBe(1);
     off();
+  });
+
+  it('after new data was announced a day is asked for an answer newer than it (since)', async () => {
+    const options: unknown[] = [];
+    const base = { status: () => ({ lastOkAt: null, problem: null }), subscribe: () => () => undefined, clearCache: () => undefined };
+    const api = {
+      ...base,
+      withOptions: (o: unknown) => {
+        options.push(o);
+        return { ...base, timeline: async (d: string) => tl(d, 600 + options.length) };
+      },
+    } as unknown as RingApi;
+    setGaugeApi(api);
+    await timelinesFor([TODAY], TODAY, T0);
+    expect(options).toEqual([{ priority: 'background' }]);
+    notifyGaugeDataChanged(T0 + 500);
+    await timelinesFor([TODAY], TODAY, T0 + 1_000);
+    expect(options[1]).toEqual({ priority: 'background', since: T0 + 500 });
+    // a late report of an earlier change does not move it back
+    notifyGaugeDataChanged(T0 + 100);
+    await timelinesFor([TODAY], TODAY, T0 + 2_000);
+    expect(options[2]).toEqual({ priority: 'background', since: T0 + 500 });
+    // with no time given it is now
+    vi.setSystemTime(T0 + 3_000);
+    notifyGaugeDataChanged();
+    await timelinesFor([TODAY], TODAY, T0 + 3_000);
+    expect(options[3]).toEqual({ priority: 'background', since: T0 + 3_000 });
+    expect(options).toHaveLength(4);
+  });
+
+  it('through the real client: after new data, today is not answered by a request that left before it', async () => {
+    const answers: Array<(minutes: number) => void> = [];
+    const fetchImpl: typeof fetch = (input) =>
+      new Promise((resolve) => {
+        const date = new URL(String(input)).searchParams.get('date')!;
+        answers.push((minutes) => resolve(new Response(JSON.stringify(tl(date, minutes)), { status: 200 })));
+      });
+    const server = {
+      isPaired: () => true,
+      pairing: () => ({ baseUrl: 'https://home.example', person: { id: 'p', label: '' }, deviceId: 'd', pairedAt: 'd' }),
+      subscribe: () => () => undefined,
+      chatModelOptions: () => ({ serverUrl: 'https://home.example/', deps: { fetch: fetchImpl } }),
+    };
+    const client = createGaugeApi({ server: server as never, now: () => Date.now(), tz: () => 'UTC' });
+    setGaugeApi(client);
+    // a Ring card's own read of today is with the server when the new readings are announced
+    const card = client.timeline(TODAY);
+    await vi.waitFor(() => expect(answers).toHaveLength(1));
+    vi.setSystemTime(T0 + 1_000);
+    notifyGaugeDataChanged();
+    void timelinesFor([TODAY], TODAY, T0 + 1_000);
+    // the store's question goes out on its own: the card's request cannot hold the new readings
+    await vi.waitFor(() => expect(answers).toHaveLength(2));
+    answers[0]!(600);
+    expect((await card)!.minutes).toBe(600);
+    answers[1]!(720);
+    await vi.waitFor(() => expect(timelineDays.peek(TODAY)?.minutes).toBe(720));
   });
 
   it('a client without withOptions or snapshot (an older client, a test fake) is read as it is', async () => {

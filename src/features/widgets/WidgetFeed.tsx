@@ -15,7 +15,7 @@ import { useEffect, useMemo } from 'react';
 import { useQuietMode } from '@/state/settingsStore';
 import { useToday } from '@/features/living/clock';
 import { useDaily } from '@/features/ring/data';
-import { useLocalHeartRate, withLocalHeartRate } from '@/features/ring/localFill';
+import { latestHeartRateOf, useLocalHeartRate } from '@/features/ring/localFill';
 import { useRingTodayState } from '@/features/ring/RingToday';
 import { useUnitPrefs } from '@/features/ring/components/parts';
 import { valueText } from '@/features/ring/model';
@@ -102,15 +102,15 @@ function RingFeed({ placement }: { placement: Placement }) {
   const [day, onDay] = useHolder<HrDayFigures>();
   const [sync, onSync] = useHolder<SyncFigures>();
 
-  const metric = withLocalHeartRate(daily.data ?? null, { date: today, latestHr: localHr })?.metrics?.hr;
-  const latest = metric && 'latest' in metric && metric.latest && 'value' in metric.latest && typeof metric.latest.value === 'number' ? metric.latest : null;
-  const hrText = latest ? valueText('hr', latest.value as number, prefs) : null;
+  // with no day summary yet the phone's reading stands alone
+  const latest = latestHeartRateOf(daily.data ?? null, { date: today, latestHr: localHr });
+  const hrText = latest ? valueText('hr', latest.value, prefs) : null;
   const part =
     state === 'loading'
       ? null
       : ringWidgetPart({
           state,
-          hr: latest && hrText ? { text: hrText, at: latest.at, state: hrWord(latest.value as number), range: day?.range ?? null, series: day?.series ?? null } : null,
+          hr: latest && hrText ? { text: hrText, at: latest.at, state: hrWord(latest.value), range: day?.range ?? null, series: day?.series ?? null } : null,
           battery: ring.battery !== null ? { percent: ring.battery, at: ring.batteryAt } : null,
           lastUploadAt: sync?.lastUploadAt ?? null,
         });

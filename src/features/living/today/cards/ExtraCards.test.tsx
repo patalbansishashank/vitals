@@ -65,6 +65,26 @@ describe('Today optional-card adapters', () => {
     });
     expect(hrefs).toEqual(['/sleep/2026-10-20', '/sleep/2026-10-20', '/ring/sleep?period=month&date=2026-10-01']);
   });
+  it('on Today each ring card opens its own day: before the rollover hour that is not Ring’s calendar day', () => {
+    // 01:00 on the 31st: Today still shows the 30th (its day rolls over at 04:00), Ring and Sleep are on the 31st
+    const ctx = { date: '2026-10-30', today: '2026-10-30', isToday: true, quiet: false, nowMs: new Date(2026, 9, 31, 1, 0).getTime() } as unknown as TodayCardCtx;
+    const hrefs = ['heart-rate', 'hrv', 'skin-temp', 'stress', 'day-score', 'sleep-timing', 'sleep-hr'].map((id) => {
+      const d = extraTodayCards.find((c) => c.id === id)!;
+      const { container, unmount } = render(<MemoryRouter>{d.render(ctx, d.defaultSize)}</MemoryRouter>);
+      const href = container.querySelector('a')?.getAttribute('href');
+      unmount();
+      return href;
+    });
+    expect(hrefs).toEqual([
+      '/ring/signals/hr?date=2026-10-30',
+      '/ring/signals/hrv?date=2026-10-30',
+      '/ring/signals/temp?date=2026-10-30',
+      '/ring/signals/stress?date=2026-10-30',
+      '/ring/scores?date=2026-10-30',
+      '/sleep/2026-10-30',
+      '/sleep/2026-10-30',
+    ]);
+  });
   it('names each signal once and keeps its qualifier as a fact under the number', () => {
     const ctx = { date: '2026-10-30', today: '2026-10-30', isToday: true, quiet: false, nowMs: Date.parse('2026-10-30T12:00:00Z') } as unknown as TodayCardCtx;
     for (const [id, title, fact] of [['hrv', 'HRV', 'Overnight'], ['skin-temp', 'Skin temperature', 'Overnight · vs usual']] as const) {
@@ -72,7 +92,7 @@ describe('Today optional-card adapters', () => {
       const { unmount, container } = render(<MemoryRouter>{d.render(ctx, d.defaultSize)}</MemoryRouter>);
       expect(container.querySelector('h2')).toHaveTextContent(new RegExp(`^${title}$`));
       expect(screen.getByText(fact)).toBeInTheDocument();
-      expect(screen.getByRole('link', { name: `Open ${title}` })).toHaveAttribute('href', `/ring/signals/${id === 'hrv' ? 'hrv' : 'temp'}`);
+      expect(screen.getByRole('link', { name: `Open ${title}` })).toHaveAttribute('href', `/ring/signals/${id === 'hrv' ? 'hrv' : 'temp'}?date=2026-10-30`);
       unmount();
     }
   });
