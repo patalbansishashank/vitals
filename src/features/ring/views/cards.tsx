@@ -6,6 +6,5 @@ export { ActivityCard } from './ActivityCard';
 export { DayScoreCard, basedOnText, parseTarget } from './DayScoreCard';
 export { MovementBody, stepsLineageText, stepsUpdatedCaption } from './Movement';
 export { BATTERY_FRESH_MS, RingStatusCapsule, RingStatusCard, batteryAge, batteryWord, useRingState } from './RingStatusCard';
-export { ShortVideoCard } from './ShortVideoCard';
 export { SignalsCard } from './SignalsCard';
 export { NightStrip, SleepCard } from './SleepCard';

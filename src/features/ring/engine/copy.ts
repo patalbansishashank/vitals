@@ -31,7 +31,7 @@ export const ENGINE_COPY = {
     healthConnect: 'Health Connect',
     activityRecognition: 'Physical activity',
     notifications: 'Notifications',
-    shortVideoAccessibility: 'Short-video limit',
+    usageAccess: 'Usage access',
     batteryUnrestricted: 'Battery unrestricted',
   } satisfies Record<PermissionKey, string>,
   optional: 'Optional',
@@ -97,34 +97,6 @@ export const ENGINE_COPY = {
   scanAgain: 'Scan again',
   noneFound: 'No rings found. Put the ring on its charger to wake it, then scan again.',
   signal: (rssi: number) => (rssi >= -60 ? 'Strong signal' : rssi >= -80 ? 'Fair signal' : 'Weak signal'),
-
-  limit: 'Daily limit',
-  limitOff: 'Off',
-  limitVideos: (n: number) => `${n} videos a day`,
-  limitSheet: 'Short-video limit',
-  limitSwitch: 'Limit short videos',
-  limitChange: 'Change',
-  limitSave: 'Save',
-  todayCounts: 'Today',
-  instagram: 'Instagram',
-  youtube: 'YouTube',
-  total: 'Total',
-  limitNeedsAccess: 'The limit needs the accessibility permission to count videos.',
-
-  /**
-   * (r071) Android holds back an app that came onto the phone as a file until it is allowed in the app's own App info, so
-   * the counter's switch in Accessibility stays grey: three steps, plain words, one key (the App info page).
-   */
-  guide: {
-    title: 'Android blocks the counter until you allow it',
-    steps: [
-      "Open Vitals' app info.",
-      "Tap the three dots (⋮) at the top right, then Allow restricted settings. Confirm with your phone's lock.",
-      'Come back and turn on Vitals short-video counter in Accessibility settings.',
-    ],
-    openAppInfo: 'Open app info',
-    note: 'No Allow restricted settings under the dots? Open Accessibility settings, tap Vitals short-video counter once, then look again.',
-  },
 } as const;
 
 export const ringStateWord = (s: RingConnection): string => RING_STATE_WORD[s];

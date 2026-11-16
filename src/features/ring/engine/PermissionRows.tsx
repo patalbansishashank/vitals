@@ -2,20 +2,20 @@ import { Check } from 'lucide-react';
 import { Icon, Key } from '@/components';
 import {
   isRuntimePermission,
-  showAllowGuide,
+  permissionOk,
   type EngineState,
   type PermissionKey,
 } from '@/platform/gaugeEngine';
 import { engine, isBusy, useGaugeEngine } from '@/state/gaugeEngine';
 import { ENGINE_COPY as C } from './copy';
-import { RestrictedGuide } from './RestrictedGuide';
 
 /** The word a permission's state gets, and the fix key's label (a runtime permission asks; the other two open settings). */
 function wordsOf(
   state: EngineState,
   key: PermissionKey,
 ): { ok: boolean; status: string; fix: string | null } {
-  const v = state.permissions[key];
+  // Usage access is not in `permissions`: it comes with the social-time state
+  const v = key === 'usageAccess' ? permissionOk(state, key) : state.permissions[key];
   if (typeof v === 'boolean') return { ok: v, status: v ? C.on : C.off, fix: v ? null : C.openSettings };
   if (v === 'granted') return { ok: true, status: C.state.granted, fix: null };
   if (v === 'unavailable') return { ok: false, status: C.state.unavailable, fix: null };
@@ -28,8 +28,7 @@ function wordsOf(
 
 /**
  * One row per permission: its name and either a check with its state or one key that fixes it (a tap: the system prompt,
- * or the system settings screen for the accessibility and battery ones). `only` limits the rows (the move card lists all six).
- * Under the list, the "allow it first" guide when Android is holding the short-video counter back (`RestrictedGuide`).
+ * or the system settings screen for Usage access and battery). `items` limits the rows (the move card lists all six).
  */
 export function PermissionRows({
   items,
@@ -42,8 +41,6 @@ export function PermissionRows({
   const state = eng.state;
   if (!state) return null;
   const failed = eng.error && eng.error.action.startsWith('permission:') ? eng.error.message : null;
-  const guide =
-    items.some((i) => i.key === 'shortVideoAccessibility') && showAllowGuide(state, eng.accessAsked);
   return (
     <>
       <ul className="eg-perms">
@@ -81,7 +78,6 @@ export function PermissionRows({
           );
         })}
       </ul>
-      {guide ? <RestrictedGuide /> : null}
       {failed ? (
         <p className="eg-error" role="status">
           {failed}

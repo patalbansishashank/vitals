@@ -42,10 +42,10 @@ class RingEvidenceMigrationTest {
     @Test fun `35 to 36 keeps legacy buckets unlabelled and validates the schema`() {
         createV35()
         val migrated = Room.databaseBuilder(context, PulseLoopDatabase::class.java, name)
-            .addMigrations(PulseLoopDatabase.MIGRATION_35_36, PulseLoopDatabase.MIGRATION_36_37).allowMainThreadQueries().build()
+            .addMigrations(PulseLoopDatabase.MIGRATION_35_36, PulseLoopDatabase.MIGRATION_36_37, PulseLoopDatabase.MIGRATION_37_38).allowMainThreadQueries().build()
         try {
-            val db = migrated.openHelper.writableDatabase // Room validates the full current schema here (v36, then v37).
-            assertEquals(37, db.version)
+            val db = migrated.openHelper.writableDatabase // Room validates the full current schema here (v36, then v37, v38).
+            assertEquals(DATABASE_VERSION, db.version)
             db.query("SELECT steps, durationS, support, parentTotal, parentStart, deviceKey FROM activity_buckets").use {
                 assertTrue(it.moveToFirst())
                 assertEquals(640, it.getInt(0))

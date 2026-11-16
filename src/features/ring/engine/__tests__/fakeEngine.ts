@@ -17,12 +17,20 @@ export const baseState = (over: Partial<EngineState> = {}): EngineState => ({
     healthConnect: 'granted',
     activityRecognition: 'granted',
     notifications: 'granted',
-    shortVideoAccessibility: true,
     batteryUnrestricted: true,
   },
   upload: { paired: true, pending: 3, lastSentAt: '2026-10-30T09:31:00.000Z' },
   shortVideo: { enabled: true, dailyLimit: 30, today: { instagram: 7, youtube: 4 } },
   ...over,
+});
+
+/** (social-time) The engine's social state on a newer native build: social time on for two apps, Usage access as given. */
+export const socialState = (usageAccess: boolean, enabledApps: string[] = ['instagram', 'youtube']): NonNullable<EngineState['social']> => ({
+  usageAccess,
+  today: { date: '2026-10-30', totalSeconds: 0, perApp: {} },
+  targetMinMinutes: 30,
+  targetMaxMinutes: 45,
+  enabledApps,
 });
 
 export function fakeEngine(initial: EngineState = baseState()) {
@@ -56,6 +64,8 @@ export function fakeEngine(initial: EngineState = baseState()) {
     syncNow: vi.fn(async () => state),
     measure: vi.fn(async () => ({ started: true })),
     setShortVideoLimit: vi.fn(async () => state),
+    openUsageAccessSettings: vi.fn(async () => undefined),
+    setSocialSettings: vi.fn(async () => state),
   } satisfies GaugeEnginePlugin;
   return { plugin, set, get: () => state, listenerCount: () => listeners.size };
 }

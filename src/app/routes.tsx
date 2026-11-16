@@ -91,7 +91,10 @@ export const routes: RouteObject[] = [
               { path: 'ring/scores', element: <RingPage /> },
               { path: 'ring/signals/:kind', element: <RingPage /> },
               { path: 'ring/workouts/:id', element: <RingPage /> },
-              { path: 'ring/short-videos', element: <RingPage /> },
+              // (social-time) Social time replaced the short-video count; the canonical page is /ring/social and the old
+              // address redirects to it, keeping dated deep links working.
+              { path: 'ring/social', element: <RingPage /> },
+              { path: 'ring/short-videos', element: <MovedTo to="/ring/social" /> },
               { path: 'ring/device', element: <RingPage /> },
             ],
           },

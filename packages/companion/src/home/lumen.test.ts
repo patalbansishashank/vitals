@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { Client, StreamableHTTPClientTransport } from '../mcpTestClient.ts';
 import { startCompanion, VERSION, type Companion } from '../server.ts';
 import type { HomeOptions } from './home.ts';
-import { activityBucket, activityDaily, battery, bloodPressure, deletion, hr, insight, INSTALL, lumenEvent, metric, OTHER_INSTALL, shortVideo, sleepPacket, wear, type LumenTestEvent } from './lumenFixtures.ts';
+import { activityBucket, activityDaily, battery, bloodPressure, deletion, hr, insight, INSTALL, lumenEvent, metric, OTHER_INSTALL, shortVideo, socialTime, sleepPacket, wear, type LumenTestEvent } from './lumenFixtures.ts';
 import type { PersonRequest, PersonResponse } from './personRpc.ts';
 import { serverMain } from './serverCli.ts';
 import { defaultServerConfig, writeServerConfig } from './serverConfig.ts';
@@ -303,14 +303,14 @@ describe('the gauge_* MCP tools', () => {
     const a = await t.person();
     const { client } = await mcpFor(t, a.device, 'read');
     const tools = (await client.listTools()).tools.filter((x) => x.name.startsWith('gauge_'));
-    expect(tools.map((x) => x.name)).toEqual(['gauge_data_availability', 'gauge_metric_series', 'gauge_daily_summary', 'gauge_sleep', 'gauge_activity', 'gauge_scores', 'gauge_device_state', 'gauge_short_video', 'gauge_workouts', 'gauge_steps', 'gauge_timeline', 'gauge_hr_intervals', 'gauge_baselines', 'gauge_hc', 'gauge_detections', 'gauge_changes', 'gauge_changes_state']);
+    expect(tools.map((x) => x.name)).toEqual(['gauge_data_availability', 'gauge_metric_series', 'gauge_daily_summary', 'gauge_sleep', 'gauge_activity', 'gauge_scores', 'gauge_device_state', 'gauge_short_video', 'gauge_social_time', 'gauge_workouts', 'gauge_steps', 'gauge_timeline', 'gauge_hr_intervals', 'gauge_baselines', 'gauge_hc', 'gauge_detections', 'gauge_changes', 'gauge_changes_state']);
     expect((await client.listTools()).tools.filter((x) => /^lumen/.test(x.name))).toEqual([]);
     for (const x of tools) {
       expect(x.annotations).toMatchObject({ readOnlyHint: true, destructiveHint: false });
       expect(x.title).toMatch(/^(Ring|Phone|On-device|Fused|Detected|Imported)/);
       expect(x.description).toMatch(/Ring and phone data|Phone data/);
 
-      expect(x.description).toMatch(x.name === 'gauge_short_video' ? /separate from Vitals' manual logs/ : /separate from Vitals' own manual logs, which the person enters by hand/);
+      expect(x.description).toMatch(x.name === 'gauge_short_video' || x.name === 'gauge_social_time' ? /separate from Vitals' manual logs/ : /separate from Vitals' own manual logs, which the person enters by hand/);
     }
     expect(tools.find((x) => x.name === 'gauge_short_video')!.description).toMatch(/^The phone's count of short-form videos \(Reels\/Shorts\) watched per day — counts only, never content; separate from Vitals' manual logs\./);
   });
@@ -334,6 +334,32 @@ describe('the gauge_* MCP tools', () => {
     expect((await run('gauge_data_availability')).data.categories.map((c: { category: string; readWith: string }) => [c.category, c.readWith])).toEqual([['habits/short_video', 'gauge_short_video']]);
     await t.upload(token, [deletion('2026-10-21T03:00:00Z', { category: 'habits', from: '2026-10-19T18:30:00Z', to: '2026-10-20T18:29:59Z' }, { receivedAt: '2026-10-21T03:00:00Z' })]);
     expect((await run('gauge_short_video', { from: '2026-10-20', to: '2026-10-20' })).data.days).toEqual([]);
+  });
+
+  it('gauge_social_time reads social-time days (usage access) newest per date, lists itself in data_availability, keeps short_video, and rejects malformed events', async () => {
+    const t = await boot();
+    const a = await t.person();
+    const { token } = (await t.pairLumen(a.id)).body;
+    const up = await t.upload(token, [
+      socialTime('2026-10-20', '2026-10-20T06:00:00Z', { instagram: 600, youtube: 300 }, {}, { receivedAt: '2026-10-20T06:00:00Z' }),
+      socialTime('2026-10-20', '2026-10-20T16:00:00Z', { instagram: 1200, youtube: 600, reddit: 180 }, { targetMin: 30, targetMax: 45 }, { receivedAt: '2026-10-20T16:00:00Z' }),
+      shortVideo('2026-10-20', '2026-10-20T16:00:00Z', { instagram: 11 }),
+      // a bad subject (not social_time:<date>) and a negative duration are each rejected on their own
+      { ...socialTime('2026-10-21', '2026-10-21T03:00:00Z', { instagram: 60 }), subject: '2026-10-21' },
+      socialTime('2026-10-22', '2026-10-22T03:00:00Z', { instagram: -5 }),
+    ], INSTALL, { gzip: true });
+    expect(up.body).toMatchObject({ accepted: 3, duplicates: 0, rejected: [{ index: 3, reason: 'bad_social_time' }, { index: 4, reason: 'bad_social_time' }] });
+    const { run } = await mcpFor(t, a.device);
+    const r = await run('gauge_social_time', { from: '2026-10-20', to: '2026-10-20' });
+    expect(r.data.days).toEqual([{ date: '2026-10-20', totalSeconds: 1980, perApp: { instagram: 1200, youtube: 600, reddit: 180 }, targetMinMinutes: 30, targetMaxMinutes: 45 }]);
+    expect(r.data.source).toBe('usage_access');
+    expect(r.data.installations.map((i: { id: string }) => i.id)).toEqual([INSTALL]);
+    // the new category and the old one each advertise their own read tool; short_video is unaffected
+    const avail = (await run('gauge_data_availability')).data;
+    expect(avail.categories.map((c: { category: string; readWith: string }) => [c.category, c.readWith])).toEqual(
+      expect.arrayContaining([['habits/social_time', 'gauge_social_time'], ['habits/short_video', 'gauge_short_video']]));
+    expect((await run('gauge_short_video', { from: '2026-10-20', to: '2026-10-20' })).data.days).toEqual([
+      { date: '2026-10-20', counts: { instagram: 11 }, total: 11, limit: 20, limitHits: 0, cancels: 0 }]);
   });
 
   it('an agent over the per-token request limit gets 429 with Retry-After on /mcp, not a 500', async () => {

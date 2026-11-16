@@ -1,8 +1,8 @@
 /** (r070) The plugin's registration and the helpers: no plugin outside the Android app, a stub that says "not available". */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installFakeCapacitor, removeFakeCapacitor } from './androidFake';
-import { EngineUnavailableError, UNAVAILABLE_STATE, engineAvailable, engineErrorText, engineStub, gaugeEngine, gaugeEngineOrStub, permissionOk, permissionsMissing, resetGaugeEngineForTests, ringAuthenticationPending, ringCredentialIssue, ringDataReady, showAllowGuide } from '../gaugeEngine';
-import { baseState } from '@/features/ring/engine/__tests__/fakeEngine';
+import { EngineUnavailableError, UNAVAILABLE_STATE, engineAvailable, engineErrorText, engineStub, gaugeEngine, gaugeEngineOrStub, permissionOk, permissionsMissing, resetGaugeEngineForTests, ringAuthenticationPending, ringCredentialIssue, ringDataReady, socialActive } from '../gaugeEngine';
+import { baseState, socialState } from '@/features/ring/engine/__tests__/fakeEngine';
 
 afterEach(() => {
   removeFakeCapacitor();
@@ -39,33 +39,43 @@ describe('GaugeEngine plugin', () => {
     expect(gaugeEngine()).toBeNull();
   });
 
-  it('counts what is missing; the accessibility one only when the short-video limit is on', () => {
+  it('counts what is missing; Usage access only while social time is on', () => {
     expect(permissionsMissing(baseState())).toEqual([]);
-    const s = baseState({ permissions: { ...baseState().permissions, notifications: 'denied', shortVideoAccessibility: false } });
-    expect(permissionsMissing(s)).toEqual(['notifications', 'shortVideoAccessibility']);
-    expect(permissionsMissing({ ...s, shortVideo: { ...s.shortVideo, enabled: false } })).toEqual(['notifications']);
+    const s = baseState({ permissions: { ...baseState().permissions, notifications: 'denied' } });
+    expect(permissionsMissing(s)).toEqual(['notifications']);
     expect(permissionOk(s, 'bluetooth')).toBe(true);
     expect(permissionOk(baseState({ permissions: { ...baseState().permissions, healthConnect: 'partial' } }), 'healthConnect')).toBe(false);
   });
 
-  it('shows the allow-it-first guide only while the counter is off and wanted, and Android holds it back or the person already tried', () => {
-    const off = (restricted?: boolean) =>
-      baseState({ permissions: { ...baseState().permissions, shortVideoAccessibility: false, ...(restricted === undefined ? {} : { shortVideoRestricted: restricted }) } });
-    // the limit is on. Known or likely held back: shown at once; the phone does not say: only after the person went to Accessibility and it is still off
-    expect(showAllowGuide(off(true), false)).toBe(true);
-    expect(showAllowGuide(off(), false)).toBe(false);
-    expect(showAllowGuide(off(), true)).toBe(true);
-    // the phone says it is not held back: never
-    expect(showAllowGuide(off(false), true)).toBe(false);
-    // the counter is on: never, whatever Android once said
-    const on = baseState();
-    expect(showAllowGuide({ ...on, permissions: { ...on.permissions, shortVideoRestricted: true } }, true)).toBe(false);
-    // the limit is off, so the counter is optional: not unless the person has just gone to turn it on
-    const noLimit = (restricted?: boolean) => ({ ...off(restricted), shortVideo: { enabled: false, dailyLimit: null, today: { instagram: 0, youtube: 0 } } });
-    expect(showAllowGuide(noLimit(true), false)).toBe(false);
-    expect(showAllowGuide(noLimit(), false)).toBe(false);
-    expect(showAllowGuide(noLimit(true), true)).toBe(true);
-    expect(showAllowGuide(noLimit(false), true)).toBe(false);
+  it('includes Usage access when social time is on and it is not granted', () => {
+    const s = baseState({ permissions: { ...baseState().permissions, notifications: 'denied' }, social: socialState(false) });
+    expect(socialActive(s)).toBe(true);
+    expect(permissionOk(s, 'usageAccess')).toBe(false);
+    expect(permissionsMissing(s)).toEqual(['notifications', 'usageAccess']);
+  });
+
+  it('excludes Usage access once it is granted', () => {
+    const s = baseState({ social: socialState(true) });
+    expect(permissionOk(s, 'usageAccess')).toBe(true);
+    expect(permissionsMissing(s)).toEqual([]);
+  });
+
+  it('excludes Usage access while no app is counted (social time off)', () => {
+    const s = baseState({ social: socialState(false, []) });
+    expect(socialActive(s)).toBe(false);
+    expect(permissionsMissing(s)).toEqual([]);
+  });
+
+  it('never asks for Usage access on an older native build that sends no social state', () => {
+    const old = baseState();
+    expect(old.social).toBeUndefined();
+    expect(socialActive(old)).toBe(false);
+    expect(permissionOk(old, 'usageAccess')).toBe(false);
+    expect(permissionsMissing(old)).toEqual([]);
+    // a legacy accessibility field from an old build is ignored
+    const legacy = baseState({ permissions: { ...baseState().permissions, shortVideoAccessibility: false } });
+    expect(permissionsMissing(legacy)).toEqual([]);
+    expect(permissionsMissing({ ...old, social: null })).toEqual([]);
   });
 
   it('turns any rejection into a short plain line', () => {

@@ -1,5 +1,5 @@
 /**
- * (r070) The move card, the Ring device screen and the short-video limit, against a mocked `GaugeEngine` plugin.
+ * (r070) The move card and the Ring device screen (with the Usage access row), against a mocked `GaugeEngine` plugin.
  */
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
@@ -8,9 +8,8 @@ import { resetGaugeEngineStoreForTests, startGaugeEngine } from '@/state/gaugeEn
 import { useSettingsStore } from '@/state/settingsStore';
 import { withSystemWrite } from '@/state/scope';
 import { DeviceView } from '../DeviceView';
-import { EngineLimitCard } from '../EngineLimit';
 import { MoveFromGauge } from '../MoveFromGauge';
-import { baseState, fakeEngine } from './fakeEngine';
+import { baseState, fakeEngine, socialState } from './fakeEngine';
 
 window.scrollTo = (() => undefined) as typeof window.scrollTo;
 const tick = () => act(() => new Promise<void>((r) => setTimeout(r, 0)));
@@ -96,9 +95,9 @@ describe('Finish moving from the old ring app', () => {
         healthConnect: 'partial',
         activityRecognition: 'granted',
         notifications: 'denied',
-        shortVideoAccessibility: false,
         batteryUnrestricted: false,
       },
+      social: socialState(false),
     });
     const f = await mount(<MoveFromGauge />, s);
     expect(screen.getByRole('heading', { name: 'Finish setting up the ring' })).toBeTruthy();
@@ -110,7 +109,7 @@ describe('Finish moving from the old ring app', () => {
       'Health ConnectAllow the rest',
       'Physical activityAllowed',
       'NotificationsAllow',
-      'Short-video limitOpen settings',
+      'Usage accessOpen settings',
       'Battery unrestrictedOpen settings',
     ]);
     fireEvent.click(within(rows[0]!).getByRole('button'));
@@ -122,9 +121,9 @@ describe('Finish moving from the old ring app', () => {
     fireEvent.click(within(rows[4]!).getByRole('button'));
     fireEvent.click(within(rows[5]!).getByRole('button'));
     await tick();
-    expect(f.plugin.openAccessibilitySettings).toHaveBeenCalledTimes(1);
+    expect(f.plugin.openUsageAccessSettings).toHaveBeenCalledTimes(1);
     expect(f.plugin.openBatterySettings).toHaveBeenCalledTimes(1);
-    act(() => f.set(baseState()));
+    act(() => f.set(baseState({ social: socialState(true) })));
     expect(screen.queryByText(/Finish/)).toBeNull();
   });
 
@@ -140,144 +139,46 @@ describe('Finish moving from the old ring app', () => {
   });
 });
 
-/**
- * (r071) Android holds the short-video counter back (the "restricted setting" of an app that came onto the phone as a file):
- * the guide shows where the counter is asked for, only while it is wanted and off, with one key to the App info page.
- */
-describe('Allow the counter first', () => {
-  const off = (extra: Record<string, unknown> = {}, shortVideo = baseState().shortVideo) =>
-    baseState({
-      permissions: { ...baseState().permissions, shortVideoAccessibility: false, ...extra },
-      shortVideo,
-    });
-  const guide = () => screen.queryByRole('region', { name: 'Android blocks the counter until you allow it' });
-  const openSettings = () => key('Open settings: Short-video limit');
-
-  it('shows under the checklist when Android holds the counter back: three steps, one key to the App info page', async () => {
-    const f = await mount(<MoveFromGauge />, off({ shortVideoRestricted: true }));
-    const g = guide()!;
-    expect(g).toBeTruthy();
-    const steps = within(g)
-      .getAllByRole('listitem')
-      .map((li) => li.textContent?.replace(/\s+/g, ' ').trim());
-    expect(steps).toEqual([
-      "Open Vitals' app info.Open app info",
-      "Tap the three dots (⋮) at the top right, then Allow restricted settings. Confirm with your phone's lock.",
-      'Come back and turn on Vitals short-video counter in Accessibility settings.',
-    ]);
-    expect(within(g).getAllByRole('button')).toHaveLength(1);
-    fireEvent.click(within(g).getByRole('button', { name: 'Open app info' }));
+/** (social-time) Usage access is what social time needs; it is asked for only while social time is on. */
+describe('Usage access', () => {
+  it('social time on and not granted: the move card asks for it, one tap opens the system screen, no other guide', async () => {
+    const f = await mount(<MoveFromGauge />, baseState({ social: socialState(false) }));
+    expect(screen.getByRole('heading', { name: 'Finish setting up the ring' })).toBeTruthy();
+    fireEvent.click(key('Open settings: Usage access'));
     await tick();
-    expect(f.plugin.openAppInfo).toHaveBeenCalledTimes(1);
-    // step 3 is the row's own key
-    fireEvent.click(openSettings());
-    await tick();
-    expect(f.plugin.openAccessibilitySettings).toHaveBeenCalledTimes(1);
-    // switched on: the guide and the whole card are gone
-    act(() => f.set(baseState()));
-    expect(guide()).toBeNull();
+    expect(f.plugin.openUsageAccessSettings).toHaveBeenCalledTimes(1);
+    expect(f.plugin.openAccessibilitySettings).not.toHaveBeenCalled();
+    expect(screen.queryByText(/restricted settings|accessibility/i)).toBeNull();
+    act(() => f.set(baseState({ social: socialState(true) })));
     expect(screen.queryByText(/Finish/)).toBeNull();
   });
 
-  it('stays out of the way when the phone does not say, until the person has tried and the counter is still off', async () => {
-    const f = await mount(<MoveFromGauge />, off());
-    expect(guide()).toBeNull();
-    fireEvent.click(openSettings());
-    await tick();
-    expect(f.plugin.openAccessibilitySettings).toHaveBeenCalledTimes(1);
-    expect(guide()).toBeTruthy();
-    // coming back with it still off keeps it
-    act(() => f.set(off()));
-    expect(guide()).toBeTruthy();
-  });
-
-  it('never shows when the phone says Android does not hold it back', async () => {
-    await mount(<MoveFromGauge />, off({ shortVideoRestricted: false }));
-    fireEvent.click(openSettings());
-    await tick();
-    expect(guide()).toBeNull();
-  });
-
-  it('stays out while the limit is off and the counter is optional, until the person goes to turn it on', async () => {
-    await mount(
-      <DeviceView />,
-      off(
-        { shortVideoRestricted: true },
-        { enabled: false, dailyLimit: null, today: { instagram: 0, youtube: 0 } },
-      ),
-    );
-    const perms = screen.getByRole('heading', { name: 'Permissions' }).closest('section')!;
-    expect(within(perms).getByText(/Optional/)).toBeTruthy();
-    expect(guide()).toBeNull();
-    fireEvent.click(within(perms).getByRole('button', { name: 'Open settings: Short-video limit' }));
-    await tick();
-    expect(guide()).toBeTruthy();
-  });
-
-  it('shows on the Ring device screen under its permissions', async () => {
-    await mount(<DeviceView />, off({ shortVideoRestricted: true }));
-    const perms = screen.getByRole('heading', { name: 'Permissions' }).closest('section')!;
-    expect(
-      within(perms).getByRole('region', { name: 'Android blocks the counter until you allow it' }),
-    ).toBeTruthy();
-  });
-
-  it('the limit card says what is missing, offers the Accessibility settings, and shows the guide when Android holds the counter back', async () => {
-    const f = await mount(<EngineLimitCard />, off({ shortVideoRestricted: true }));
-    expect(screen.getByText(/needs the accessibility permission/)).toBeTruthy();
-    expect(guide()).toBeTruthy();
-    fireEvent.click(openSettings());
-    await tick();
-    expect(f.plugin.openAccessibilitySettings).toHaveBeenCalledTimes(1);
-    fireEvent.click(within(guide()!).getByRole('button', { name: 'Open app info' }));
-    await tick();
-    expect(f.plugin.openAppInfo).toHaveBeenCalledTimes(1);
-  });
-
-  it('keeps the restricted-settings guide available inside the short-video hero', async () => {
-    const f = await mount(<EngineLimitCard embedded />, off({ shortVideoRestricted: true }));
-    expect(screen.queryByRole('heading', { name: 'Daily limit' })).toBeNull();
-    expect(guide()).toBeTruthy();
-    fireEvent.click(within(guide()!).getByRole('button', { name: 'Open app info' }));
-    await tick();
-    expect(f.plugin.openAppInfo).toHaveBeenCalledTimes(1);
-  });
-
-  it('the limit card shows the guide only after the person tried, when the phone does not say', async () => {
-    const f = await mount(<EngineLimitCard />, off());
-    expect(guide()).toBeNull();
-    fireEvent.click(openSettings());
-    await tick();
-    expect(f.plugin.openAccessibilitySettings).toHaveBeenCalledTimes(1);
-    expect(guide()).toBeTruthy();
-  });
-
-  it('the limit card shows nothing of it with the counter on, or the limit off', async () => {
-    await mount(
-      <EngineLimitCard />,
-      baseState({ permissions: { ...baseState().permissions, shortVideoRestricted: true } }),
-    );
-    expect(guide()).toBeNull();
-    expect(screen.queryByText(/needs the accessibility permission/)).toBeNull();
+  it('an older native build (no social state) is never nagged; the device screen lists it as optional', async () => {
+    await mount(<MoveFromGauge />);
+    expect(screen.queryByText(/Finish/)).toBeNull();
     resetGaugeEngineStoreForTests();
     document.body.innerHTML = '';
-    await mount(
-      <EngineLimitCard />,
-      off(
-        { shortVideoRestricted: true },
-        { enabled: false, dailyLimit: null, today: { instagram: 0, youtube: 0 } },
-      ),
-    );
-    expect(guide()).toBeNull();
-    expect(screen.queryByText(/needs the accessibility permission/)).toBeNull();
+    await mount(<DeviceView />);
+    const perms = screen.getByRole('heading', { name: 'Permissions' }).closest('section')!;
+    const row = within(perms).getByText('Usage access').closest('li')!;
+    expect(row.textContent).toMatch(/Optional/);
+    expect(within(row).getByText('Off')).toBeTruthy();
   });
 
-  it('says why when the App info page does not open', async () => {
-    const f = await mount(<MoveFromGauge />, off({ shortVideoRestricted: true }));
-    f.plugin.openAppInfo.mockRejectedValueOnce(new Error('Could not open the settings screen.'));
-    fireEvent.click(within(guide()!).getByRole('button', { name: 'Open app info' }));
+  it('granted reads On on the device screen', async () => {
+    await mount(<DeviceView />, baseState({ social: socialState(true) }));
+    const perms = screen.getByRole('heading', { name: 'Permissions' }).closest('section')!;
+    const row = within(perms).getByText('Usage access').closest('li')!;
+    expect(within(row).getByText('On')).toBeTruthy();
+    expect(row.textContent).not.toMatch(/Optional/);
+  });
+
+  it('says why when the Usage access screen does not open', async () => {
+    const f = await mount(<MoveFromGauge />, baseState({ social: socialState(false) }));
+    f.plugin.openUsageAccessSettings.mockRejectedValueOnce(new Error('Could not open the settings screen.'));
+    fireEvent.click(key('Open settings: Usage access'));
     await tick();
-    expect(within(guide()!).getByText('Could not open the settings screen.')).toBeTruthy();
+    expect(screen.getByText('Could not open the settings screen.')).toBeTruthy();
   });
 });
 
@@ -325,7 +226,7 @@ describe('Ring device', () => {
   });
 
   it('shows the ring, its battery and last sync, the upload and the permissions', async () => {
-    await mount(<DeviceView />);
+    await mount(<DeviceView />, baseState({ social: socialState(true) }));
     const ring = screen.getByRole('heading', { name: 'Ring' }).closest('section')!;
     expect(within(ring).getByText('Connected')).toBeTruthy();
     expect(within(ring).getByText('Ring 7C41')).toBeTruthy();
@@ -435,51 +336,5 @@ describe('Ring device', () => {
     fireEvent.click(within(perms).getByRole('button', { name: 'Allow: Notifications' }));
     await tick();
     expect(f.plugin.requestPermissions).toHaveBeenCalledWith({ which: ['notifications'] });
-  });
-});
-
-describe('Short-video limit', () => {
-  it("shows the limit and today's counts", async () => {
-    await mount(<EngineLimitCard />);
-    expect(screen.getByText('30 videos a day')).toBeTruthy();
-    const card = screen.getByRole('heading', { name: 'Daily limit' }).closest('section')!;
-    expect(within(card).getByText('11')).toBeTruthy();
-    expect(within(card).getByText('7')).toBeTruthy();
-    expect(within(card).getByText('4')).toBeTruthy();
-  });
-
-  it('sets N videos a day, or off', async () => {
-    const f = await mount(<EngineLimitCard />);
-    fireEvent.click(key('Change'));
-    const sheet = await screen.findByRole('dialog', { name: 'Short-video limit' });
-    expect(within(sheet).getByRole('button', { name: 'Cancel' })).toBeTruthy();
-    fireEvent.click(within(sheet).getByRole('button', { name: 'Save' }));
-    await tick();
-    expect(f.plugin.setShortVideoLimit).toHaveBeenLastCalledWith({ dailyLimit: 30 });
-    fireEvent.click(key('Change'));
-    fireEvent.click(await screen.findByRole('switch', { name: 'Limit short videos' }));
-    fireEvent.click(
-      within(await screen.findByRole('dialog', { name: 'Short-video limit' })).getByRole('button', {
-        name: 'Save',
-      }),
-    );
-    await tick();
-    expect(f.plugin.setShortVideoLimit).toHaveBeenLastCalledWith({ dailyLimit: null });
-  });
-
-  it('off reads "Off"; the quiet mode keeps the counts out', async () => {
-    await mount(
-      <EngineLimitCard />,
-      baseState({ shortVideo: { enabled: false, dailyLimit: null, today: { instagram: 2, youtube: 0 } } }),
-    );
-    expect(screen.getByText('Off')).toBeTruthy();
-  });
-
-  it('says when the limit is on but the accessibility permission is missing', async () => {
-    await mount(
-      <EngineLimitCard />,
-      baseState({ permissions: { ...baseState().permissions, shortVideoAccessibility: false } }),
-    );
-    expect(screen.getByText(/needs the accessibility permission/)).toBeTruthy();
   });
 });

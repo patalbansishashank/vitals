@@ -12,7 +12,7 @@ import { createDetectionJob } from './detect/job.ts';
 import { createFusionContextStore } from './fusionContext.ts';
 import { createGaugeReads, gaugeEtag, type GaugeReads } from './gaugeReads.ts';
 import { FIXTURE_DATE, FIXTURE_NOW, FIXTURE_TZ, fixtureDay, ist } from './gaugeV2Fixture.ts';
-import { activityDaily, battery, deletion, hcDeleted, hcRecord, hr, insight, INSTALL, lumenEvent, metric, OTHER_INSTALL, phoneSteps, ringSteps, shortVideo, sleepPacket, workout } from './lumenFixtures.ts';
+import { activityDaily, battery, deletion, hcDeleted, hcRecord, hr, insight, INSTALL, lumenEvent, metric, OTHER_INSTALL, phoneSteps, ringSteps, shortVideo, socialTime, sleepPacket, workout } from './lumenFixtures.ts';
 import { openLumenStore } from './lumenStore.ts';
 import { lumenToolSet } from './lumenTools.ts';
 
@@ -37,6 +37,7 @@ function setup(o: { maxBytes?: number; maxEntries?: number } = {}) {
   cleanup.push(() => rmSync(dir, { recursive: true, force: true }), () => store.close(), () => reads.close());
   const events = [
     ...fixtureDay(), battery('2026-10-20T12:00:00Z', 64), insight('sleep_score', '2026-10-19T18:30:00Z', 82), shortVideo(D, '2026-10-20T16:00:00Z', { instagram: 5 }),
+    socialTime(D, '2026-10-20T16:00:00Z', { instagram: 1200, youtube: 600 }),
     workout('w-1', '2026-10-20T01:15:00Z'), hcRecord('Weight', 'kg-1', '2026-10-19T02:00:00Z', '2026-10-19T02:00:00Z', { kg: 71.2 }, { origin: 'com.scale' }),
     hcRecord('ExerciseSession', 'ex-1', '2026-10-18T11:00:00Z', '2026-10-18T11:40:00Z', { exercise_type: 79, title: null, segments: [], laps: [], route_state: 'none' }, { origin: 'com.other' }),
   ];
@@ -58,6 +59,7 @@ const READS: Array<[string, Record<string, unknown>]> = [
   ['gauge_scores', { from: '2026-10-19', to: D }],
   ['gauge_device_state', {}],
   ['gauge_short_video', { from: D, to: D }],
+  ['gauge_social_time', { from: D, to: D }],
   ['gauge_workouts', { from: '2026-10-18', to: D }],
   ['gauge_steps', { from: '2026-10-14', to: D }],
   ['gauge_steps', { from: D, to: D, activities: [{ start: iso(ist('07:00')), end: iso(ist('07:30')), kind: 'locomotor', carry: 'pocket' }] }],
@@ -227,6 +229,44 @@ describe('what a write drops', () => {
     expect(t.store.sqlReads()).toBe(sql);
     expect((await read('gauge_timeline', { date: D })).cache).toBe('miss');
     expect((await read('gauge_activity', { from: '2026-10-14', to: D })).cache).toBe('miss');
+  });
+
+  it('a social_time upload for one date drops only that date\'s kept answer; a repeat is a hit with no SQL, and short_video still reads correctly', async () => {
+    const t = setup();
+    const read = (tool: string, args: Record<string, unknown>) => t.reads.read(P, FIXTURE_TZ, tool, { ...args, tz: FIXTURE_TZ });
+    const other = '2026-10-15';
+    // the day the fixture holds (D) and an empty earlier day are each kept
+    const a = await read('gauge_social_time', { from: D, to: D });
+    expect(a.cache).toBe('miss');
+    expect(a.envelope.data).toMatchObject({ days: [{ date: D, totalSeconds: 1800, perApp: { instagram: 1200, youtube: 600 } }], source: 'usage_access' });
+    await read('gauge_social_time', { from: other, to: other });
+
+    // a repeat is answered from memory, with no store read, and its kept ETag matches without one either
+    const sql0 = t.store.sqlReads();
+    expect((await read('gauge_social_time', { from: D, to: D })).cache).toBe('hit');
+    expect((await read('gauge_social_time', { from: other, to: other })).cache).toBe('hit');
+    expect(t.reads.etag(P, FIXTURE_TZ, 'gauge_social_time', { from: D, to: D, tz: FIXTURE_TZ })?.etag).toBe(a.etag);
+    expect(t.store.sqlReads()).toBe(sql0);
+
+    // an upload for yet another date drops neither D's nor other's kept answer
+    t.clock.now += 60_000;
+    expect(t.store.ingest(INSTALL, [socialTime('2026-10-10', iso(ist('12:00') - 5 * 86_400_000), { instagram: 300 })], t.clock.now).rejected).toEqual([]);
+    const sql1 = t.store.sqlReads();
+    expect((await read('gauge_social_time', { from: D, to: D })).cache).toBe('hit');
+    expect((await read('gauge_social_time', { from: other, to: other })).cache).toBe('hit');
+    expect(t.store.sqlReads()).toBe(sql1);
+
+    // an upload for D itself drops D's answer only (other still stands) and the new total is re-derived, byte-identical
+    t.clock.now += 60_000;
+    expect(t.store.ingest(INSTALL, [socialTime(D, iso(ist('23:30')), { instagram: 1500, youtube: 600, reddit: 120 })], t.clock.now).rejected).toEqual([]);
+    expect((await read('gauge_social_time', { from: other, to: other })).cache).toBe('hit');
+    const redone = await read('gauge_social_time', { from: D, to: D });
+    expect(redone.cache).toBe('miss');
+    expect(redone.envelope.data).toMatchObject({ days: [{ date: D, totalSeconds: 2220, perApp: { instagram: 1500, youtube: 600, reddit: 120 } }] });
+    expect(JSON.stringify(redone.envelope)).toBe(JSON.stringify(await t.plain.call('gauge_social_time', { from: D, to: D, tz: FIXTURE_TZ })));
+
+    // short_video is a separate category and reads its own day unchanged by any of the social_time writes
+    expect((await read('gauge_short_video', { from: D, to: D })).envelope.data).toMatchObject({ days: [{ date: D, counts: { instagram: 5 }, total: 5 }] });
   });
 
   it('a change of the fusion context drops the answers that used that part of it, not the days before', async () => {

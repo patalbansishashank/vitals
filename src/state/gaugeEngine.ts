@@ -36,11 +36,6 @@ export interface EngineSnapshot {
   error: { action: string; message: string } | null;
   /** The plugin has the server address and token (false until `configure` resolved; without a pairing it stays false). */
   configured: boolean;
-  /**
-   * (r071) The person was sent to the Accessibility settings to turn the short-video counter on, and it is not on since. It
-   * lets the "allow it first" guide show for a phone that does not say whether Android holds the counter back.
-   */
-  accessAsked: boolean;
 }
 
 const INITIAL: EngineSnapshot = {
@@ -50,15 +45,11 @@ const INITIAL: EngineSnapshot = {
   busy: [],
   error: null,
   configured: false,
-  accessAsked: false,
 };
 let snap: EngineSnapshot = INITIAL;
 const listeners = new Set<() => void>();
 const publish = (next: Partial<EngineSnapshot>) => {
   snap = { ...snap, ...next };
-  // the counter is on: the question of how to turn it on is over
-  if (snap.accessAsked && snap.state?.permissions.shortVideoAccessibility)
-    snap = { ...snap, accessAsked: false };
   for (const l of [...listeners]) l();
 };
 
@@ -331,26 +322,18 @@ export async function runEngine<T>(
 
 export const isBusy = (s: EngineSnapshot, ...keys: string[]): boolean => keys.some((k) => s.busy.includes(k));
 
-/** (r071) The Accessibility settings, where the short-video counter is switched on; remembers the person was sent there. */
-function openAccessibility() {
-  if (current) publish({ accessAsked: true });
-  return runEngine('permission:shortVideoAccessibility', (p) => p.openAccessibilitySettings());
-}
-
 /** What the screens call. Each resolves when the plugin answered; failures land in the snapshot's `error`. */
 export const engine = {
   uninstallGauge: () =>
     runEngine('uninstall', async (p) => (await p.uninstallGauge(), (await p.getState()) as EngineState)),
   takeOver: () => runEngine('takeOver', (p) => p.takeOver()),
-  /** One permission, one tap: a runtime one asks; the two settings ones open the system screen. */
+  /** One permission, one tap: a runtime one asks; Usage access and battery open the system screen. */
   fix: (k: PermissionKey) =>
     isRuntimePermission(k)
       ? runEngine(`permission:${k}`, (p) => p.requestPermissions({ which: [k as RuntimePermission] }))
-      : k === 'shortVideoAccessibility'
-        ? openAccessibility()
+      : k === 'usageAccess'
+        ? runEngine('permission:usageAccess', (p) => p.openUsageAccessSettings())
         : runEngine('permission:batteryUnrestricted', (p) => p.openBatterySettings()),
-  /** (r071) Vitals' App info page, where the person allows restricted settings themselves (⋮ menu). */
-  openAppInfo: () => runEngine('appInfo', (p) => p.openAppInfo()),
   scan: () => runEngine('scan', (p) => p.scanRings()),
   connect: (address: string) => runEngine('connect', (p) => p.connectRing({ address })),
   forget: () => runEngine('forget', (p) => p.forgetRing()),

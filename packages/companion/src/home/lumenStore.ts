@@ -55,6 +55,18 @@ export const LUMEN_MAX_BYTES = 1024 * 1024;
 export const DELETION_TYPE = 'com.pulseloop.deletion.v1';
 export const DELETION_CATEGORY = 'deletion';
 export const SHORT_VIDEO_CATEGORY = 'habits/short_video';
+/** (social-time) Time in social/short-video apps per local day, measured by the phone's usage access (durations only). */
+export const SOCIAL_TIME_CATEGORY = 'habits/social_time';
+export const SOCIAL_TIME_TYPE = 'com.pulseloop.habits.social_time.v1';
+export const SOCIAL_SUBJECT_PREFIX = 'social_time:';
+const SOCIAL_SUBJECT = /^social_time:(\d{4})-(\d{2})-(\d{2})$/;
+/** The local date of a `habits/social_time` subject (`social_time:<date>`), when it is a real calendar date, else null. */
+export function socialTimeDate(subject: string): string | null {
+  const m = SOCIAL_SUBJECT.exec(subject);
+  if (!m) return null;
+  const date = `${m[1]}-${m[2]}-${m[3]}`;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))).toISOString().slice(0, 10) === date ? date : null;
+}
 export const WORKOUT_CATEGORY = 'activity/session';
 export const WORKOUT_TYPE = 'com.pulseloop.activity.session.v1';
 
@@ -155,6 +167,16 @@ export function coverageWindow(fromDay: string, toDay: string): [number, number]
   const a = /^\d{4}-\d{2}-\d{2}$/.test(fromDay) ? Date.parse(`${fromDay}T00:00:00Z`) : Number.NaN;
   const b = /^\d{4}-\d{2}-\d{2}$/.test(toDay) ? Date.parse(`${toDay}T00:00:00Z`) : Number.NaN;
   return Number.isFinite(a) && Number.isFinite(b) ? [a, b + DAY_MS - 1] : null;
+}
+
+/**
+ * The invalidation window of a social-time day range `fromDay`..`toDay` (date-space, midnight UTC per day; the whole
+ * `toDay`): a writer naming a date and a reader covering a range meet exactly when the writer's date is in the range, so
+ * a `habits/social_time` upload for one date drops only the kept reads whose range includes that date (the per-day
+ * invalidation other daily categories get). Null for a malformed day.
+ */
+export function socialTimeWindow(fromDay: string, toDay: string): [number, number] | null {
+  return coverageWindow(fromDay, toDay);
 }
 
 export const READ_DEFAULT_LIMIT = 2000;
@@ -309,6 +331,28 @@ function shortVideoOk(subject: string, d: Record<string, unknown>): boolean {
   const c = d.counts;
   if (!isObj(c) || Object.keys(c).length > 16 || !Object.entries(c).every(([k, v]) => /^[a-z0-9_]{1,32}$/.test(k) && count(v))) return false;
   return [d.limit, d.limit_hits, d.cancels].every((v) => v === undefined || v === null || count(v));
+}
+
+const APP_KEY = /^[a-z0-9_]{1,32}$/;
+const minutes = (v: unknown) => Number.isInteger(v) && (v as number) >= 0 && (v as number) <= 1440;
+/**
+ * (social-time) One local day of time in social/short-video apps (`habits/social_time`, measured by the phone's usage
+ * access): subject = `social_time:<date>` and (if given) `data.date` is that date; `totalSeconds` and each `perApp`
+ * value are non-negative whole seconds; `apps` the keys counted; `targetMinMinutes` ≤ `targetMaxMinutes` (0–1440);
+ * `source` and `tz` short strings; `updatedAt` an epoch-ms integer. Durations only, never any watched content.
+ */
+function socialTimeOk(subject: string, d: Record<string, unknown>): boolean {
+  const date = socialTimeDate(subject);
+  if (!date) return false;
+  if (d.date !== undefined && d.date !== date) return false;
+  if (typeof d.tz !== 'string' || !d.tz || d.tz.length > 64) return false;
+  if (!count(d.totalSeconds)) return false;
+  const pa = d.perApp;
+  if (!isObj(pa) || Object.keys(pa).length > 32 || !Object.entries(pa).every(([k, v]) => APP_KEY.test(k) && count(v))) return false;
+  if (!Array.isArray(d.apps) || d.apps.length > 32 || !d.apps.every((a) => typeof a === 'string' && APP_KEY.test(a))) return false;
+  if (!minutes(d.targetMinMinutes) || !minutes(d.targetMaxMinutes) || (d.targetMinMinutes as number) > (d.targetMaxMinutes as number)) return false;
+  if (typeof d.source !== 'string' || !APP_KEY.test(d.source)) return false;
+  return Number.isInteger(d.updatedAt) && (d.updatedAt as number) >= 0;
 }
 
 const MAX_WORKOUT_MS = 7 * 24 * 3_600_000;
@@ -541,6 +585,7 @@ export function checkEvent(e: unknown, installationId: string): Checked {
     observed_at: d.observed_at as string, observed_ms: observed, received_at: d.received_at as string, received_ms: received, data: JSON.stringify(d),
   };
   if (e.category === SHORT_VIDEO_CATEGORY && !shortVideoOk(e.subject, d)) return { ok: false, reason: 'bad_short_video' };
+  if (e.category === SOCIAL_TIME_CATEGORY && (e.type !== SOCIAL_TIME_TYPE || !socialTimeOk(e.subject, d))) return { ok: false, reason: 'bad_social_time' };
   if (e.category === WORKOUT_CATEGORY && !workoutOk(e.type, d)) return { ok: false, reason: 'bad_workout' };
   if (e.category === BUCKET_CATEGORY && !bucketOk(e.type, e.subject, d)) return { ok: false, reason: 'bad_bucket' };
   if (e.category === PHONE_STEPS_CATEGORY && !phoneStepsOk(e.type, e.subject, d)) return { ok: false, reason: 'bad_phone_steps' };
@@ -704,7 +749,16 @@ export function openLumenStore(file: string): LumenStore {
       const span = isSpanCategory(row.category) ? spanOf(row.category, row.subject, data, row.observed_ms) : null;
       // (r087) what the cached reads must drop: the event's instant, its support and that of the versions it replaces
       const kind = kindOf(row.category);
-      dirty.ranges.push([row.observed_ms, row.observed_ms, kind]);
+      // (social-time) a day's reads are kept and invalidated in date-space (the reader covers a date range, the writer
+      // names one date), so the upload's own instant — which can fall on a neighbouring UTC day — must not be what the
+      // cache keys on; push the date's window instead, so only that date's kept reads drop
+      const socialDate = !deletion && row.category === SOCIAL_TIME_CATEGORY ? socialTimeDate(row.subject) : null;
+      if (socialDate) {
+        const w = socialTimeWindow(socialDate, socialDate);
+        if (w) dirty.ranges.push([w[0], w[1], kind]);
+      } else {
+        dirty.ranges.push([row.observed_ms, row.observed_ms, kind]);
+      }
       if (deletion) {
         // a deletion hides rows by observed time; where a support can reach past it, or a record's current version is
         // chosen across instants, no window bounds what shows again

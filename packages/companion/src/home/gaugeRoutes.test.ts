@@ -12,7 +12,7 @@ import { Client, StreamableHTTPClientTransport } from '../mcpTestClient.ts';
 import { startCompanion, type Companion } from '../server.ts';
 import { GAUGE_ROUTES } from './gaugeRoutes.ts';
 import { KEPT_IDLE_MS } from './lumen.ts';
-import { activityDaily, battery, deletion, hcRecord, hr, insight, INSTALL, OTHER_INSTALL, phoneAcquisition, phoneSteps, ringSteps, shortVideo, sleepPacket, workout } from './lumenFixtures.ts';
+import { activityDaily, battery, deletion, hcRecord, hr, insight, INSTALL, OTHER_INSTALL, phoneAcquisition, phoneSteps, ringSteps, shortVideo, socialTime, sleepPacket, workout } from './lumenFixtures.ts';
 import { offsetMinutes } from './lumenTools.ts';
 import type { PersonRequest, PersonResponse } from './personRpc.ts';
 import type { WorkerFactory } from './workers.ts';
@@ -79,6 +79,7 @@ const ringData = () => [
   sleepPacket('2026-10-19T18:00:00Z', Array.from({ length: 60 }, () => 'light'), { complete: true }),
   insight('sleep_score', '2026-10-19T18:30:00Z', 82), battery('2026-10-20T12:00:00Z', 64),
   shortVideo('2026-10-20', '2026-10-20T16:00:00Z', { instagram: 5 }), workout('w-1', '2026-10-20T01:15:00Z'),
+  socialTime('2026-10-20', '2026-10-20T16:00:00Z', { instagram: 1200, youtube: 600 }),
 ];
 
 /** Each endpoint with a query, and the same call as tool arguments. */
@@ -91,6 +92,7 @@ const CASES: Array<[string, string, Record<string, unknown>]> = [
   ['scores', '?from=2026-10-20&to=2026-10-20&key=sleep_score', { from: '2026-10-20', to: '2026-10-20', key: 'sleep_score' }],
   ['device', '', {}],
   ['short-video', '?from=2026-10-20&to=2026-10-20', { from: '2026-10-20', to: '2026-10-20' }],
+  ['social-time', '?from=2026-10-20&to=2026-10-20', { from: '2026-10-20', to: '2026-10-20' }],
   ['workouts', '?from=2026-10-20&to=2026-10-20T23:59', { from: '2026-10-20', to: '2026-10-20T23:59' }],
   ['steps', '?from=2026-10-20&to=2026-10-20', { from: '2026-10-20', to: '2026-10-20' }],
   ['timeline', '?date=2026-10-20', { date: '2026-10-20' }],
@@ -110,7 +112,7 @@ describe('GET /v1/gauge/*', () => {
     const run = await t.mcp(a.device);
     const tools = new Set(Object.values(GAUGE_ROUTES).map((r) => r.tool));
     expect(CASES.map(([p]) => GAUGE_ROUTES[p]!.tool).sort()).toEqual([...tools].sort());
-    expect(tools.size).toBe(17);
+    expect(tools.size).toBe(18);
     for (const [path, query, args] of CASES) {
       const r = await t.call(`/v1/gauge/${path}${query}`, { token: a.device });
       expect(r.status, path).toBe(200);

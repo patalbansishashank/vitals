@@ -20,6 +20,12 @@ data class EngineState(
     val permissions: Permissions,
     val upload: Upload,
     val shortVideo: ShortVideo,
+    /**
+     * (SPEC social-time) Foreground time in the chosen social apps, measured through Usage access. Optional: a phone on
+     * an older native build sends no `social` field, and the web treats it as absent. Null until the feature has a value
+     * to report.
+     */
+    val social: Social? = null,
     /** The ring's own count of the phone's today; null while the ring has reported none for it. */
     val today: Today? = null,
     /** The newest heart-rate reading the engine holds; null when it holds none. */
@@ -71,6 +77,21 @@ data class EngineState(
     )
 
     /**
+     * (SPEC social-time) The web layer reads this (`src/platform/gaugeEngine.ts`): whether Usage access is granted,
+     * today's total and per-app seconds (the provisional local number shown until the server has it), the 30–45 target
+     * band, and which apps are counted. [perApp] holds only apps with time > 0 today.
+     */
+    data class Social(
+        val usageAccess: Boolean,
+        val today: Day,
+        val targetMinMinutes: Int,
+        val targetMaxMinutes: Int,
+        val enabledApps: List<String>,
+    ) {
+        data class Day(val date: String, val totalSeconds: Int, val perApp: Map<String, Int>)
+    }
+
+    /**
      * The day's steps as the ring counted them (the engine's `activity_daily`, never fused with the phone's), for the
      * phone's local [date], and when the engine last wrote them. The server's fused answer stays the figure; this only
      * shows first.
@@ -119,6 +140,21 @@ data class EngineState(
                 JSONObject().put("enabled", shortVideo.enabled)
                     .put("dailyLimit", shortVideo.dailyLimit ?: JSONObject.NULL)
                     .put("today", JSONObject().put("instagram", shortVideo.instagram).put("youtube", shortVideo.youtube)),
+            )
+            .putIf(
+                "social",
+                social?.let {
+                    JSONObject()
+                        .put("usageAccess", it.usageAccess)
+                        .put(
+                            "today",
+                            JSONObject().put("date", it.today.date).put("totalSeconds", it.today.totalSeconds)
+                                .put("perApp", JSONObject(it.today.perApp.mapValues { (_, v) -> v as Any })),
+                        )
+                        .put("targetMinMinutes", it.targetMinMinutes)
+                        .put("targetMaxMinutes", it.targetMaxMinutes)
+                        .put("enabledApps", org.json.JSONArray(it.enabledApps))
+                },
             )
             .putIf(
                 "today",

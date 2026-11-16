@@ -15,7 +15,7 @@ import com.pulseloop.data.entity.*
  * Room database holding all PulseLoop entities.
  */
 /** Schema version; [PulseLoopDatabase.migrations] must reach it. */
-internal const val DATABASE_VERSION = 37
+internal const val DATABASE_VERSION = 38
 
 @Database(
     entities = [
@@ -43,6 +43,7 @@ internal const val DATABASE_VERSION = 37
         BroadcastOutboxEntity::class,
         HubOutboxEntity::class,
         com.pulseloop.shortvideo.ShortVideoDayEntity::class,
+        com.pulseloop.social.SocialTimeDayEntity::class,
         HubPendingDeletionEntity::class,
         RingSportFrameEntity::class,
     ],
@@ -81,8 +82,11 @@ abstract class PulseLoopDatabase : RoomDatabase() {
     abstract fun hubOutboxDao(): HubOutboxDao
     /** v33: hub deletions queued where no installation id was at hand (the v33 migration). */
     abstract fun hubPendingDeletionDao(): HubPendingDeletionDao
-    /** Daily Reels/Shorts tallies (v32); counts only. */
+    /** Daily Reels/Shorts tallies (v32); counts only. No longer written (the accessibility counter is gone); kept
+     *  readable for old local rows. */
     abstract fun shortVideoDao(): com.pulseloop.shortvideo.ShortVideoDao
+    /** Daily "Social time" foreground-second totals (v38; SPEC social-time); durations only. */
+    abstract fun socialTimeDao(): com.pulseloop.social.SocialTimeDao
     /** Read-only keyset paging over the health tables for the hub's first-pair backfill. */
     abstract fun hubBackfillDao(): HubBackfillDao
     /** `derived_updates` has existed since v1; exposing its DAO is not a schema change. */
@@ -118,7 +122,7 @@ abstract class PulseLoopDatabase : RoomDatabase() {
             "raw_packets", "derived_updates",
             "wearable_logs",
             "meal_entries", "food_products", "measurement_deletions",
-            "broadcast_outbox", "hub_outbox", "short_video_days", "hub_pending_deletions",
+            "broadcast_outbox", "hub_outbox", "short_video_days", "social_time_days", "hub_pending_deletions",
             "ring_sport_frames",
         )
 
@@ -724,6 +728,27 @@ abstract class PulseLoopDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v37 → v38 (SPEC social-time): the daily foreground-time totals for "Social time", measured through Usage
+         * access instead of the (now removed) accessibility counter. Durations only. Idempotent.
+         */
+        internal val MIGRATION_37_38 = object : Migration(37, 38) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `social_time_days` (
+                        `date` TEXT NOT NULL,
+                        `app` TEXT NOT NULL,
+                        `seconds` INTEGER NOT NULL,
+                        `updatedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`date`, `app`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_social_time_days_date` ON `social_time_days` (`date`)")
+            }
+        }
+
         internal val RETIRED_COACH_TABLES = listOf(
             "coach_tool_calls", "coach_messages", "coach_conversations", "coach_memories",
             "coach_summaries", "coach_notification_records",
@@ -798,7 +823,7 @@ abstract class PulseLoopDatabase : RoomDatabase() {
         /**
          * The one linear upgrade chain, v2 -> [DATABASE_VERSION]. v33 is feat/ota's ring-clock
          * duplicate repair (2.7.4), v34 the Nutrition removal's `user_goals` rebuild, v35 the
-         * coach tables' removal (2.8.0), v36 ring step evidence (SPEC GA), v37 heart-rate cadence (2.8.1, [MIGRATION_36_37]). [PulseLoopMigrationChainTest] checks it has no gap.
+         * coach tables' removal (2.8.0), v36 ring step evidence (SPEC GA), v37 heart-rate cadence (2.8.1, [MIGRATION_36_37]), v38 the social-time table (SPEC social-time, [MIGRATION_37_38]). [PulseLoopMigrationChainTest] checks it has no gap.
          */
         internal fun migrations(context: Context): Array<Migration> = arrayOf(
                 MIGRATION_2_3,
@@ -842,6 +867,7 @@ abstract class PulseLoopDatabase : RoomDatabase() {
                 MIGRATION_34_35,
                 MIGRATION_35_36,
                 MIGRATION_36_37,
+                MIGRATION_37_38,
             )
 
         fun getInstance(context: Context): PulseLoopDatabase =

@@ -13,7 +13,7 @@ import {
   Radio,
 } from 'lucide-react';
 import { CardHead, GradientCard, type CardSize, type Domain, type IconComponent } from '@/components';
-import { RingSleepToday, RingGlance, RingShortVideos } from '@/features/ring';
+import { RingSleepToday, RingGlance, RingSocialTime } from '@/features/ring';
 import { SoFarFace, WeightFace, PlanlessWeightFace } from '../components/Faces';
 import {
   EnergyCard,
@@ -233,19 +233,20 @@ export const todayCardRegistry: TodayCardDef[] = [
     ),
   },
   {
+    // (social-time) replaces the short-video count; the card id stays 'videos' so saved Today layouts keep the slot
     id: 'videos',
-    title: 'Short videos',
+    title: 'Social time',
     icon: Video,
     domain: 'videos',
     group: 'Short videos',
-    description: 'Your short video use this week',
+    description: 'Your time in social apps today',
     sizes: ['slim'],
     defaultSize: 'slim',
     presence: 'library',
     available: ring,
     render: (ctx, _size, onRemove) => (
-      <RingShortVideos date={ctx.date}
-        infoFooter={onRemove ? <RemoveFromToday onRemove={onRemove} title="Short videos" /> : undefined} />
+      <RingSocialTime date={ctx.date}
+        infoFooter={onRemove ? <RemoveFromToday onRemove={onRemove} title="Social time" /> : undefined} />
     ),
   },
   {

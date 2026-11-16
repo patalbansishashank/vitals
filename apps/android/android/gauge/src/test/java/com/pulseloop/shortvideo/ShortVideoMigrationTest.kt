@@ -30,7 +30,7 @@ class ShortVideoMigrationTest {
         SQLiteDatabase.openDatabase(context.getDatabasePath(name).path, null, SQLiteDatabase.OPEN_READWRITE).use { it.version = 31 }
 
         val migrated = Room.databaseBuilder(context, PulseLoopDatabase::class.java, name)
-            .addMigrations(PulseLoopDatabase.MIGRATION_31_32, PulseLoopDatabase.MIGRATION_32_33, PulseLoopDatabase.MIGRATION_33_34, PulseLoopDatabase.MIGRATION_34_35, PulseLoopDatabase.MIGRATION_35_36, PulseLoopDatabase.MIGRATION_36_37).allowMainThreadQueries().build()
+            .addMigrations(PulseLoopDatabase.MIGRATION_31_32, PulseLoopDatabase.MIGRATION_32_33, PulseLoopDatabase.MIGRATION_33_34, PulseLoopDatabase.MIGRATION_34_35, PulseLoopDatabase.MIGRATION_35_36, PulseLoopDatabase.MIGRATION_36_37, PulseLoopDatabase.MIGRATION_37_38).allowMainThreadQueries().build()
         try {
             val db = migrated.openHelper.writableDatabase // Room validates the full current schema here.
             assertEquals(DATABASE_VERSION, db.version)

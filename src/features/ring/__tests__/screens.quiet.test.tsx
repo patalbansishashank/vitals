@@ -24,18 +24,18 @@ describe('Ring screens: quiet', () => {
 
   // 0.6.3: quiet mode is words only on the Ring's cards, assistive technology included (bed and wake as parts of the
   // day, asleep against the goal as a word, readings as their status words, no counts, ages and syncs in words)
-  it('quiet mode: the Activity, Sleep, Signals, body and Short videos cards carry no digits, aria included', async () => {
+  it('quiet mode: the Activity, Sleep, Signals, body and Social time cards carry no digits, aria included', async () => {
     await dispatch('settings.update', { patch: { quietMode: true } });
     renderAt('/ring');
     await screen.findByRole('heading', { level: 1, name: 'Ring' }, { timeout: 8000 });
-    const names = ['Activity', 'Sleep', 'Signals', 'Short videos'];
+    const names = ['Activity', 'Sleep', 'Signals', 'Social time'];
     for (const n of names) await screen.findByRole('heading', { level: 2, name: n }, { timeout: 8000 });
     // let every card's questions answer
     await waitFor(() =>
       expect(within(card('Sleep')).getByText(/^Fell asleep (in the|early|late)/)).toBeInTheDocument(),
     );
     await waitFor(() =>
-      expect(within(card('Short videos')).getByText(/./, { selector: '.rgv-word, .lm-hero__word' })).toBeInTheDocument(),
+      expect(within(card('Social time')).getByText(/./, { selector: '.rgv-word, .lm-hero__word' })).toBeInTheDocument(),
     );
     for (const n of names) expectWordsOnly(card(n));
     // The two parts of the day stay together on one readable fact line.

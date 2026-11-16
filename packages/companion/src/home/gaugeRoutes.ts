@@ -9,7 +9,8 @@
  *   /v1/gauge/activity?from=&to=              gauge_activity
  *   /v1/gauge/scores?from=&to=&key=           gauge_scores
  *   /v1/gauge/device                          gauge_device_state
- *   /v1/gauge/short-video?from=&to=           gauge_short_video
+ *   /v1/gauge/short-video?from=&to=           gauge_short_video (legacy per-video counts; kept for history)
+ *   /v1/gauge/social-time?from=&to=&tz=       gauge_social_time (time per day in social/short-video apps, usage access)
  *   /v1/gauge/workouts?from=&to=              gauge_workouts (sessions overlapping the range)
  *   /v1/gauge/steps?from=&to=                 gauge_steps (steps-fuse/1, energy SPEC §2.3)
  *   /v1/gauge/timeline?date=                  gauge_timeline (the day minute by minute)
@@ -87,6 +88,7 @@ export const GAUGE_ROUTES: Readonly<Record<string, { tool: string; params: reado
   scores: { tool: 'gauge_scores', params: ['from', 'to', 'key', 'tz'] },
   device: { tool: 'gauge_device_state', params: ['tz'] },
   'short-video': { tool: 'gauge_short_video', params: ['from', 'to', 'tz'] },
+  'social-time': { tool: 'gauge_social_time', params: ['from', 'to', 'tz'] },
   workouts: { tool: 'gauge_workouts', params: ['from', 'to', 'tz'] },
   steps: { tool: 'gauge_steps', params: ['from', 'to', 'tz'] },
   timeline: { tool: 'gauge_timeline', params: ['date', 'tz'] },

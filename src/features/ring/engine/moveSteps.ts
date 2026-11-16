@@ -6,13 +6,14 @@
  *   3  The engine is active: give it what it needs from the phone (six one-tap rows).
  *
  * The card shows while the engine is `passive` or `needsTakeover`, and after the take-over for as long as something it
- * needs is missing; it is gone when everything is done. The short-video accessibility row is optional (it does not keep
- * the card up) until the short-video limit is on.
+ * needs is missing; it is gone when everything is done. The Usage access row is optional (it does not keep the card
+ * up) until social time is on.
  */
 import {
   permissionOk,
   permissionsMissing,
   PERMISSION_KEYS,
+  socialActive,
   type EngineState,
   type PermissionKey,
 } from '@/platform/gaugeEngine';
@@ -58,7 +59,7 @@ export function movePlan(state: EngineState | null | undefined, available = true
     items: PERMISSION_KEYS.map((key) => ({
       key,
       ok: permissionOk(state, key),
-      optional: key === 'shortVideoAccessibility' && !state.shortVideo.enabled,
+      optional: key === 'usageAccess' && !socialActive(state),
     })),
     moving,
   };

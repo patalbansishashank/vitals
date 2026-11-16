@@ -18,7 +18,8 @@ export const ringPaths = {
   signal: (kind: string, date?: string) => `/ring/signals/${encodeURIComponent(kind)}${q(date)}`,
   /** A Gauge workout; `activity`: the approved activity it is evidence for (its decided window and booked energy). */
   workout: (id: string, date?: string, activity?: string) => `/ring/workouts/${encodeURIComponent(id)}${q(date)}${activity ? `${date ? '&' : '?'}activity=${encodeURIComponent(activity)}` : ''}`,
-  shortVideos: (date?: string) => `/ring/short-videos${q(date)}`,
+  /** (social-time) The Social time page; `/ring/short-videos` redirects here. */
+  social: (date?: string) => `/ring/social${q(date)}`,
   /** (r070) The ring this phone talks to (Android app with the engine only). */
   device: '/ring/device',
 } as const;

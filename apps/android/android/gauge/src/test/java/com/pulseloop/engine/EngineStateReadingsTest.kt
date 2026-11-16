@@ -7,6 +7,7 @@ import com.pulseloop.data.entity.MeasurementEntity
 import com.pulseloop.hub.FakeHubSettings
 import com.pulseloop.ring.RingBLEClient
 import com.pulseloop.shortvideo.ShortVideoPrefs
+import com.pulseloop.social.SocialPrefs
 import com.pulseloop.util.TimeUtil
 import java.time.Instant
 import java.time.LocalDate
@@ -50,7 +51,7 @@ class EngineStateReadingsTest {
 
     /** The state the plugin sends while the engine runs the ring, with no ring linked. */
     private suspend fun activeState(at: Long = now) =
-        EngineStateReader.active(db, RingBLEClient.BLEState(), { false }, hub, ShortVideoPrefs(), permissions, at, zone)
+        EngineStateReader.active(db, RingBLEClient.BLEState(), { false }, hub, ShortVideoPrefs(), SocialPrefs(), usageAccess = false, permissions, at, zone)
 
     @Test fun `the active state carries today's ring steps and the newest heart rate, and leaves out what it does not have`() = runBlocking {
         val empty = activeState()
@@ -156,7 +157,7 @@ class EngineStateReadingsTest {
         val days = MutableStateFlow(LocalDate.parse("2026-11-15"))
         val signals = Channel<Unit>(Channel.UNLIMITED)
         val job = launch(Dispatchers.IO) {
-            EngineSignals.active(db, link, hub, MutableStateFlow(ShortVideoPrefs()), { zone }, days).collect { signals.send(it) }
+            EngineSignals.active(db, link, hub, MutableStateFlow(ShortVideoPrefs()), MutableStateFlow(SocialPrefs()), { zone }, days).collect { signals.send(it) }
         }
         suspend fun quiet() = assertNull(withTimeoutOrNull(300) { signals.receive() })
         // at least one signal, then whatever came with it

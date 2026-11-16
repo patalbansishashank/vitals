@@ -31,7 +31,7 @@ class RawPacketMigrationTest {
         db.execSQL("INSERT INTO broadcast_outbox(eventId,topicSuffix,payloadJson,qos,retain,createdAt,attemptCount,publishedAt) VALUES('delivered','hr','large payload',1,0,1,1,2),('pending','hr','pending payload',1,0,1,0,NULL)")
         initial.close()
         SQLiteDatabase.openDatabase(context.getDatabasePath(name).path, null, SQLiteDatabase.OPEN_READWRITE).use { it.version = 28 }
-        val migrated = Room.databaseBuilder(context, PulseLoopDatabase::class.java, name).addMigrations(PulseLoopDatabase.MIGRATION_28_29, PulseLoopDatabase.MIGRATION_29_30, PulseLoopDatabase.MIGRATION_30_31, PulseLoopDatabase.MIGRATION_31_32, PulseLoopDatabase.MIGRATION_32_33, PulseLoopDatabase.MIGRATION_33_34, PulseLoopDatabase.MIGRATION_34_35, PulseLoopDatabase.MIGRATION_35_36, PulseLoopDatabase.MIGRATION_36_37).allowMainThreadQueries().build()
+        val migrated = Room.databaseBuilder(context, PulseLoopDatabase::class.java, name).addMigrations(PulseLoopDatabase.MIGRATION_28_29, PulseLoopDatabase.MIGRATION_29_30, PulseLoopDatabase.MIGRATION_30_31, PulseLoopDatabase.MIGRATION_31_32, PulseLoopDatabase.MIGRATION_32_33, PulseLoopDatabase.MIGRATION_33_34, PulseLoopDatabase.MIGRATION_34_35, PulseLoopDatabase.MIGRATION_35_36, PulseLoopDatabase.MIGRATION_36_37, PulseLoopDatabase.MIGRATION_37_38).allowMainThreadQueries().build()
         try {
             val sql = migrated.openHelper.writableDatabase // Room validates the full v29 schema.
             sql.query("SELECT COUNT(*),MIN(timestamp),MAX(timestamp) FROM raw_packets").use {

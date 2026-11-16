@@ -4,6 +4,11 @@ Vitals asks the ring engine to do things through the person's home server: set t
 resume or stop a workout recording, measure heart rate now and sync the ring now (r068 B2). The binding design is
 energy SPEC §A.4 (`vitals-research/energy/SPEC.md`). A command is a request, never data: it carries no health values.
 
+The "Reels" limit (`reels.set`) now governs **social time**: the engine measures whole-app foreground time through
+Android's Usage access (no accessibility service, which the banking apps detect), uploads it per local day as
+`habits/social_time`, and the server reads it with `gauge_social_time` (see docs/SERVER.md). The old per-video counter
+(`habits/short_video` / `gauge_short_video`) is legacy and kept only for history.
+
 Since 0.7.0 the engine is part of the Vitals Android app: the `gauge` module in `apps/android/android/gauge`, paired
 with `POST /v1/lumen/pair-device` as an installation with `app: vitals`. The retired standalone ring app speaks the same
 protocol; the server keeps serving it only until it is uninstalled and Vitals takes over. Below, "the engine" means

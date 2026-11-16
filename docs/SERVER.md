@@ -181,7 +181,7 @@ server refuses the file afterwards, so go back with a backup.
 **Uploads.** `POST /v1/lumen/events` with the token, `{ installationId, events: [CloudEvent…] }`, gzipped
 (`Content-Encoding: gzip`) or not. The events are ring app's MQTT envelopes plus `category` (the topic suffix:
 `metrics/<kind>`, `vendor/<key>`, `activity/daily`, `activity/buckets`, `sleep/timeline`, `insights/<key>`,
-`state/<x>`, `habits/short_video`, `activity/session`, `deletion`). At most 500 events and 1 MiB after decompression (413), 120 uploads a minute per token (429
+`state/<x>`, `habits/short_video`, `habits/social_time`, `activity/session`, `deletion`). At most 500 events and 1 MiB after decompression (413), 120 uploads a minute per token (429
 with `Retry-After`). The answer is `{ accepted, duplicates, rejected: [{ id, index, reason }] }`: a re-sent id is a
 duplicate, a malformed event is rejected on its own. `GET /v1/lumen/status` answers
 `{ personId, lastEventAt, lastObservedAt, counts, deletions, serverVersion }`. Every `/v1/lumen/*` answer is direct,
@@ -194,7 +194,14 @@ worker) and closed after 10 minutes idle. It is never part of the Evolu replica 
 `com.pulseloop.habits.short_video.v1`) is one event per local date: subject and `data.date` are `YYYY-MM-DD`, with
 `counts` per app (`instagram`, `youtube`), `limit`, `limit_hits` and `cancels` (non-negative whole numbers; anything else
 is rejected as `bad_short_video`). Its counts grow through the day, so its view keeps one row per date, the newest
-version by `data.received_at` then upload order, whatever its `observed_at`. ring app's recorded workouts
+version by `data.received_at` then upload order, whatever its `observed_at`. `habits/short_video` is **legacy** (it
+needed an accessibility service the banking apps detect): it stays readable for history but is no longer written. Its
+replacement is the social-time habit (`habits/social_time`, type `com.pulseloop.habits.social_time.v1`), one event per
+local date measured by the phone's Usage access: subject = `social_time:<date>`, `data.date` the same date, with
+`totalSeconds` and `perApp` (app-key → whole seconds, durations only — never any watched content), `apps` (the keys
+counted), `targetMinMinutes` ≤ `targetMaxMinutes` (0–1440), `source` (e.g. `usage_access`) and `updatedAt`; anything
+else is rejected as `bad_social_time`. It keeps one row per date the same way (newest by `data.received_at` then upload
+order), and a write for a date invalidates only that date in the kept reads. ring app's recorded workouts
 (`activity/session`, type `com.pulseloop.activity.session.v1`, subject = the session id) keep one row per session the
 same way; when the newest version is deleted the session is gone (an older version never comes back). Their data is
 `{ start, end, type, source, durationS, distanceM?, kcal?, avgHr?, maxHr?, zones?, steps?, route? }`: `start` ≤ `end`
@@ -239,14 +246,15 @@ person's zone; each result carries units, `installations` and `freshness`:
 
 | Tool | Answers |
 |---|---|
-| `gauge_data_availability` | categories with counts, first/last reading and the tool that reads each, metric kinds, short-video days, installations, deletions |
+| `gauge_data_availability` | categories with counts, first/last reading and the tool that reads each (`habits/social_time` → `gauge_social_time`, `habits/short_video` → `gauge_short_video`), metric kinds, short-video days, installations, deletions |
 | `gauge_metric_series(kind, from, to, bucket?, cursor?, limit?)` | readings of one metric, oldest first in pages (`raw`: each with `id`, `quality` and `source`; `next` → `cursor`, never a silent cut) or hour/day mean/min/max over every reading |
 | `gauge_daily_summary(date)` | the day's activity (with the fused headline and the ring's `ringStepGoal`), the night that ends that morning (with its metrics), older on-device scores, per-metric stats with `medianGapS`, and `derived` (`day-metrics/1`): `peakHr` (highest held reading, spikes dropped; a lower bound), `nonExerciseHr` (sampled, never a resting HR), `avgWorkoutHr` |
 | `gauge_sleep(from, to)` | sessions by day of waking (from 19:00 counts toward the next day), stage minutes and blocks; packets go on one minute grid, `unknown` is only what the ring marked unknown and `noDataMinutes` (blocks `no_data`) the gaps between packets. Each session is `primary` (the day's most known-asleep minutes) or a `nap` and carries `metrics` (`sleep-metrics/1`, below). (r071) A night the ring recorded in parts is one `primary` session: the parts of a night, with a wake break of an hour to 3 h between them inside 21:00 to 12:00 (local), join; the asleep minutes add up, the break stays a `no_data` block and is listed in `awakeBreaks` (`start`, `end`, `minutes`), and a daytime nap, an evening doze or sleep more than 3 h away stays its own session. `recordedWindowMinutes` replaces `inBedMinutes` (kept one release); `efficiencyPercent` is legacy and never shown |
 | `gauge_activity(from, to)` | daily steps (the day's latest total, not the max), distance, calories (ring app estimate, method stated), active minutes, the ring's bucket sums (minute detail first, legacy buckets where none covers them) and `fusedHeadline` / `fusedLocated` (`steps-fuse/1`); hourly step buckets for ranges up to 7 days |
 | `gauge_scores(from, to, key?)` | older on-device scores and insights with unit, confidence, algorithm version, inputs; every entry `legacy: true` |
 | `gauge_device_state()` | latest battery, connection, device, firmware, wear, sync and measurement state per installation |
-| `gauge_short_video(from, to)` | the phone's count of Reels/Shorts watched per day (counts only, never content): per-app counts, total, limit, limit hits, cancels; 7- and 30-day means of the days with data ending at `to` |
+| `gauge_short_video(from, to)` | **legacy** (the accessibility counter the banking apps detected; kept for history): the phone's count of Reels/Shorts watched per day (counts only, never content): per-app counts, total, limit, limit hits, cancels; 7- and 30-day means of the days with data ending at `to` |
+| `gauge_social_time(from, to)` | time per local day in social/short-video apps, measured by the phone's Usage access (durations only, never content), `{ from, to, tz, days: [{ date, totalSeconds, perApp, targetMinMinutes, targetMaxMinutes }], source }`; supersedes `gauge_short_video` |
 | `gauge_workouts(from, to)` | recorded workouts that overlap the range, newest version of each: start, end, pauses, type, source, moving time, distance, kcal with `kcalMethod` / `energyBasis` ("ring app estimate (method …)"), average/max heart rate, ring app's legacy zone seconds, steps, route polyline; totals count overlapping sessions once |
 | `gauge_steps(from, to)` | fused steps (`steps-fuse/1`, at most 62 days): intervals with source, lineage, support, `selectionReason`, alternatives and `disagreement`; per day `located`, `ringDailyTotal`, `ringResidual` (unlocated), `phoneDailyTotal`, `headline` (`atLeast` until the ring's detail is complete) and coverage minutes |
 | `gauge_timeline(date)` | the local day minute by minute (1440; 1380/1500 on a DST change), null where unknown: fused steps (with the person's fusion context) and each minute's `steps.support` (`minute` where `selected` holds a minute unit's count, `coarse` across a coarse unit, null where nothing was selected), per-source steps, heart rate (time-weighted with a declared cadence, else the minute's sampled mean; `hr.source` names each minute's source: ring app first, Health Connect HeartRate only in minutes ring app has no reading of), Health Connect speed and power (`hc`, null without any), `evidence` (which sources each stream used: lineage, minutes, cadence, records, `verified: false` for power), sleep stages, workouts, Health Connect exercise, acquisition, the day's stress readings. With no store yet it answers the same full shape, every minute null |
@@ -317,7 +325,8 @@ bad value, 400 `bad_request` for an unknown or repeated parameter, 503 when the 
 | `/v1/gauge/activity?from=&to=` | `gauge_activity` |
 | `/v1/gauge/scores?from=&to=&key=` | `gauge_scores` |
 | `/v1/gauge/device` | `gauge_device_state` |
-| `/v1/gauge/short-video?from=&to=` | `gauge_short_video` |
+| `/v1/gauge/short-video?from=&to=` | `gauge_short_video` (legacy) |
+| `/v1/gauge/social-time?from=&to=&tz=` | `gauge_social_time` |
 | `/v1/gauge/workouts?from=&to=` | `gauge_workouts` |
 | `/v1/gauge/steps?from=&to=` | `gauge_steps` |
 | `/v1/gauge/timeline?date=` | `gauge_timeline` |

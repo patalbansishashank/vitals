@@ -360,6 +360,8 @@ object HubSync {
                 settings,
                 PrefsHubSourceCursor(context, HubHealthConnectSource.CURSOR_KEY),
             ),
+            // Social time: whole-app foreground minutes from Usage access, as `habits/social_time` (durations only).
+            com.pulseloop.social.SocialTimeSource.create(context),
         )
     }
 

@@ -4,6 +4,7 @@ import com.pulseloop.data.PulseLoopDatabase
 import com.pulseloop.hub.HubSettingsSource
 import com.pulseloop.ring.RingBLEClient
 import com.pulseloop.shortvideo.ShortVideoPrefs
+import com.pulseloop.social.SocialPrefs
 import com.pulseloop.util.TimeUtil
 import java.time.Instant
 import java.time.LocalDate
@@ -72,6 +73,7 @@ object EngineSignals {
         link: Flow<RingBLEClient.BLEState>,
         hub: HubSettingsSource,
         videoPrefs: Flow<ShortVideoPrefs>,
+        socialPrefs: Flow<SocialPrefs>,
         zone: () -> ZoneId = ZoneId::systemDefault,
         days: Flow<LocalDate> = localDays(zone = zone),
     ): Flow<Unit> = merge(
@@ -84,10 +86,12 @@ object EngineSignals {
         db.hubOutboxDao().pendingCountFlow().map { },
         db.deviceDao().currentFlow().map { },
         videoPrefs.map { },
+        socialPrefs.map { },
         // what is counted per day follows the phone's date over midnight
         days.flatMapLatest { day ->
             merge(
                 db.shortVideoDao().rangeFlow(day.toString(), day.toString()).map { },
+                db.socialTimeDao().rangeFlow(day.toString(), day.toString()).map { },
                 EngineReadings.stepsChanges(db, day, zone()),
             )
         },

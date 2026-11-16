@@ -82,6 +82,7 @@ function offlineServer(): RingApi {
     scores: none,
     device: none,
     shortVideo: none,
+    socialTime: none,
     workouts: none,
     series: none,
     steps: none,
@@ -203,12 +204,12 @@ describe('Today without a plan (Planning mode)', () => {
     renderAt('/today');
     await screen.findByRole('heading', { level: 1, name: 'Today' }, { timeout: 8000 });
     // Optional signals and activity cards remain available through the library in quiet mode.
-    await addCards('Signals', 'Short videos', 'Heart Points', "Today's activities");
+    await addCards('Signals', 'Social time', 'Heart Points', "Today's activities");
     const names = [
       'Sleep',
       RING_TODAY_WORDS.steps,
       'Signals',
-      'Short videos',
+      'Social time',
       'Heart Points',
       'Today’s activities',
     ];

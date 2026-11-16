@@ -30,8 +30,10 @@ import { ServerError, getServerClient, type ServerClient } from './server';
 import { registerEraseHook } from '@/state/persistence';
 import { gaugeCacheStore, gaugeSnapshotShape, persistGaugeQuery, type GaugeCacheStore, type GaugeCacheEntry } from './gaugeCache';
 import { GAUGE_MAX_IN_FLIGHT, createGaugeQueue, type GaugeLane, type GaugePriority } from './gaugeQueue';
+import type { GaugeSocialTime } from './gaugeSocial';
 
 export type { GaugePriority } from './gaugeQueue';
+export type { GaugeSocialTime, GaugeSocialTimeDay, SocialAppKey } from './gaugeSocial';
 
 /* ---- the tools' JSON ------------------------------------------------------------------------------------------- */
 
@@ -931,6 +933,12 @@ export interface GaugeApi {
   scores(from: string, to: string, key?: string, opts?: GaugeCallOptions): Promise<GaugeScores | null>;
   device(opts?: GaugeCallOptions): Promise<GaugeDeviceState | null>;
   shortVideo(from: string, to: string, opts?: GaugeCallOptions): Promise<GaugeShortVideo | null>;
+  /**
+   * (social-time) `GET /v1/gauge/social-time`: whole-app foreground time across the social apps, per local day. Null when
+   * this device is not paired or the server could not answer (or has no such route: `status().problem` is `not_supported`).
+   * Optional so an older client or a test fake without it still type-checks; the screens read it through a guard.
+   */
+  socialTime?(from: string, to: string, opts?: GaugeCallOptions): Promise<GaugeSocialTime | null>;
   workouts(from: string, to: string, opts?: GaugeCallOptions): Promise<GaugeWorkouts | null>;
   status(): GaugeStatus;
   /** Listeners hear every status change. */
@@ -1875,6 +1883,7 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
     scores: (from, to, key, o) => get<GaugeScores>('/v1/gauge/scores', { from, to, key }, o),
     device: (o) => get<GaugeDeviceState>('/v1/gauge/device', {}, o),
     shortVideo: (from, to, o) => get<GaugeShortVideo>('/v1/gauge/short-video', { from, to }, o),
+    socialTime: (from, to, o) => get<GaugeSocialTime>('/v1/gauge/social-time', { from, to }, o),
     workouts: (from, to, o) => get<GaugeWorkouts>('/v1/gauge/workouts', { from, to }, o),
     steps: (from, to, o) => get<GaugeSteps>('/v1/gauge/steps', { from, to }, o),
     stepsFuse,
@@ -1900,7 +1909,7 @@ export function createGaugeApi(opts: { server?: Server | (() => Server); now?: (
     },
   };
   // Method argument positions are explicit; status/control methods are never made into cache reads.
-  const optionAt: Record<string, number> = { availability: 0, series: 1, daily: 1, sleep: 2, activity: 2, scores: 3, device: 0, shortVideo: 2, workouts: 2, steps: 2, stepsFuse: 1, timeline: 1, baselines: 1, hc: 3, hrIntervals: 2, changes: 1, changesState: 1, detections: 1, fusionContext: 1 };
+  const optionAt: Record<string, number> = { availability: 0, series: 1, daily: 1, sleep: 2, activity: 2, scores: 3, device: 0, shortVideo: 2, socialTime: 2, workouts: 2, steps: 2, stepsFuse: 1, timeline: 1, baselines: 1, hc: 3, hrIntervals: 2, changes: 1, changesState: 1, detections: 1, fusionContext: 1 };
   function view(options: InternalCallOptions): GaugeApi & GaugeV2Api {
     let readStatus: GaugeStatus = { lastOkAt: status.lastOkAt, problem: null };
     const tracked: InternalCallOptions = { ...options,

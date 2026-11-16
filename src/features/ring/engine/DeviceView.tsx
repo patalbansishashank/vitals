@@ -20,7 +20,7 @@ import {
   Spinner,
   Stack,
 } from '@/components';
-import { gaugeEngine, RING_STATE_WORD, ringAuthenticationPending, ringCredentialIssue, ringDataReady, type EngineState, type MeasureKind } from '@/platform/gaugeEngine';
+import { gaugeEngine, RING_STATE_WORD, ringAuthenticationPending, ringCredentialIssue, ringDataReady, socialActive, type EngineState, type MeasureKind } from '@/platform/gaugeEngine';
 import { engine, isBusy, useGaugeEngine } from '@/state/gaugeEngine';
 import { useQuietMode } from '@/state/settingsStore';
 import { quietAge } from '../quiet';
@@ -62,7 +62,7 @@ export function DeviceView() {
                 title={C.permissionsTitle}
                 info={{
                   title: 'Permissions',
-                  body: 'What Vitals needs on this phone to talk to the ring and count short videos. A runtime permission asks in place; accessibility and battery settings open Android settings. The short-video limit is optional and only needed if you use it.',
+                  body: 'What Vitals needs on this phone to talk to the ring and to measure social time. Allow asks in place. Usage access and battery open Android settings. Usage access lets Vitals see how long the social apps you chose are open; it is only needed while social time is on.',
                   source: { kind: 'phone', words: 'Android permission and settings state.' },
                 }}
               />
@@ -73,7 +73,7 @@ export function DeviceView() {
               withStatus
               items={PERMISSION_KEYS.map((key) => ({
                 key,
-                optional: key === 'shortVideoAccessibility' && !s.shortVideo.enabled,
+                optional: key === 'usageAccess' && !socialActive(s),
               }))}
             />
           </GradientCard>

@@ -14,6 +14,13 @@ export const useActivity = (from: string, to: string) => useGauge(`activity:${fr
 export const useScores = (from: string, to: string, key?: string) => useGauge(`scores:${from}:${to}:${key ?? ''}`, (a) => a.scores(from, to, key));
 export const useDevice = () => useGauge('device', (a) => a.device());
 export const useShortVideo = (from: string, to: string) => useGauge(`short-video:${from}:${to}`, (a) => a.shortVideo(from, to));
+/**
+ * (social-time) `GET /v1/gauge/social-time`: whole-app foreground time across the social apps, per local day. It goes
+ * through `useGauge` like the other daily reads, so it shares the cache, limiter and freshness. Unavailable on a server
+ * (or client) without the route, where the screens show the provisional local number or say they need the phone.
+ */
+export const useSocialTime = (from: string, to: string) =>
+  useGauge(`social-time:${from}:${to}`, (a) => (a.socialTime ? a.socialTime(from, to) : Promise.resolve(null)));
 export const useWorkouts = (from: string, to: string) => useGauge(`workouts:${from}:${to}`, (a) => a.workouts(from, to));
 export const useSeries = (kind: string, from: string, to: string, bucket: GaugeBucket) =>
   useGauge(`series:${kind}:${from}:${to}:${bucket}`, (a) => a.series({ kind, from, to, bucket }));

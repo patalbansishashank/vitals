@@ -53,7 +53,7 @@ describe('Ring screens: overview', () => {
     expect(
       await within(header()).findByRole('button', { name: 'Ring connected, battery 64 %' }),
     ).toBeInTheDocument();
-    for (const t of ['Day score', 'Activity', 'Sleep', 'Signals', 'Short videos', 'Ring'])
+    for (const t of ['Day score', 'Activity', 'Sleep', 'Signals', 'Social time', 'Ring'])
       expect(
         await screen.findByRole('heading', { level: 2, name: t }, { timeout: 5000 }),
       ).toBeInTheDocument();

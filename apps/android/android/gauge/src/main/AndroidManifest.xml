@@ -25,10 +25,15 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
-    <!-- The always-on ring notice, ring battery alerts and the short-video capsule (Android 13+). -->
+    <!-- The always-on ring notice and ring battery alerts (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Android 16 Live Updates: the short-video capsule as a promoted ongoing notification. -->
-    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+
+    <!-- Social time (SPEC social-time): whole-app foreground time through Usage access, which banking and payment apps
+         do not police — unlike an accessibility service, which they refuse to run alongside. The person turns it on in
+         the system's Usage-access screen; it is never requested silently. tools:ignore because it is a signature/
+         privileged permission an ordinary app declares but is granted by the user in Settings, not at install. -->
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- The ring link and the phone's step counter run in a foreground service; a recording's in another. Android 14+
          pairs the "health" type with ACTIVITY_RECOGNITION, which the service adds only once it is granted. -->
@@ -136,20 +141,9 @@
             </intent-filter>
         </activity-alias>
 
-        <!-- The short-video counter: Instagram Reels and YouTube Shorts only (its config names the two packages). Vitals
-             shows what it reads before sending the owner to turn it on. -->
-        <service
-            android:name="com.pulseloop.shortvideo.ShortVideoAccessibilityService"
-            android:exported="true"
-            android:label="@string/short_video_service_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/short_video_accessibility_service" />
-        </service>
+        <!-- Social time (SPEC social-time, 2026-11-16): the short-video accessibility service was removed. Vitals no
+             longer declares any accessibility service, so banking and payment apps (GPay and others) run normally.
+             Foreground time is measured through Usage access (PACKAGE_USAGE_STATS) instead. -->
     </application>
 
     <!-- Health Connect: its provider app (a separate APK below Android 14) and the rationale action. -->

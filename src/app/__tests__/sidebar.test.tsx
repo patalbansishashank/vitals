@@ -154,7 +154,7 @@ describe('the desktop sidebar (SPEC §8.2, r068 U14)', () => {
     expect(within(sidebar()).getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page').map((a) => a.getAttribute('aria-label'))).toEqual(['activity']);
   });
 
-  it.each(['/ring', '/ring/sleep', '/ring/scores', '/ring/signals/hrv', '/ring/short-videos', '/ring/device'])('Ring is the current row on %s, and no other row is', (path) => {
+  it.each(['/ring', '/ring/sleep', '/ring/scores', '/ring/signals/hrv', '/ring/social', '/ring/device'])('Ring is the current row on %s, and no other row is', (path) => {
     appMode.mode = 'living';
     renderSidebar(path);
     expect(within(sidebar()).getAllByRole('link').filter((a) => a.getAttribute('aria-current') === 'page').map((a) => a.getAttribute('aria-label'))).toEqual(['ring']);

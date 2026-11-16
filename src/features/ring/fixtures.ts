@@ -29,6 +29,8 @@ import type {
   GaugeSeriesQuery,
   GaugeShortVideo,
   GaugeShortVideoDay,
+  GaugeSocialTime,
+  GaugeSocialTimeDay,
   GaugeSleep,
   GaugeStats,
   GaugeSleepSession,
@@ -702,6 +704,42 @@ export function makeGaugeFixture(opts: GaugeFixtureOptions = {}): GaugeApi {
     return { from: f, to: t, units: { counts: 'videos per day' }, days: list, averages: { last7Days: avg(7), last30Days: avg(30) }, ...prov(uploadMs) };
   }
 
+  // --- social time: whole-app foreground seconds across the social apps, against a 30–45 min target
+  const SOCIAL_SEED: Array<[string, number]> = [
+    ['instagram', 1.0],
+    ['youtube', 0.8],
+    ['reddit', 0.5],
+    ['twitter', 0.35],
+    ['tiktok', 0.3],
+    ['snapchat', 0.2],
+    ['facebook', 0.15],
+  ];
+  function socialTimeOn(date: string): GaugeSocialTimeDay | null {
+    if (!inRange(date)) return null;
+    const r = rng(`social:${date}`);
+    const scale = date === today ? Math.min(1, (now - midnight(date)) / DAY) * 1.1 : 1;
+    const perApp: Record<string, number> = {};
+    let total = 0;
+    for (const [key, weight] of SOCIAL_SEED) {
+      if (r() > 0.45 + weight * 0.4) continue;
+      const mins = Math.round((4 + r() * 16) * weight * scale);
+      if (mins <= 0) continue;
+      const seconds = mins * 60 + Math.round(r() * 59);
+      perApp[key] = seconds;
+      total += seconds;
+    }
+    return { date, totalSeconds: total, perApp, targetMinMinutes: 30, targetMaxMinutes: 45 };
+  }
+
+  function socialTime(from: string, to: string): GaugeSocialTime {
+    const f = localDay(when(from, 'start'));
+    const t = localDay(when(to, 'end'));
+    const list = days(f, t)
+      .map(socialTimeOn)
+      .filter((d): d is GaugeSocialTimeDay => !!d);
+    return { from: f, to: t, tz, days: list, source: 'usage_access' };
+  }
+
   // --- the day summary, with S2's `derived` block and the median reading gaps
   function derivedOn(date: string): GaugeDayDerived {
     const ts = times('hr', midnight(date), midnight(addDays(date, 1)) - 1);
@@ -940,6 +978,7 @@ export function makeGaugeFixture(opts: GaugeFixtureOptions = {}): GaugeApi {
     scores: async (f, t, k) => scores(f, t, k),
     device: async () => device(),
     shortVideo: async (f, t) => shortVideo(f, t),
+    socialTime: async (f, t) => socialTime(f, t),
     workouts: async (f, t) => workouts(f, t),
   };
   if (!v2) return api;

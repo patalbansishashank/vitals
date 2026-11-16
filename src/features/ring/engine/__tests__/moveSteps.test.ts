@@ -1,7 +1,7 @@
 /** (r070) The move card's step logic: which step, from the engine's state alone. */
 import { describe, expect, it } from 'vitest';
 import { movePlan } from '../moveSteps';
-import { baseState } from './fakeEngine';
+import { baseState, socialState } from './fakeEngine';
 
 const passive = (pending: number | null, installed = true) =>
   baseState({ mode: 'passive', gauge: { installed, pendingUploads: pending } });
@@ -42,6 +42,7 @@ describe('move steps', () => {
 
   it('step 3 after the take-over, for as long as something the ring needs is missing', () => {
     const s = baseState({
+      social: socialState(true),
       permissions: {
         ...baseState().permissions,
         bluetooth: 'denied',
@@ -59,7 +60,7 @@ describe('move steps', () => {
       ['healthConnect', false],
       ['activityRecognition', true],
       ['notifications', true],
-      ['shortVideoAccessibility', true],
+      ['usageAccess', true],
       ['batteryUnrestricted', false],
     ]);
   });
@@ -68,21 +69,23 @@ describe('move steps', () => {
     expect(movePlan(baseState()).show).toBe(false);
   });
 
-  it('the short-video accessibility row is optional until the limit is on', () => {
-    const off = baseState({
-      shortVideo: { enabled: false, dailyLimit: null, today: { instagram: 0, youtube: 0 } },
-      permissions: { ...baseState().permissions, shortVideoAccessibility: false },
-    });
+  it('the Usage access row is optional until social time is on', () => {
+    // social time off (no app counted): listed, optional, never keeps the card up
+    const off = baseState({ social: socialState(false, []) });
     expect(movePlan(off).show).toBe(false);
-    const on = baseState({ permissions: { ...baseState().permissions, shortVideoAccessibility: false } });
+    const on = baseState({ social: socialState(false) });
     const p = movePlan(on);
     expect(p.show).toBe(true);
-    expect(p.items.find((i) => i.key === 'shortVideoAccessibility')).toMatchObject({
-      ok: false,
-      optional: false,
-    });
+    expect(p.items.find((i) => i.key === 'usageAccess')).toMatchObject({ ok: false, optional: false });
     // while moving it is listed and marked optional, but never blocks the take-over step
     const moving = movePlan({ ...off, mode: 'passive', gauge: { installed: true, pendingUploads: 0 } });
-    expect(moving.items.find((i) => i.key === 'shortVideoAccessibility')?.optional).toBe(true);
+    expect(moving.items.find((i) => i.key === 'usageAccess')?.optional).toBe(true);
+  });
+
+  it('an older native build (no social state) is never asked for Usage access', () => {
+    const old = baseState();
+    expect(movePlan(old).show).toBe(false);
+    const moving = movePlan({ ...old, mode: 'passive', gauge: { installed: true, pendingUploads: 0 } });
+    expect(moving.items.find((i) => i.key === 'usageAccess')).toMatchObject({ ok: false, optional: true });
   });
 });

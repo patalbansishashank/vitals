@@ -13,7 +13,7 @@ import {
 import { changesSince, FEED_LIMIT, FEED_MAX_LIMIT, parseCursor, parseSubjectRefs, STATE_MAX_REFS, subjectStates } from './changeFeed.ts';
 import { contextFor, contextKeyOf, type FusionContextPart, type FusionContextUpdate, type StoredFusionContext } from './fusionContext.ts';
 import { HR_SUPPORT_VERSION, median, medianGapS, sampleSupports, supportSegments } from './hrSupport.ts';
-import { HC_RECORD_TYPES, instantMs, LumenReadError, READ_MAX_LIMIT, type HcRecordType, type InstallationRow, type LumenStore, type MetricSample } from './lumenStore.ts';
+import { HC_RECORD_TYPES, instantMs, LumenReadError, READ_MAX_LIMIT, socialTimeDate, socialTimeWindow, SOCIAL_SUBJECT_PREFIX, type HcRecordType, type InstallationRow, type LumenStore, type MetricSample } from './lumenStore.ts';
 import { SLEEP_METRIC_STATUS, SLEEP_METRICS_VERSION, type SleepMetrics, type Stage } from './sleepMetrics.ts';
 import { DEFAULT_PREFERENCE, FUSION_REVISION, FUSION_VERSION, type ActivityKind, type FusionContext, type StepLineage } from './stepFusion.ts';
 import { buildTimeline, emptyTimeline } from './timeline.ts';
@@ -273,6 +273,8 @@ export const LUMEN_TOOLS: readonly McpToolDescriptor[] = [
   tool('gauge_device_state', 'Ring device state', 'The latest state the phone reported per installation: ring battery, connection, device type and capabilities, firmware, whether it is worn, sync stage and the last measurement.', { type: 'object', properties: { ...TZ_ARG }, additionalProperties: false }),
   tool('gauge_short_video', 'Phone short videos', 'The phone\'s count of short-form videos (Reels/Shorts) watched per day — counts only, never content; separate from Vitals\' manual logs. Per day (the phone\'s local date): count per app (instagram, youtube), total, the daily limit the person set, how often the limit was hit and how often they cancelled; plus 7-day and 30-day averages of the days with data ending at `to`.', range(),
     'Phone data, counted by the ring app on the person\'s phone, not by the ring. Vitals combines logs with ring and phone readings: Vitals\' own manual logs are entered by hand; say which source each number comes from. Read-only.'),
+  tool('gauge_social_time', 'Phone social time', 'Time the person spent in social and short-video apps per day, measured by the phone\'s usage access — durations only, never content; separate from Vitals\' manual logs. Per day (the phone\'s local date): total seconds, seconds per app (instagram, youtube, facebook, snapchat, x, reddit, tiktok) and the daily target band (targetMinMinutes–targetMaxMinutes). Supersedes gauge_short_video, which stays for the older per-video counts.', range(),
+    'Phone data, measured by the phone\'s usage access, not by the ring. Vitals combines logs with ring and phone readings: Vitals\' own manual logs are entered by hand; say which source each number comes from. Read-only.'),
   tool('gauge_workouts', 'Phone-recorded workouts', `Workouts the person recorded with the ring app (type such as walk or run, where it came from), one entry per session that overlaps the range, the latest version of each: start, end, pauses, moving time (s), distance (m), calories (kcal, phone estimate with its method), average and max heart rate (bpm), seconds per heart-rate zone (older on-device 220 − age zones), steps, and the GPS route as an encoded polyline with its point count (for maps; no need to decode it); plus totals that count overlapping sessions once. ${RANGE_NOTE}`, range()),
   tool('gauge_steps', 'Fused steps', `Steps fused across the ring, the phone and Health Connect (steps-fuse/1): one source chosen per interval (never the larger, never a sum), each interval with its source, lineage, support, the reason it was chosen and the alternatives; per day the located total, the ring's daily total and its unlocated rest, the headline (at least / located) and coverage minutes. ${RANGE_NOTE} At most 62 days. Without its own context it uses the person's (what Vitals last sent the server). Optional context (what Vitals sends from its approved activities and settings): activities (approved bouts by step behaviour: inside a nonLocomotor one the phone is taken if observed, else the ring flagged nonLocomotorSuspect; a locomotor bout with unknown carry needs sustained gait evidence before phone steps displace a walking ring; explicit pocket or hand/desk carry wins), corrections (the person's "use phone" / "use ring" for an interval) and preference (the lineage order and the inferred-gait switch). Sustained direct phone gait with repeated wrist stalls can win despite complete ring coverage; ordinary disagreement keeps the configured preference and is flagged.`, range(STEPS_CONTEXT_ARGS)),
   tool('gauge_timeline', 'Ring day timeline', 'One local day minute by minute (1440 entries; 1380 or 1500 on a DST change), null where nothing is known: fused steps (with the person\'s approved activities, corrections and step settings) with each minute\'s support (minute or coarse) and each source\'s own, heart rate (time-weighted where a cadence is declared, otherwise the minute\'s sampled mean; the ring\'s first, Health Connect\'s only where the ring has none, each minute naming its source), Health Connect speed and power, which evidence each stream used, sleep stages, recorded workouts and Health Connect exercise, phone acquisition and the ring\'s step coverage, and the day\'s stress readings.', DATE_ARG('')),
@@ -347,6 +349,8 @@ export interface UsedContext {
 export interface ProvenanceStamp {
   installationIds: string[] | null;
   lastObservedMs: number | null;
+  /** The measurement `source` the answer reports (default `lumen_health`); kept on the stamp so a re-stamped (cached) answer matches the fresh one byte for byte. */
+  source?: string;
 }
 
 /** The part of the person's stored fusion context a fused read of `fromDate`..`toDate` uses (its widened read included). */
@@ -361,9 +365,9 @@ function storedContext(c: Ctx, fromDate: string, toDate: string): FusionContextP
 /** The `inputsHash` version entry naming the context a result used (none without one). */
 const contextVersion = (ctx: { contextKey?: string }) => (ctx.contextKey ? [`context:${ctx.contextKey}`] : []);
 
-/** The installations a result drew on (all of them when it names none), and how fresh the data is. */
-function provenance(c: Ctx, installationIds: Iterable<string> | null, lastObservedMs: number | null) {
-  c.stamp = { installationIds: installationIds ? [...new Set(installationIds)] : null, lastObservedMs };
+/** The installations a result drew on (all of them when it names none), how fresh the data is, and its `source`. */
+function provenance(c: Ctx, installationIds: Iterable<string> | null, lastObservedMs: number | null, source?: string) {
+  c.stamp = { installationIds: installationIds ? [...new Set(installationIds)] : null, lastObservedMs, source };
   return provenanceOf(c.store?.installations() ?? [], c.tz, c.now, c.stamp);
 }
 
@@ -378,7 +382,7 @@ export function provenanceOf(all: readonly InstallationRow[], tz: string, now: n
   const ingestMs = lastIngest ? Date.parse(lastIngest) : null;
   const lastObservedMs = stamp.lastObservedMs;
   return {
-    source: 'lumen_health' as const,
+    source: stamp.source ?? 'lumen_health',
     timeZone: tz,
     installations: used.map((i: InstallationRow) => ({ id: i.id, deviceName: i.deviceName, appVersion: i.appVersion, app: i.app, status: i.status, supersededBy: i.supersededBy, lastUploadAt: i.lastIngestAt ? isoIn(Date.parse(i.lastIngestAt), tz) : null })),
     freshness: {
@@ -785,6 +789,58 @@ function shortVideo(c: Ctx, args: Record<string, unknown>): ToolResultEnvelope {
     ...provenance(c, new Set(shown.map((x) => x.installation_id)), maxOf(shown.map((x) => x.observed_ms))),
   };
   return ok(days.length ? `Phone short-video counts for ${days.length} day${days.length === 1 ? '' : 's'} from ${fromDate} to ${toDate}.` : `No Phone short-video counts from ${fromDate} to ${toDate}.`, data);
+}
+
+// --- social time (phone usage access; supersedes short videos)
+
+/** The measurement source reported when the server holds no social-time day of its own. */
+const SOCIAL_SOURCE_DEFAULT = 'usage_access';
+interface SocialRow { subject: string; observed_ms: number; installation_id: string; data: string }
+
+function socialDay(row: SocialRow) {
+  const d = parseJson(row.data);
+  const data = isObjOf(d) ? d : {};
+  const perApp: Record<string, number> = {};
+  if (isObjOf(data.perApp)) for (const [k, v] of Object.entries(data.perApp)) if (num(v) !== null) perApp[k] = v as number;
+  return {
+    date: socialTimeDate(row.subject)!,
+    totalSeconds: num(data.totalSeconds) ?? 0,
+    perApp,
+    targetMinMinutes: num(data.targetMinMinutes),
+    targetMaxMinutes: num(data.targetMaxMinutes),
+    source: typeof data.source === 'string' ? data.source : null,
+  };
+}
+
+/**
+ * (social-time) Time in social/short-video apps per local day, measured by the phone's usage access. One row per date
+ * (the newest version of `habits/social_time`, subject `social_time:<date>`), durations only. The read is kept and
+ * invalidated in date-space (`socialTimeWindow`), so an upload for one date drops only that date's kept answers.
+ */
+function socialTime(c: Ctx, args: Record<string, unknown>): ToolResultEnvelope {
+  const r = rangeOf(args, c.tz);
+  if (typeof r === 'string') return rejected('invalid_input', r);
+  const fromDate = localDate(r.from, c.tz);
+  const toDate = localDate(r.to, c.tz);
+  const base = { from: fromDate, to: toDate };
+  const day = (d: ReturnType<typeof socialDay>) => ({ date: d.date, totalSeconds: d.totalSeconds, perApp: d.perApp, targetMinMinutes: d.targetMinMinutes, targetMaxMinutes: d.targetMaxMinutes });
+  if (!c.store) return ok(NO_DATA, { ...base, days: [], ...provenance(c, [], null, SOCIAL_SOURCE_DEFAULT) });
+  const win = socialTimeWindow(fromDate, toDate)!;
+  const rows = readWindow(win[0], win[1], eventKind('habits/social_time'), () =>
+    c.store!.all<SocialRow>(`SELECT subject, observed_ms, installation_id, data FROM (
+        SELECT subject, observed_ms, installation_id, data,
+          ROW_NUMBER() OVER (PARTITION BY subject ORDER BY received_ms DESC, ingested_ms DESC, seq DESC) AS day_rank
+        FROM visible_events WHERE category = 'habits/social_time' AND subject >= ? AND subject <= ?
+      ) WHERE day_rank = 1 ORDER BY subject`, `${SOCIAL_SUBJECT_PREFIX}${fromDate}`, `${SOCIAL_SUBJECT_PREFIX}${toDate}`));
+  const all = rows.map(socialDay);
+  // the measurement source of the newest day present (they all share it), else the usual default
+  const newest = rows.reduce<SocialRow | null>((best, x) => (!best || x.observed_ms > best.observed_ms ? x : best), null);
+  const source = (newest && socialDay(newest).source) || SOCIAL_SOURCE_DEFAULT;
+  const data = {
+    ...base, days: all.map(day),
+    ...provenance(c, new Set(rows.map((x) => x.installation_id)), maxOf(rows.map((x) => x.observed_ms)), source),
+  };
+  return ok(all.length ? `Phone social time for ${all.length} day${all.length === 1 ? '' : 's'} from ${fromDate} to ${toDate}.` : `No Phone social time from ${fromDate} to ${toDate}.`, data);
 }
 
 // --- workouts
@@ -1320,7 +1376,7 @@ function availability(c: Ctx): ToolResultEnvelope {
   // event_state is the materialised visibility (one covering index scan, no per-row deletion check)
   const rows = c.store.all<{ category: string; n: number; first: number; last: number }>('SELECT category, COUNT(*) AS n, MIN(observed_ms) AS first, MAX(observed_ms) AS last FROM event_state WHERE hidden = 0 GROUP BY category ORDER BY category');
   const tools: Record<string, string> = { metrics: 'gauge_metric_series', vendor: 'gauge_metric_series', activity: 'gauge_activity', sleep: 'gauge_sleep', insights: 'gauge_scores', state: 'gauge_device_state', habits: 'gauge_short_video' };
-  const exact: Record<string, string> = { 'activity/session': 'gauge_workouts', 'phone/activity_transition': 'gauge_detections', 'phone/activity_recognition_acquisition': 'gauge_detections' };
+  const exact: Record<string, string> = { 'habits/social_time': 'gauge_social_time', 'habits/short_video': 'gauge_short_video', 'activity/session': 'gauge_workouts', 'phone/activity_transition': 'gauge_detections', 'phone/activity_recognition_acquisition': 'gauge_detections' };
   const categories = rows.map((r) => ({ category: r.category, count: r.n, firstReadingAt: isoIn(r.first, c.tz), lastReadingAt: isoIn(r.last, c.tz), readWith: exact[r.category] ?? tools[r.category.split('/')[0]!] ?? null }));
   const deletions = c.store.get<{ n: number }>('SELECT COUNT(*) AS n FROM deletions')?.n ?? 0;
   const shortVideoDays = c.store.get<{ n: number }>('SELECT COUNT(*) AS n FROM short_video_days')?.n ?? 0;
@@ -1397,6 +1453,8 @@ function dispatch(name: string, args: Record<string, unknown>, c: Ctx): ToolResu
             return deviceState(c);
           case 'gauge_short_video':
             return shortVideo(c, args);
+          case 'gauge_social_time':
+            return socialTime(c, args);
           case 'gauge_workouts':
             return workouts(c, args);
           case 'gauge_steps':

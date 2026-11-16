@@ -4,6 +4,25 @@ All notable changes to Vitals. Dates are release dates (IST).
 
 ## Unreleased
 
+## [0.9.0] - 2026-11-16
+
+### Changed
+- **Social time replaces the short-video counter.** Vitals now measures how long the social apps you choose are open
+  each day (Instagram, YouTube, Facebook, Snapchat, X, Reddit and TikTok by default; change them in Settings ›
+  Social time), against a daily budget of 30 to 45 minutes you can adjust. It reads this through Android's Usage
+  access, not an accessibility service. It counts whole-app time, so time in Reels or Shorts is no longer counted on
+  its own.
+- Payment and banking apps run again with Vitals installed. They refused to run while Vitals' accessibility service
+  was on; Vitals no longer has one.
+- The Ring overview and Today show Social time where Short videos used to be. Old links to short videos open Social
+  time.
+- The phone's permission list asks for Usage access (only while Social time is on) instead of the accessibility
+  setting.
+
+### Needs your phone
+- Install the 0.9.0 Android app, then turn on Usage access for Vitals once when the Social time card asks. Until the
+  new app is installed, the old accessibility service stays on the phone.
+
 ## [0.8.8] - 2026-11-16
 
 0.8.7 reached the phone, the home server and the website, but its GitHub release was never built. 0.8.8 is that

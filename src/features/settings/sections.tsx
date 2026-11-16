@@ -28,6 +28,7 @@ export type SectionId =
   | 'safety'
   | 'heart'
   | 'steps'
+  | 'social'
   | 'kitchen'
   | 'supplements'
   | 'data'
@@ -47,6 +48,8 @@ export const SECTIONS: ReadonlyArray<{ id: SectionId; title: string }> = [
   { id: 'heart', title: 'Heart rate' },
   // energy SPEC D1/D3: which device's steps count and the day total (r068 S20: their own section, not under Heart rate)
   { id: 'steps', title: 'Steps' },
+  // (social-time) time in the social apps, measured on the phone
+  { id: 'social', title: 'Social time' },
   { id: 'kitchen', title: 'Kitchen' },
   { id: 'supplements', title: 'Supplements' },
   { id: 'data', title: 'Your data' },

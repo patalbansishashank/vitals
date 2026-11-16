@@ -4,7 +4,7 @@
  * column beside the open section (`variant="rail"`: compact rows, the open one selected, no values).
  */
 import { useSyncExternalStore, type ReactNode } from 'react';
-import { Bot, ChefHat, Database, Download, Eye, Footprints, HeartPulse, Info, LayoutGrid, Pill, RefreshCw, Ruler, ShieldCheck, Sparkles } from 'lucide-react';
+import { Bot, ChefHat, Database, Download, Eye, Footprints, HeartPulse, Hourglass, Info, LayoutGrid, Pill, RefreshCw, Ruler, ShieldCheck, Sparkles } from 'lucide-react';
 import { StatusDot, type IconComponent } from '@/components';
 import { getPreset } from '@/ai';
 import { onAiConfigChange, readAiConfig } from '@/commands/ai';
@@ -38,6 +38,7 @@ const ICON: Record<SectionId, IconComponent> = {
   appearance: Eye,
   heart: HeartPulse,
   steps: Footprints,
+  social: Hourglass,
   kitchen: ChefHat,
   supplements: Pill,
   data: Database,
@@ -53,7 +54,7 @@ const ICON: Record<SectionId, IconComponent> = {
 /** r068 S17: six groups by what a section is about; Safety sits with the general preferences, Install and About last. */
 export const GROUPS: ReadonlyArray<{ label: string; ids: readonly SectionId[] }> = [
   { label: 'General', ids: ['units', 'appearance', 'safety'] },
-  { label: 'Body and activity', ids: ['heart', 'steps'] },
+  { label: 'Body and activity', ids: ['heart', 'steps', 'social'] },
   { label: 'Food', ids: ['kitchen', 'supplements'] },
   { label: 'Data', ids: ['data', 'sync'] },
   { label: 'Coach and agents', ids: ['coach', 'agents'] },

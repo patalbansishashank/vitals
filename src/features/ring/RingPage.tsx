@@ -34,7 +34,7 @@ import { ScoresView } from './views/ScoresView';
 import { useRingDays } from './marks';
 import { MetricView } from './views/MetricView';
 import { RingStatusCapsule } from './views/RingStatusCard';
-import { ShortVideoView } from './views/ShortVideoView';
+import { SocialView } from './social/SocialView';
 import { WorkoutView, useWorkout } from './views/WorkoutView';
 import '@/features/living/living.css';
 import './ring.css';
@@ -64,7 +64,7 @@ export default function RingPage() {
   const date = coercePeriod(period, DAY_ONLY, today as LocalDate).from;
   if (pathname.startsWith('/ring/signals/')) return isRingMetric(kind) ? <MetricScreen kind={kind} date={date} /> : <Navigate to={ringPaths.root} replace />;
   if (pathname.startsWith('/ring/workouts/') && id) return <WorkoutScreen id={id} today={today} />;
-  if (pathname === '/ring/short-videos') return <ShortVideoScreen date={date} />;
+  if (pathname === '/ring/social') return <SocialScreen date={date} />;
   if (pathname === ringPaths.device) return <DeviceScreen />;
   const tab: RingTab = pathname === '/ring/sleep' ? 'sleep' : pathname === '/ring/scores' ? 'scores' : 'overview';
   return <RingTabs tab={tab} period={period} today={today} />;
@@ -151,16 +151,16 @@ function WorkoutScreen({ id, today }: { id: string; today: string }) {
   );
 }
 
-function ShortVideoScreen({ date }: { date: string }) {
+function SocialScreen({ date }: { date: string }) {
   const refresh = useRingRefresh();
   const lastSynced = useRingSynced();
   const synced = refresh.words ?? lastSynced;
   return (
     <>
-      <TopBar title={C.shortVideos} subtitle={synced} back={{ to: ringPaths.tab('overview', date), label: C.title }} menu={refresh.menu} />
+      <TopBar title={C.social.title} subtitle={synced} back={{ to: ringPaths.tab('overview', date), label: C.title }} menu={refresh.menu} />
       <Page stack className="rg-page">
         <Gate>
-          <ShortVideoView date={date} />
+          <SocialView date={date} />
         </Gate>
       </Page>
     </>

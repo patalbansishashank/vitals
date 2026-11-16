@@ -24,6 +24,10 @@ import com.pulseloop.shortvideo.ShortVideoPrefs
 import com.pulseloop.shortvideo.ShortVideoRepository
 import com.pulseloop.shortvideo.ShortVideoRuntime
 import com.pulseloop.shortvideo.ShortVideoSettings
+import com.pulseloop.social.SocialDaySummary
+import com.pulseloop.social.SocialPrefs
+import com.pulseloop.social.SocialSettings
+import com.pulseloop.social.SocialUsageAccess
 import java.time.Instant
 import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicInteger
@@ -53,7 +57,12 @@ object EngineStateReader {
         val mode = GaugeEngine.mode(app)
         val permissions = keptPermissions ?: permissions(app)
         val prefs = ShortVideoSettings.get(app).prefs.value
+        val socialPrefs = SocialSettings.get(app).prefs.value
+        val usageAccess = SocialUsageAccess.isGranted(app)
         if (mode != EngineMode.ACTIVE) {
+            // Passive opens no database (the "opens nothing while off" rule), so today is empty; the targets, enabled
+            // apps and the Usage-access grant still come through so the web can prompt before take-over.
+            val today = Instant.ofEpochMilli(System.currentTimeMillis()).atZone(zone).toLocalDate()
             return@withContext EngineState(
                 mode = mode,
                 gaugeInstalled = GaugeEngine.gaugeInstalled(app),
@@ -62,6 +71,7 @@ object EngineStateReader {
                 permissions = permissions,
                 upload = EngineState.Upload(),
                 shortVideo = EngineState.ShortVideo(prefs.enabled, EngineState.limitOf(prefs.enabled, prefs.dailyLimit)),
+                social = social(socialPrefs, usageAccess, SocialDaySummary.empty(today)),
             )
         }
         val db = PulseLoopDatabase.getInstance(app)
@@ -72,11 +82,23 @@ object EngineStateReader {
             ringPasswordSet = { runtime.apiKeyStore.ringPassword.isNotEmpty() },
             hub = HubSync.store(app),
             videoPrefs = prefs,
+            socialPrefs = socialPrefs,
+            usageAccess = usageAccess,
             permissions = permissions,
             now = System.currentTimeMillis(),
             zone = zone,
         )
     }
+
+    /** The social-time part of the state: the grant, today's totals, the target band and the apps counted. */
+    internal fun social(prefs: SocialPrefs, usageAccess: Boolean, today: SocialDaySummary): EngineState.Social =
+        EngineState.Social(
+            usageAccess = usageAccess,
+            today = EngineState.Social.Day(today.date.toString(), today.totalSeconds, today.perApp),
+            targetMinMinutes = prefs.targetMinMinutes,
+            targetMaxMinutes = prefs.targetMaxMinutes,
+            enabledApps = prefs.enabledKeys,
+        )
 
     /**
      * The state while the engine runs the ring, from what it holds: [link] is the link to the ring now, [hub] the
@@ -89,6 +111,8 @@ object EngineStateReader {
         ringPasswordSet: () -> Boolean,
         hub: HubSettingsSource,
         videoPrefs: ShortVideoPrefs,
+        socialPrefs: SocialPrefs,
+        usageAccess: Boolean,
         permissions: EngineState.Permissions,
         now: Long,
         zone: ZoneId,
@@ -102,6 +126,9 @@ object EngineStateReader {
         val videos = runCatching {
             ShortVideoDaySummary.of(date, db.shortVideoDao().day(date.toString()), videoPrefs.dailyLimit)
         }.getOrNull()
+        val socialToday = runCatching {
+            SocialDaySummary.of(date, db.socialTimeDao().day(date.toString()))
+        }.getOrNull() ?: SocialDaySummary.empty(date)
         return EngineState(
             mode = EngineMode.ACTIVE,
             gaugeInstalled = false,
@@ -131,6 +158,7 @@ object EngineStateReader {
                 instagram = videos?.count(ShortVideoApp.INSTAGRAM) ?: 0,
                 youtube = videos?.count(ShortVideoApp.YOUTUBE) ?: 0,
             ),
+            social = social(socialPrefs, usageAccess, socialToday),
             today = runCatching { EngineReadings.today(db, now, zone) }.getOrNull(),
             latestHr = runCatching { EngineReadings.latestHr(db) }.getOrNull(),
         )

@@ -15,7 +15,6 @@ import { entryValue, personal } from '../monitor/values';
 import { failureWords, measureWords, reelsWords, syncWords, updateWords } from '../commands';
 import { makeGaugeFixture } from '../fixtures';
 import { calendarDate, mainSession, shiftDate } from '../model';
-import { RING_COPY } from '../copy';
 import { stepsHeadlineOf } from '../day';
 import { lineModel, lineTwin } from '@/components';
 import { signalLine } from '../views/detailSeries';
@@ -619,13 +618,5 @@ describe('quiet words (no digits)', () => {
       quietSynced(new Date(now).toISOString(), now),
     ])
       expect(w).not.toMatch(/\d/);
-  });
-});
-
-describe('(r069) a short-video day The phone has not sent', () => {
-  it('today is "not sent yet", an earlier day "no count sent", never "nothing counted"', () => {
-    expect(RING_COPY.shortVideoNotSent(true)).toBe('The phone hasn’t sent today’s count yet.');
-    expect(RING_COPY.shortVideoNotSent(false)).toBe('The phone sent no count for this day.');
-    expect([RING_COPY.noShortVideos, RING_COPY.shortVideoNoneSent].join(' ')).not.toMatch(/counted/i);
   });
 });

@@ -1,7 +1,7 @@
 /*
  * The ring engine on this phone, Android app only (r070): the web side of the native `GaugeEngine` plugin (Kotlin,
- * apps/android). Gauge's engine moved into Vitals: it talks to the ring over Bluetooth, reads Health Connect, counts
- * short videos and uploads to the person's home server. While the separate Gauge app is still installed the engine is
+ * apps/android). Gauge's engine moved into Vitals: it talks to the ring over Bluetooth, reads Health Connect, measures
+ * social time and uploads to the person's home server. While the separate Gauge app is still installed the engine is
  * `passive` (Gauge owns the ring); after Gauge is uninstalled it is taken over (`needsTakeover` → `active`).
  *
  * Reached through the global the Capacitor bridge injects, like the other plugins here (`androidShell.ts`): the root app
@@ -41,17 +41,29 @@ export interface EngineState {
     healthConnect: Perm;
     activityRecognition: Perm;
     notifications: Perm;
-    shortVideoAccessibility: boolean;
     /**
-     * (r071) Android holds the short-video counter back until it is allowed in Vitals' App info (the "restricted setting" of an
-     * app that came onto the phone as a file): true when it does or this install is the kind it holds back, false when it does
-     * not, absent when the phone does not say. Only asked while the counter is off.
+     * Legacy (r071, gone with the short-video counter): an older native build may still send these. Nothing reads them;
+     * social time uses Usage access (`social.usageAccess`).
      */
+    shortVideoAccessibility?: boolean;
     shortVideoRestricted?: boolean;
     batteryUnrestricted: boolean;
   };
   upload: { paired: boolean; pending: number; lastSentAt?: string; lastError?: string };
   shortVideo: { enabled: boolean; dailyLimit: number | null; today: { instagram: number; youtube: number } };
+  /**
+   * (SPEC social-time) Foreground time in the chosen social apps, measured through Usage access (whole-app time, not
+   * per-reel). Everything optional: a phone on an older native build sends no `social` field, so an older-or-newer
+   * bridge still parses. `usageAccess` is the Usage-access grant; `today.perApp` holds only apps with time > 0 today
+   * (keys from the seven-app set); `enabledApps` are the keys currently counted; the target is the 30–45 band in minutes.
+   */
+  social?: {
+    usageAccess: boolean;
+    today: { date: string; totalSeconds: number; perApp: Record<string, number> };
+    targetMinMinutes: number;
+    targetMaxMinutes: number;
+    enabledApps: string[];
+  } | null;
 }
 
 export interface GaugeEnginePlugin {
@@ -71,6 +83,15 @@ export interface GaugeEnginePlugin {
   syncNow(): Promise<EngineState>;
   measure(o: { kind: MeasureKind }): Promise<{ started: boolean }>;
   setShortVideoLimit(o: { dailyLimit: number | null }): Promise<EngineState>;
+  /** (SPEC social-time) Open the system Usage-access screen so the person can grant it. Nothing is granted from the app. */
+  openUsageAccessSettings(): Promise<void>;
+  /** (SPEC social-time) Write any of the social-time settings; omitted fields are left unchanged. */
+  setSocialSettings(o: {
+    enabled?: boolean;
+    enabledApps?: string[];
+    targetMinMinutes?: number;
+    targetMaxMinutes?: number;
+  }): Promise<EngineState>;
 }
 
 /** The part of the injected `window.Capacitor` this module reads. */
@@ -117,7 +138,6 @@ export const UNAVAILABLE_STATE: EngineState = Object.freeze({
     healthConnect: 'unavailable',
     activityRecognition: 'unavailable',
     notifications: 'unavailable',
-    shortVideoAccessibility: false,
     batteryUnrestricted: false,
   },
   upload: { paired: false, pending: 0 },
@@ -151,6 +171,8 @@ export const engineStub: GaugeEnginePlugin = {
   syncNow: unavailable,
   measure: unavailable,
   setShortVideoLimit: unavailable,
+  openUsageAccessSettings: unavailable,
+  setSocialSettings: unavailable,
 };
 
 /** The real plugin, or the stub. */
@@ -168,39 +190,37 @@ export const RUNTIME_PERMISSIONS: readonly RuntimePermission[] = [
   'notifications',
 ];
 
-export type PermissionKey = RuntimePermission | 'shortVideoAccessibility' | 'batteryUnrestricted';
+export type PermissionKey = RuntimePermission | 'usageAccess' | 'batteryUnrestricted';
 
-/** The six things the ring needs from the phone, in checklist order. */
+/** The six things the ring and social time need from the phone, in checklist order. */
 export const PERMISSION_KEYS: readonly PermissionKey[] = [
   ...RUNTIME_PERMISSIONS,
-  'shortVideoAccessibility',
+  'usageAccess',
   'batteryUnrestricted',
 ];
 
-/** How one permission stands: granted, partly granted, or not (an `unavailable` one cannot be granted here). */
+/** (SPEC social-time) Social time is on: the phone sends `social` and at least one app is counted. */
+export const socialActive = (s: EngineState): boolean => {
+  const apps = s.social?.enabledApps;
+  return Array.isArray(apps) && apps.length > 0;
+};
+
+/**
+ * How one permission stands: granted, partly granted, or not (an `unavailable` one cannot be granted here). Usage access is
+ * not in `permissions`: it comes with the social-time state.
+ */
 export function permissionOk(s: EngineState, key: PermissionKey): boolean {
+  if (key === 'usageAccess') return s.social?.usageAccess === true;
   const v = s.permissions[key];
   return typeof v === 'boolean' ? v : v === 'granted';
 }
 
-/** The permissions not yet given. The short-video one counts only when the limit is on (it is optional otherwise). */
-export function permissionsMissing(s: EngineState): PermissionKey[] {
-  return PERMISSION_KEYS.filter(
-    (k) => !permissionOk(s, k) && (k !== 'shortVideoAccessibility' || s.shortVideo.enabled),
-  );
-}
-
 /**
- * (r071) Whether to show the "allow it first" guide for the short-video counter (`RestrictedGuide`): the counter is off, it is
- * wanted (the limit is on, or the person just went to the Accessibility settings to turn it on), and Android is known or likely
- * to hold it back (`shortVideoRestricted`) or the person went there (`asked`) and it is still off. Never when the phone says it is
- * not held back, nor when the counter is on.
+ * The permissions not yet given. Usage access counts only while social time is on (it is optional otherwise), and never on
+ * an older native build that sends no `social`.
  */
-export function showAllowGuide(s: EngineState, asked: boolean): boolean {
-  const p = s.permissions;
-  if (p.shortVideoAccessibility || p.shortVideoRestricted === false) return false;
-  if (!s.shortVideo.enabled && !asked) return false;
-  return p.shortVideoRestricted === true || asked;
+export function permissionsMissing(s: EngineState): PermissionKey[] {
+  return PERMISSION_KEYS.filter((k) => !permissionOk(s, k) && (k !== 'usageAccess' || socialActive(s)));
 }
 
 /** The `which` list for a runtime permission still to ask for. */

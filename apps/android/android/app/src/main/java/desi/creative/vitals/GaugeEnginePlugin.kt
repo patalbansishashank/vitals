@@ -37,6 +37,9 @@ import com.pulseloop.ring.WearableCapability
 import com.pulseloop.service.RingConnectionService
 import com.pulseloop.service.RingSyncCoordinator
 import com.pulseloop.shortvideo.ShortVideoSettings
+import com.pulseloop.social.SocialApp
+import com.pulseloop.social.SocialSettings
+import com.pulseloop.social.SocialUsageAccess
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -85,7 +88,8 @@ class GaugeEnginePlugin : Plugin() {
                 isActive = { GaugeEngine.isActive(app) },
             ) {
                 EngineSignals.active(
-                    PulseLoopDatabase.getInstance(app), ring().bleClient.state, HubSync.store(app), ShortVideoSettings.get(app).prefs,
+                    PulseLoopDatabase.getInstance(app), ring().bleClient.state, HubSync.store(app),
+                    ShortVideoSettings.get(app).prefs, SocialSettings.get(app).prefs,
                 )
             }.paced(EMIT_GAP_MS).collect { emit() }
         }
@@ -427,6 +431,41 @@ class GaugeEnginePlugin : Plugin() {
             if (limit == null) p.copy(enabled = false)
             // Vitals showed what the counter reads before sending the owner to the accessibility switch
             else p.copy(enabled = true, dailyLimit = limit.coerceIn(ShortVideoSettings.LIMIT_RANGE), disclosureAccepted = true)
+        }
+        GaugeEngine.notifyChanged()
+        resolveState(call)
+    }
+
+    // ---- social time ----
+
+    /**
+     * (SPEC social-time) The system Usage-access screen, where the person turns Usage access on for Vitals. Nothing is
+     * granted from here; the OS asks and the person allows it themselves.
+     */
+    @PluginMethod
+    fun openUsageAccessSettings(call: PluginCall) {
+        openScreen(call, SocialUsageAccess.settingsIntent(app))
+    }
+
+    /**
+     * (SPEC social-time) Read/write the social-time settings: on/off, the apps counted (keys), and the 30–45 target
+     * band. Only the fields present in the call are changed; unknown app keys are ignored. The settings object sanitises
+     * the band (both ends in range, min ≤ max).
+     */
+    @PluginMethod
+    fun setSocialSettings(call: PluginCall) = go(call) {
+        val enabled = if (call.data.has("enabled")) call.getBoolean("enabled") else null
+        val appsArray = call.getArray("enabledApps")
+        val enabledKeys = appsArray?.let { arr -> (0 until arr.length()).mapNotNull { arr.optString(it)?.takeIf { s -> s.isNotEmpty() } } }
+        val targetMin = if (call.data.has("targetMinMinutes")) call.getInt("targetMinMinutes") else null
+        val targetMax = if (call.data.has("targetMaxMinutes")) call.getInt("targetMaxMinutes") else null
+        SocialSettings.get(app).update { p ->
+            p.copy(
+                enabled = enabled ?: p.enabled,
+                enabledApps = enabledKeys?.mapNotNull(SocialApp::fromKey)?.toSet() ?: p.enabledApps,
+                targetMinMinutes = targetMin ?: p.targetMinMinutes,
+                targetMaxMinutes = targetMax ?: p.targetMaxMinutes,
+            )
         }
         GaugeEngine.notifyChanged()
         resolveState(call)

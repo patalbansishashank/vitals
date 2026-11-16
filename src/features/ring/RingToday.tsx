@@ -1,5 +1,5 @@
 /**
- * The ring on Today (r071). Today mounts these cards by name (`RingSleepToday`, `RingGlance`, `RingShortVideos`,
+ * The ring on Today (r071). Today mounts these cards by name (`RingSleepToday`, `RingGlance`, `RingSocialTime`,
  * `RingTodayNote`). Each opens the Ring section on the same day; each takes an `infoFooter` for the (i) panel's foot
  * ("Remove from Today"). Without a server or Gauge data they render nothing: the Ring section carries the empty state, and
  * the one slim note says why. Never an error wall.
@@ -7,17 +7,18 @@
  * - `RingSleepToday`: last night, compact (the number, a small hypnogram, the goal).
  * - `RingGlance`: the Signals card, heart rate now with HRV, blood oxygen and stress under it (the Ring Overview's name
  *   for the same readings). The Day score is its own card.
- * - `RingShortVideos`: the short-video count, where Gauge has counted some this week.
+ * - `RingSocialTime`: social time, where the phone has sent some this week or has today's total.
  */
 import type { ReactNode } from 'react';
 import { BluetoothOff, HeartPulse } from 'lucide-react';
 import { CardFoot, CardHead, GradientCard, KeyLink, MonoMeta } from '@/components';
 import { useServerPairing } from '@/features/settings/server/hooks';
+import { engineActive, useGaugeEngine } from '@/state/gaugeEngine';
 import { paths } from '@/app/paths';
 import { useQuietMode } from '@/state/settingsStore';
 import { RING_COPY as C } from './copy';
 import { gauge } from './api';
-import { useAvailability, useShortVideo, useTimeline } from './data';
+import { useAvailability, useSocialTime, useTimeline } from './data';
 import { useRingDay } from './day';
 import { RING_DOMAIN } from './domains';
 import { noteInfo, signalsInfo } from './info/overview';
@@ -33,7 +34,7 @@ import { statusWord } from './signalWords';
 import { MeasureKey } from './components/MeasureKey';
 import { Loading, useUnitPrefs } from './components/parts';
 import { SignalHero, SignalRow, pickHero, signalStatus } from './components/SignalRows';
-import { ShortVideoCard } from './views/ShortVideoCard';
+import { SocialCard } from './social/SocialCard';
 import { SleepCard } from './views/SleepCard';
 import './views/overview.css';
 
@@ -277,9 +278,15 @@ function GlanceCard({ date, today, infoFooter }: { date: string; today: string; 
   );
 }
 
-/** The short-video card where Gauge has counted some this week; nothing otherwise (Today never nags). */
-export function RingShortVideos({ date, infoFooter }: { date: string; infoFooter?: ReactNode }) {
-  const q = useShortVideo(shiftDate(date, -6), date);
-  if (q.status !== 'ready' || !q.data.days.length) return null;
-  return <ShortVideoCard date={date} compact infoFooter={infoFooter} />;
+/**
+ * (social-time) The Social time card where the phone has sent some this week, or the engine has today's local total;
+ * nothing otherwise (Today never nags).
+ */
+export function RingSocialTime({ date, infoFooter }: { date: string; infoFooter?: ReactNode }) {
+  const q = useSocialTime(shiftDate(date, -6), date);
+  const eng = useGaugeEngine();
+  const hasLocal = engineActive(eng) && !!(eng.state as { social?: { today?: unknown } } | null)?.social?.today;
+  if (q.status !== 'ready' && !hasLocal) return null;
+  if (q.status === 'ready' && !q.data.days.length && !hasLocal) return null;
+  return <SocialCard date={date} compact infoFooter={infoFooter} />;
 }

@@ -40,7 +40,7 @@ class CoachRemovalMigrationTest {
         SQLiteDatabase.openDatabase(context.getDatabasePath(name).path, null, SQLiteDatabase.OPEN_READWRITE).use { it.version = 34 }
 
         val migrated = Room.databaseBuilder(context, PulseLoopDatabase::class.java, name)
-            .addMigrations(PulseLoopDatabase.MIGRATION_34_35, PulseLoopDatabase.MIGRATION_35_36, PulseLoopDatabase.MIGRATION_36_37).allowMainThreadQueries().build()
+            .addMigrations(PulseLoopDatabase.MIGRATION_34_35, PulseLoopDatabase.MIGRATION_35_36, PulseLoopDatabase.MIGRATION_36_37, PulseLoopDatabase.MIGRATION_37_38).allowMainThreadQueries().build()
         try {
             val db = migrated.openHelper.writableDatabase // Room validates the full current schema here.
             assertEquals(DATABASE_VERSION, db.version)
@@ -60,6 +60,6 @@ class CoachRemovalMigrationTest {
             if (i > 0) assertEquals("gap before v${m.startVersion}", chain[i - 1].endVersion, m.startVersion)
         }
         assertEquals(DATABASE_VERSION, chain.last().endVersion)
-        assertEquals(37, DATABASE_VERSION)
+        assertEquals(38, DATABASE_VERSION)
     }
 }

@@ -35,6 +35,7 @@ function demoApi(): RingApi {
     scores: (f, t, k) => load().then((a) => a.scores(f, t, k)),
     device: () => load().then((a) => a.device()),
     shortVideo: (f, t) => load().then((a) => a.shortVideo(f, t)),
+    socialTime: (f, t) => load().then((a) => a.socialTime!(f, t)),
     workouts: (f, t) => load().then((a) => a.workouts(f, t)),
     steps: (f, t) => load().then((a) => a.steps!(f, t)),
     timeline: (d) => load().then((a) => a.timeline!(d)),

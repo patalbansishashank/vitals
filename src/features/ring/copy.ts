@@ -164,30 +164,41 @@ export const RING_COPY = {
   checkUpdates: 'Check for updates',
   noDevice: 'The phone has not reported the ring yet.',
 
-  shortVideos: 'Short videos',
-  shortVideosOf: (n: string, limit: string) => `${n} of ${limit} today`,
-  videosOf: (limit: string) => `of ${limit} videos`,
   last7: 'Last 7 days',
-  limit: 'Daily limit',
-  countdown: 'Countdown',
   apps: 'Apps',
-  editLimit: 'Change limit',
-  limitSheet: 'Short-video limit',
   save: 'Save',
-  countdowns: (n: number, cancelled: number) => `${n} started, ${cancelled} cancelled`,
-  countdownsLabel: 'Countdowns',
-  cancelled: (n: number) => `${n} cancelled`,
-  appsLine: (apps: string | null) => (apps ? `Counts ${apps}` : 'Counts no app yet'),
-  averageDay: (n: string) => `${n} a day`,
+
   /**
-   * (r069) Gauge sends a day only once it has counted something on it, and its uploads stopped after 25 Oct (a session's
-   * end was dated from the phone's uptime clock), so a missing day is "not sent", never "nothing counted".
+   * (social-time) Social time: the whole-app foreground time across the social apps, against the person's daily target
+   * band. Quiet, non-judging voice; the apps and the band sit behind (i). Never shame.
    */
-  noShortVideos: 'The phone hasn’t sent short-video counts this week.',
-  shortVideoNotSent: (isToday: boolean) => (isToday ? 'The phone hasn’t sent today’s count yet.' : 'The phone sent no count for this day.'),
-  shortVideoNoneSent: 'The phone sent no counts for these days.',
-  avg7: '7-day average',
-  avg30: '30-day average',
+  social: {
+    title: 'Social time',
+    /** The hero's spoken/plain label: "28 min in social apps today". */
+    minutesIn: (n: string) => `${n} in social apps today`,
+    unit: 'min',
+    targetWord: 'Daily target',
+    /** The band's words (calm at or below the low edge, warming toward the high edge, over past it). */
+    within: 'Within your budget',
+    nearing: 'Near your budget',
+    over: 'Over your budget',
+    /** When the app has sent nothing for the day. */
+    notSent: (isToday: boolean) => (isToday ? 'No social time sent for today yet.' : 'No social time sent for this day.'),
+    noneWeek: 'No social time sent this week.',
+    /** The per-app split, named in the (i) panel. */
+    byApp: 'By app',
+    noApp: 'No time in these apps today.',
+    /** Usage access prompt (Android, when the grant is off). */
+    turnOnUsage: 'Turn on Usage access',
+    /** On web/desktop, where there is no phone. */
+    needsPhone: 'Social time is measured on your Android phone.',
+    /** Settings. */
+    enabledApps: 'Apps counted',
+    target: 'Daily target',
+    targetFrom: 'From',
+    targetTo: 'To',
+    on: 'Social time',
+  },
 
   heartRate: 'Heart rate',
   measure: 'Measure now',

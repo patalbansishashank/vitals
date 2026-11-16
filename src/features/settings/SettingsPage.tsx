@@ -29,6 +29,7 @@ import { KitchenSection } from './KitchenSection';
 import { InstallSettings } from './InstallSettings';
 import { HeartRateSection } from './heart/HeartRateSection';
 import { StepsSection } from './heart/StepsSection';
+import { SocialSection } from './social/SocialSection';
 import { WidgetsSettings } from '@/features/widgets/WidgetsSettings';
 import './settings.css';
 
@@ -52,6 +53,8 @@ function SectionBody({ id, coachOnServer }: { id: SectionId; coachOnServer: bool
       return <HeartRateSection />;
     case 'steps':
       return <StepsSection />;
+    case 'social':
+      return <SocialSection />;
     case 'kitchen':
       return <KitchenSection />;
     case 'supplements':

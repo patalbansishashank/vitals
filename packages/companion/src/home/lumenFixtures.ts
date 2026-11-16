@@ -57,6 +57,13 @@ export const deletion = (at: string, target: Record<string, unknown>, o: O = {})
 /** Gauge's short-video day: one event per local date, a newer one supersedes it (its id changes with its values). */
 export const shortVideo = (date: string, at: string, counts: Record<string, number>, v: { limit?: number; limitHits?: number; cancels?: number } = {}, o: O = {}) =>
   lumenEvent('habits/short_video', date, 'com.pulseloop.habits.short_video.v1', at, { date, counts, limit: v.limit ?? 20, limit_hits: v.limitHits ?? 0, cancels: v.cancels ?? 0 }, o);
+/** Gauge's social-time day (`habits/social_time`): time per app for one local date, measured by usage access; a newer upload supersedes it. */
+export const socialTime = (date: string, at: string, perApp: Record<string, number>, v: { apps?: string[]; targetMin?: number; targetMax?: number; source?: string; updatedAt?: number } = {}, o: O = {}) =>
+  lumenEvent('habits/social_time', `social_time:${date}`, 'com.pulseloop.habits.social_time.v1', at, {
+    date, tz: 'Asia/Kolkata', totalSeconds: Object.values(perApp).reduce((a, b) => a + b, 0), perApp,
+    apps: v.apps ?? ['instagram', 'youtube', 'facebook', 'snapchat', 'twitter', 'reddit', 'tiktok'],
+    targetMinMinutes: v.targetMin ?? 30, targetMaxMinutes: v.targetMax ?? 45, source: v.source ?? 'usage_access', updatedAt: v.updatedAt ?? Date.parse(at),
+  }, o);
 /** A workout Gauge recorded (`activity/session`): subject = the session id; a later version supersedes it. */
 export const workout = (session: string, at: string, values: Record<string, unknown> = {}, o: O = {}) =>
   lumenEvent('activity/session', session, 'com.pulseloop.activity.session.v1', at, {

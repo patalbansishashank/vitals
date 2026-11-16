@@ -194,13 +194,15 @@ describe('engine store', () => {
     expect(engineSnapshot().error).toBeNull();
   });
 
-  it('one tap per permission: a runtime one asks, the two settings ones open the system screen', async () => {
+  it('one tap per permission: a runtime one asks, Usage access and battery open the system screen', async () => {
     const { f } = start();
     await tick();
     await engine.fix('healthConnect');
     expect(f.plugin.requestPermissions).toHaveBeenCalledWith({ which: ['healthConnect'] });
-    await engine.fix('shortVideoAccessibility');
-    expect(f.plugin.openAccessibilitySettings).toHaveBeenCalledTimes(1);
+    await engine.fix('usageAccess');
+    expect(f.plugin.openUsageAccessSettings).toHaveBeenCalledTimes(1);
+    expect(f.plugin.openAccessibilitySettings).not.toHaveBeenCalled();
+    expect(f.plugin.requestPermissions).toHaveBeenCalledTimes(1);
     await engine.fix('batteryUnrestricted');
     expect(f.plugin.openBatterySettings).toHaveBeenCalledTimes(1);
     await engine.setLimit(null);
@@ -209,39 +211,19 @@ describe('engine store', () => {
     expect(f.plugin.measure).toHaveBeenCalledWith({ kind: 'spo2' });
   });
 
-  it('the app info is one tap, and a refusal becomes words', async () => {
+  it('a refused Usage access screen becomes words, under its own key', async () => {
     const { f } = start();
     await tick();
-    await engine.openAppInfo();
-    expect(f.plugin.openAppInfo).toHaveBeenCalledTimes(1);
-    f.plugin.openAppInfo.mockRejectedValueOnce(new Error('Could not open the settings screen.'));
-    await engine.openAppInfo();
-    expect(engineSnapshot().error).toEqual({ action: 'appInfo', message: 'Could not open the settings screen.' });
+    f.plugin.openUsageAccessSettings.mockRejectedValueOnce(new Error('Could not open the settings screen.'));
+    await engine.fix('usageAccess');
+    expect(engineSnapshot().error).toEqual({ action: 'permission:usageAccess', message: 'Could not open the settings screen.' });
   });
 
-  it('remembers that the person was sent to the Accessibility settings until the counter is on', async () => {
-    const { f } = start();
-    await tick();
-    const off = () => baseState({ permissions: { ...baseState().permissions, shortVideoAccessibility: false } });
-    f.set(off());
-    expect(engineSnapshot().accessAsked).toBe(false);
-    // the other fixes are not the counter
-    await engine.fix('batteryUnrestricted');
-    await engine.fix('bluetooth');
-    expect(engineSnapshot().accessAsked).toBe(false);
-    await engine.fix('shortVideoAccessibility');
-    expect(engineSnapshot().accessAsked).toBe(true);
-    f.set(off()); // back in the app, still off
-    expect(engineSnapshot().accessAsked).toBe(true);
-    f.set(baseState()); // on
-    expect(engineSnapshot().accessAsked).toBe(false);
-  });
-
-  it('remembers nothing where there is no engine', async () => {
+  it('does nothing where there is no engine', async () => {
     startGaugeEngine({ plugin: () => null, onPairing: () => () => undefined });
     await tick();
-    await engine.fix('shortVideoAccessibility');
-    expect(engineSnapshot().accessAsked).toBe(false);
+    await expect(engine.fix('usageAccess')).resolves.toBeUndefined();
+    expect(engineSnapshot().busy).toEqual([]);
   });
 
   it('uninstalling Gauge asks the plugin, then reads the state again', async () => {
