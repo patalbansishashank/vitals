@@ -4,7 +4,33 @@ All notable changes to Vitals. Dates are release dates (IST).
 
 ## Unreleased
 
+## [0.8.8] - 2026-11-16
+
+0.8.7 reached the phone, the home server and the website, but its GitHub release was never built. 0.8.8 is that
+release, with the fixes below.
+
+### Fixed
+- The app no longer gets turned away by its own server. The server's per-device limit was sized for reads that took
+  half a second; now that answers come back in milliseconds, one screen could use it up and see failed reads. The
+  limit fits a busy screen, and the app waits and tries once more when it is refused.
+- A ring card no longer waits forever when a weak connection stalls in the middle of an answer.
+- Between midnight and the day rollover (04:00), Today's ring and sleep cards open the day they show, not the new
+  calendar day.
+- Progress and Today no longer keep a reading from just before an upload for five minutes.
+- On Progress, the Steps and Heart Points cards link to "Open in Activity" instead of Ring.
+- Android (with the 0.8.7 app or newer): the Heart rate widget shows the phone's own reading before the server has
+  the day's summary, and the step count no longer risks counting the newest steps twice.
+- While the server restarts, its "try again shortly" answer reaches the app instead of looking like a lost
+  connection.
+
+### For developers
+- The ring engine's native-graphics tests run in a JVM of their own. Sharing a JVM with other tests made them fail
+  on GitHub's runners in about half the runs, which blocked the 0.8.7 release.
+
 ## [0.8.7] - 2026-11-16
+
+The GitHub release for 0.8.7 was not built (see 0.8.8). Everything below reached the phone, the home server and the
+website on 2026-11-15.
 
 ### Changed
 - Ring data loads much sooner. The home server keeps the answers it has already worked out and reuses them until new

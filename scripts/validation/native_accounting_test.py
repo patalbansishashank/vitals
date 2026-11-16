@@ -1,7 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
-from native_accounting import account, BROKER_CLASS, BROKER_TESTS
+from native_accounting import account, reports_for, BROKER_CLASS, BROKER_TESTS
 
 
 class NativeAccountingTests(unittest.TestCase):
@@ -22,6 +22,15 @@ class NativeAccountingTests(unittest.TestCase):
         for content in ('<skipped/>', '<failure message="bad"/>', '<error message="bad"/>'):
             result = self.report(f'<testsuite><testcase classname="safety" name="finite">{content}</testcase></testsuite>')
             self.assertTrue(result['problems'])
+
+    def test_isolated_companion_reports_are_counted_once_and_others_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for task, name in (('testDebugUnitTest', 'A'), ('testDebugUnitTestNativeGraphics', 'B'), ('testReleaseUnitTest', 'C')):
+                folder = root / 'gauge/build/test-results' / task
+                folder.mkdir(parents=True)
+                (folder / f'TEST-{name}.xml').write_text('<testsuite/>')
+            self.assertEqual([p.name for p in reports_for(root, 'gauge')], ['TEST-A.xml', 'TEST-B.xml'])
 
 
 if __name__ == '__main__':

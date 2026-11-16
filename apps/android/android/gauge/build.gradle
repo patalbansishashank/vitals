@@ -40,6 +40,33 @@ android {
     }
 }
 
+// Robolectric's native runtime opens its fonts jar as a zip file system once per JVM and never closes it, so a test in
+// native graphics mode fails with FileSystemAlreadyExistsException, then UnsatisfiedLinkError, when anything earlier in
+// the same JVM opened that jar. On GitHub's small runners that happened in about half the runs of r087. The
+// native-graphics tests therefore run first, in a JVM of their own, and their results land next to the others' so the
+// native accounting counts them (scripts/validation/native_accounting.py).
+def nativeGraphicsTests = ['**/IslandRenderTest.class']
+afterEvaluate {
+    def unit = tasks.named('testDebugUnitTest')
+    def isolated = tasks.register('testDebugUnitTestNativeGraphics', Test) {
+        description = 'Runs the native-graphics Robolectric tests in their own JVM.'
+        group = 'verification'
+        testClassesDirs = unit.get().testClassesDirs
+        classpath = unit.get().classpath
+        include nativeGraphicsTests
+        maxHeapSize = '2g'
+        systemProperties(unit.get().systemProperties)
+        jvmArgumentProviders.addAll(unit.get().jvmArgumentProviders)
+        javaLauncher = unit.get().javaLauncher
+        reports.junitXml.outputLocation = layout.buildDirectory.dir('test-results/testDebugUnitTestNativeGraphics')
+        reports.html.outputLocation = layout.buildDirectory.dir('reports/tests/testDebugUnitTestNativeGraphics')
+    }
+    unit.configure {
+        exclude nativeGraphicsTests
+        dependsOn isolated
+    }
+}
+
 kotlin {
     compilerOptions {
         jvmTarget = JvmTarget.JVM_21

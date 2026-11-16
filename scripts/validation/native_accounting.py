@@ -37,12 +37,18 @@ def account(paths):
     return {'counts': counts, 'exceptions': exceptions, 'problems': problems}
 
 
+def reports_for(root, module):
+    """JUnit reports of testDebugUnitTest and of its isolated companions (testDebugUnitTestNativeGraphics in
+    gauge/build.gradle runs the native-graphics tests in a JVM of their own)."""
+    return sorted((root / module / 'build/test-results').glob('testDebugUnitTest*/TEST-*.xml'))
+
+
 def main():
     root = Path('apps/android/android')
     paths = []
     missing = []
     for module in ('gauge', 'app'):
-        reports = list((root / module / 'build/test-results/testDebugUnitTest').glob('TEST-*.xml'))
+        reports = reports_for(root, module)
         paths.extend(reports)
         if not reports:
             missing.append(f'Missing {module} unit-test XML reports')
